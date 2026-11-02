@@ -132,6 +132,8 @@ export const Grill = Schema.Struct({
   parts: Schema.Array(Part),
   steps: Schema.Array(Step),
   next: Schema.Array(Schema.String),
+  // A squad grill gathers questions from several agents; only it lists by urgency.
+  kind: Schema.optionalKey(Schema.Literals(['decision', 'squad'])),
   refs: Schema.optionalKey(Schema.Record(Schema.String, Ref)),
   // When the refs' states were looked up.
   refsAt: Schema.optionalKey(Schema.String),
@@ -153,7 +155,17 @@ export const URGENCY_ORDER: ReadonlyArray<UrgencyLevel> = [
 ]
 
 export const usesUrgency = (grill: Grill): boolean =>
+  grill.kind === 'squad' &&
   grill.steps.some(step => step.question.urgency !== undefined)
+
+/** The issues the questions are about, in page order, each once. */
+export const issuesOf = (grill: Grill): ReadonlyArray<string> =>
+  Array.dedupeWith(
+    Array.flatMap(grill.steps, step =>
+      step.question.issue === undefined ? [] : [step.question.issue],
+    ),
+    (a, b) => a === b,
+  )
 
 export const urgencyOf = (question: Question): UrgencyLevel =>
   question.urgency ?? 'unset'

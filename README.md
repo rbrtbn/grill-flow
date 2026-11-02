@@ -38,15 +38,19 @@ The everyday kind: one decision, thought through in order. Start here.
 
 `examples/decision-sample.json` is a whole one.
 
+### Questions about issues
+
+Any grill can tie its questions to Linear issues or PRs. The concepts stay the default view, and
+the sidebar adds a second one that lists the same questions by issue. Each issue or PR named in
+the text links to it and shows its state on hover.
+
 ### A squad grill
 
 For a long-running multi-agent effort, where questions from several agents and issues pile up
 for one person. It adds, on top of the above:
 
-- **Urgency** on each question (blocking, soon, can wait, FYI), and a sidebar that lists by issue
-  or by urgency.
-- **References that link out.** Each Linear issue or PR named in the text links to it and shows
-  its state on hover.
+- **Urgency** on each question (blocking, soon, can wait, FYI), and a third sidebar view that
+  lists by urgency. Only a squad grill has it.
 - **Who asked**, with the asker's own row id, and **decided so far** from earlier rounds.
 
 ![A squad grill listed by issue, with a PR's state on hover](docs/screenshots/squad-by-issue.png)
@@ -60,9 +64,9 @@ for one person. It adds, on top of the above:
 - macOS or Linux.
 - [Bun](https://bun.sh) 1.3 or later. It runs the server, the build and the tests.
 - [Claude Code](https://claude.com/claude-code), for the `grill` skill the agent follows.
-- Herdr's `hc`, which carries your asks and answers into the agent's terminal. The agent runs in
-  a Herdr terminal so it has an address (`$HC_TERMINAL_ID`). Without it, Copy still puts your
-  reply on the clipboard to paste, but asks from the page don't reach the agent.
+- Optional: Herdr's `hc`. With the agent in a Herdr terminal, your asks and answers are typed
+  straight into it. Anywhere else, Claude desktop included, the agent runs `gf wait` in the
+  background and collects them from the page's store instead.
 
 ## Get started
 
@@ -83,14 +87,14 @@ claude plugin marketplace add "$PWD"
 claude plugin install grill-flow@grill-flow
 ```
 
-Then, in a Claude Code session running in a Herdr terminal, ask for a grill on grill-flow. The
-agent writes the grill to `grills/<id>.json`, loads it and gives you the link.
+Then ask an agent for a grill on grill-flow. It writes the grill to `grills/<id>.json`, loads
+it and gives you the link.
 
 To make it the default whenever you ask to be grilled, add this line to `~/.claude/CLAUDE.md`
 (or to one repo's `CLAUDE.md` for just that repo):
 
 ```markdown
-- When I ask to be grilled, or a skill runs a grill, put each round on a grill-flow page with the `grill-flow:grill` skill whenever this session runs in a Herdr terminal (`$HC_TERMINAL_ID` is set); otherwise grill in chat.
+- When I ask to be grilled, or a skill runs a grill, put each round on a grill-flow page with the `grill-flow:grill` skill.
 ```
 
 `bun run dev` serves the page and rebuilds it on every change to `src/`; an open page reloads

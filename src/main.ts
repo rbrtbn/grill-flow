@@ -31,6 +31,7 @@ export const LONG_CONCEPT = 6
 export const OVERVIEW = 'overview'
 // Pages the urgency sidebar adds beside the concepts: one per urgency, and the decided list.
 export const URGENCY_PAGE = 'urgency:'
+export const ISSUE_PAGE = 'issue:'
 export const DECIDED = 'decided'
 
 // MODEL
@@ -49,7 +50,7 @@ export const Side = Schema.Literals(['Talk', 'Map', 'None'])
 export type Side = typeof Side.Type
 
 /** How the left sidebar lists the questions: by concept (an issue, on a squad grill) or by urgency. */
-export const SidebarMode = Schema.Literals(['Concepts', 'Urgency'])
+export const SidebarMode = Schema.Literals(['Concepts', 'Issues', 'Urgency'])
 export type SidebarMode = typeof SidebarMode.Type
 
 export const Model = Schema.Struct({
@@ -232,6 +233,17 @@ const answered = (model: Model, question: string): Model =>
     maybeJustAnswered: () => Option.some(question),
   })
 
+/** Clears a pick and keeps the question open, so a choice made by mistake can be undone. */
+const unpicked = (model: Model, question: string): UpdateReturn =>
+  postEvent(
+    modifyFields(model, {
+      answers: Record.remove(question),
+      expanded: Record.set(question, true),
+      maybeJustAnswered: () => Option.none(),
+    }),
+    { kind: 'cleared', question },
+  )
+
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     CompletedLoadGrill: ({ result }) => settleLoad(model, result),
@@ -290,31 +302,41 @@ export const update = (model: Model, message: Message) =>
     }),
 
     SelectedOption: ({ question, key }) =>
-      postEvent(
-        answered(
-          modifyFields(model, { answers: Record.set(question, key) }),
-          question,
-        ),
-        {
-          kind: 'answered',
-          question,
-          key,
-        },
-      ),
+      Option.exists(
+        Record.get(model.answers, question),
+        picked => picked === key,
+      )
+        ? unpicked(model, question)
+        : postEvent(
+            answered(
+              modifyFields(model, { answers: Record.set(question, key) }),
+              question,
+            ),
+            {
+              kind: 'answered',
+              question,
+              key,
+            },
+          ),
 
     SelectedOwnAnswer: ({ question }) =>
-      postEvent(
-        answered(
-          modifyFields(model, { answers: Record.set(question, OWN) }),
-          question,
-        ),
-        {
-          kind: 'answered',
-          question,
-          key: OWN,
-          text: Option.getOrElse(Record.get(model.own, question), () => ''),
-        },
-      ),
+      Option.exists(
+        Record.get(model.answers, question),
+        picked => picked === OWN,
+      )
+        ? unpicked(model, question)
+        : postEvent(
+            answered(
+              modifyFields(model, { answers: Record.set(question, OWN) }),
+              question,
+            ),
+            {
+              kind: 'answered',
+              question,
+              key: OWN,
+              text: Option.getOrElse(Record.get(model.own, question), () => ''),
+            },
+          ),
 
     UpdatedOwnAnswer: ({ question, value }) => ({
       model: modifyFields(model, { own: Record.set(question, value) }),
@@ -330,11 +352,7 @@ export const update = (model: Model, message: Message) =>
           })
         : { model },
 
-    ClickedClearAnswer: ({ question }) =>
-      postEvent(modifyFields(model, { answers: Record.remove(question) }), {
-        kind: 'cleared',
-        question,
-      }),
+    ClickedClearAnswer: ({ question }) => unpicked(model, question),
 
     UpdatedNote: ({ question, value }) => ({
       model: modifyFields(model, { notes: Record.set(question, value) }),
@@ -1030,7 +1048,10 @@ const onScreenAbout = (): Option.Option<string> => {
 }
 
 const isConceptPage = (page: string): boolean =>
-  page !== OVERVIEW && page !== DECIDED && !page.startsWith(URGENCY_PAGE)
+  page !== OVERVIEW &&
+  page !== DECIDED &&
+  !page.startsWith(URGENCY_PAGE) &&
+  !page.startsWith(ISSUE_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
   // While Talk is open on a concept, its About follows what the reader scrolls to.

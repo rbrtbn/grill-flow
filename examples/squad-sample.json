@@ -6,38 +6,29 @@
   "entities": [],
   "terms": [],
   "intro": [
-    "A made-up squad lead's grill, to show urgency, issue references and who asked. Each concept is one Linear issue."
+    "A made-up squad lead's grill, to show urgency, issue references and who asked. The concepts are the default view; the sidebar also lists the same questions by issue or by urgency."
   ],
   "parts": [
     {
-      "id": "sqd-101",
-      "title": "Retry webhook deliveries",
-      "summary": "Webhooks retry with backoff instead of failing on the first error.",
-      "issue": "SQD-101"
+      "id": "no-lost-work",
+      "title": "Not losing work",
+      "summary": "What happens to a job or a delivery when something fails."
     },
     {
-      "id": "sqd-104",
-      "title": "Split the export job per tenant",
-      "summary": "The nightly export runs one job per tenant.",
-      "issue": "SQD-104"
+      "id": "timing",
+      "title": "When things run",
+      "summary": "Windows and removals that affect customers' days."
     },
     {
-      "id": "sqd-107",
-      "title": "Drop the legacy CSV importer",
-      "summary": "The old importer goes once nobody uses it.",
-      "issue": "SQD-107"
-    },
-    {
-      "id": "sqd-109",
-      "title": "Rate-limit the search API",
-      "summary": "Public search gets a per-key limit.",
-      "issue": "SQD-109"
+      "id": "limits",
+      "title": "Limits",
+      "summary": "How much a single key may ask of the API."
     }
   ],
   "steps": [
     {
       "id": "retry-ceiling",
-      "part": "sqd-101",
+      "part": "no-lost-work",
       "heading": "When a webhook gives up",
       "prose": [
         "PR #212 retries forever today. The receiver side has no dedupe, so every retry is a duplicate risk."
@@ -71,7 +62,7 @@
     },
     {
       "id": "dead-letters",
-      "part": "sqd-101",
+      "part": "no-lost-work",
       "heading": "Where a give-up goes",
       "prose": [
         "The reviewer on #212 found nowhere for a give-up to go."
@@ -107,7 +98,7 @@
     },
     {
       "id": "fan-out",
-      "part": "sqd-104",
+      "part": "no-lost-work",
       "heading": "One job or many",
       "prose": [
         "Draft PR #215 runs one job across all tenants, which ADR 0012 rules out."
@@ -141,7 +132,7 @@
     },
     {
       "id": "export-window",
-      "part": "sqd-104",
+      "part": "timing",
       "heading": "When exports run",
       "prose": [
         "Fan-out makes the window longer; nobody has asked to move it yet."
@@ -177,7 +168,7 @@
     },
     {
       "id": "importer",
-      "part": "sqd-107",
+      "part": "timing",
       "heading": "When the importer goes",
       "prose": [
         "Two tenants used it last month."
@@ -211,7 +202,7 @@
     },
     {
       "id": "limit",
-      "part": "sqd-109",
+      "part": "limits",
       "heading": "How hard to limit",
       "prose": [
         "No traffic data yet, so the number is a guess."
@@ -311,5 +302,6 @@
       "id": "D2",
       "text": "SQD-107 stays in triage until Q5 is answered (round 2)."
     }
-  ]
+  ],
+  "kind": "squad"
 }

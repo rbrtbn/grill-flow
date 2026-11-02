@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { replyText } from '../src/domain'
+import { askMessage } from './messages'
 import {
   ROOT,
   appendEvent,
@@ -22,7 +23,8 @@ const usage = `gf: grill-flow's agent-side commands
   gf revise <grill-id> <step-id | part:<part-id>> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
                                        or reply with a comment; a concept takes comments only
-  gf events <grill-id> [--since <id>]  the raw event log, one JSON line each`
+  gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
+  gf wait <grill-id> [--since <id>]    wait for new asks or a sent reply, print them, exit`
 
 const flag = (
   args: ReadonlyArray<string>,
@@ -160,6 +162,47 @@ switch (command) {
         JSON.stringify({ ...event, payload: JSON.parse(event.payload) }),
       ),
     )
+    break
+  }
+  case 'wait': {
+    // For a session hc can't reach, such as Claude desktop: run it in the background and
+    // answer what it prints, then run the `next:` line it ends with.
+    const grill = requireGrill(args[0])
+    const latest = () => events(db, grill.id).at(-1)?.id ?? 0
+    const since = Number(flag(args, '--since') ?? latest())
+    for (;;) {
+      const fresh = events(db, grill.id, since)
+      const answered = new Set(
+        snapshot(db, grill)
+          .asks.filter(ask => ask.answered)
+          .map(ask => ask.id),
+      )
+      const news = fresh.flatMap(event => {
+        const payload = JSON.parse(event.payload) as Record<string, unknown>
+        if (event.kind === 'asked' && !answered.has(event.id)) {
+          return [
+            askMessage(
+              grill.id,
+              String(payload.stepId),
+              event.id,
+              String(payload.text),
+            ),
+          ]
+        }
+        if (event.kind === 'sent' && payload.what === 'answers') {
+          return [String(payload.text)]
+        }
+        return []
+      })
+      if (news.length > 0) {
+        console.log(news.join('\n\n'))
+        console.log(
+          `\nnext: bun run --cwd ${ROOT} gf wait ${grill.id} --since ${fresh.at(-1)?.id ?? since}`,
+        )
+        break
+      }
+      await Bun.sleep(1000)
+    }
     break
   }
   default:

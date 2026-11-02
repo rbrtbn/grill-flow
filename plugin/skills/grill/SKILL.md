@@ -1,6 +1,6 @@
 ---
 name: grill
-description: Run a grill on a local grill-flow page, where the user reads the reasoning concept by concept, answers, asks for rewrites, and sends the reply back into this session. Use for a grill in a Herdr session on a machine with the grill-flow checkout, or when the user asks for grill-flow.
+description: Run a grill on a local grill-flow page, where the user reads the reasoning concept by concept, answers, asks for rewrites, and sends the reply back into this session. Use for a grill on a machine with the grill-flow checkout, or when the user asks for grill-flow.
 ---
 
 # Grill on grill-flow
@@ -24,13 +24,21 @@ Each round is a grill-flow page, and the chat carries the link.
 
 The checkout is `~/repos/rbrtbn/grill-flow`; a fork changes this line. Below,
 `gf` means `bun run --cwd <checkout> gf`. The server serves
-`http://127.0.0.1:4317` and types the user's asks and reply into your
-terminal through `hc send`, so it needs `$HC_TERMINAL_ID`. Without a Herdr
-terminal or the checkout, grill in chat instead.
+`http://127.0.0.1:4317`. Without the checkout, grill in chat instead.
+
+The user's asks and reply reach you one of two ways:
+
+- **In a Herdr terminal** (`$HC_TERMINAL_ID` is set): set the grill's
+  `session` to it, and the server types each ask and the reply into your
+  terminal through `hc send`.
+- **Anywhere else**, such as Claude desktop: set `session` to `""`, and the
+  server keeps them for you. After each load, run `gf wait <id>` in the
+  background. It exits with what arrived: asks with their `gf revise`
+  commands, or the reply. Handle it, then run the `next:` line it ends with.
 
 ## Each round
 
-1. `gf up`. It starts the server under hc unless it already answers.
+1. `gf up`. It starts the server unless it already answers.
 2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill,
    below). Round 1 creates it; a later round edits the same file: add the new
    frontier with the next free ids, set `round` on each new question and on
@@ -42,11 +50,12 @@ terminal or the checkout, grill in chat instead.
    keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
    the round and how many questions are open. The questions live on the page.
-5. Wait for the reply. The round is done when it arrives.
+5. Wait for the reply, with `gf wait` running when there's no `session`. The
+   round is done when the reply arrives.
 
 ## Reading the reply
 
-Send types the reply into your terminal in one of two forms:
+Send delivers the reply in one of two forms:
 
 ```
 Round 3: all recommended (Q7 a, Q8 a, Q9 a)
@@ -70,8 +79,8 @@ same reply as it stands, plus asks still waiting.
 
 ## Asks from the page
 
-An ask arrives typed into your terminal as `[grill-flow] Ask on <id>, step
-<step-id> (ask N): ...`, with the exact `gf revise` command to answer it.
+An ask arrives as `[grill-flow] Ask on <id>, step <step-id> (ask N): ...`,
+with the exact `gf revise` command to answer it.
 Answer each one while the user is still on the page:
 
 1. Look the facts up, by subagent when it takes more than a read or two.
@@ -109,22 +118,28 @@ well:
 - `terms` is a short glossary of words the reasoning leans on, underlined
   where each first appears. `entities` are the names that recur (hosts,
   sessions, services), each with a colour `tone`.
-- `session` is `$HC_TERMINAL_ID`. `next` says what the answers unblock.
+- `session` is `$HC_TERMINAL_ID`, or `""` without one. `next` says what the
+  answers unblock.
 
-A grill that gathers questions across issues, such as a squad lead's, adds:
+When questions are about Linear issues or PRs, any grill can add:
 
-- One part per Linear issue, with `issue` set to its `refs` key.
-- `urgency` on each question: `blocking`, `soon`, `wait` or `fyi`. The
-  sidebar then lists by issue or by urgency, most urgent first, and a
-  question without one ranks right after `blocking`.
-- `issue`, `from` and `row` on each question: the issue it is about, who
-  asked (a `sources` key), and its id in the asker's rows.
+- `issue` on each question: the `refs` key of the issue it is about. Parts
+  stay concepts; the sidebar then also lists the questions by issue.
 - `refs`: every Linear id, PR or ADR the text names, as `{text, url, state,
   type}`, where `type` is Linear's state type or `pr`. Each mention links to
   `url` and shows its state on hover. Look the states up at every load and
   set `refsAt` to that time.
-- `sources`: each `from` name as `{text, link}`, and `decided`: the earlier
-  decisions as `{id, text}`, listed under Decided so far.
+- `decided`: the earlier decisions as `{id, text}`, listed under Decided so
+  far.
+
+A squad lead's grill, gathering questions from several agents, also sets
+`kind: "squad"` and adds:
+
+- `urgency` on each question: `blocking`, `soon`, `wait` or `fyi`. Only a
+  squad grill lists by urgency, most urgent first, and a question without one
+  ranks right after `blocking`.
+- `from` and `row` on each question: who asked (a `sources` key) and its id in
+  the asker's rows, with `sources` giving each name as `{text, link}`.
 
 ## Finishing
 

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, normalize } from 'node:path'
 
 import { OWN, replyText } from '../src/domain'
+import { askMessage } from './messages'
 import {
   ROOT,
   appendEvent,
@@ -99,10 +100,15 @@ const asset = (pathname: string): Response => {
 }
 
 // hc types the text into the agent's terminal and presses Enter, as if Rob had typed it.
+// A grill without a session has no terminal to type into: its asks and answers stay in the
+// store for the agent to collect with `gf wait`.
 const sendToSession = async (
   session: string,
   text: string,
 ): Promise<{ ok: boolean; detail: string }> => {
+  if (session === '') {
+    return { ok: true, detail: 'left for the agent to pick up' }
+  }
   try {
     const child = Bun.spawn(['hc', 'send', session, text], {
       stdout: 'pipe',
@@ -125,26 +131,6 @@ const sendToSession = async (
 
 const sessionFor = (grillSession: string): string =>
   process.env.GF_SESSION ?? grillSession
-
-const askMessage = (
-  grillId: string,
-  stepId: string,
-  askId: number,
-  text: string,
-): string =>
-  stepId.startsWith('part:')
-    ? [
-        `[grill-flow] Ask on ${grillId}, the whole concept ${stepId.slice(5)} (ask ${askId}): ${text}`,
-        `Answer it on the page: write your reply to a file, then run`,
-        `bun run --cwd ${ROOT} gf revise ${grillId} ${stepId} --ask ${askId} --kind comment --file <path>`,
-        `(to rewrite a step's reasoning as well, run the same with that step's id and --kind rewrite).`,
-      ].join('\n')
-    : [
-        `[grill-flow] Ask on ${grillId}, step ${stepId} (ask ${askId}): ${text}`,
-        `Answer it on the page: write a rewrite of that step's prose, or a comment, to a file, then run`,
-        `bun run --cwd ${ROOT} gf revise ${grillId} ${stepId} --ask ${askId} --kind rewrite --file <path>`,
-        `(use --kind comment to reply in the conversation instead of rewriting it).`,
-      ].join('\n')
 
 const handleEvent = async (
   grillId: string,

@@ -13,6 +13,7 @@ import {
   withTerms,
   replyText,
   roundSteps,
+  issuesOf,
   urgencyRank,
   usesUrgency,
   segments,
@@ -339,5 +340,29 @@ describe('rounds', () => {
 
   it('keeps every question when none carries a round', () => {
     expect(roundSteps(grill)).toHaveLength(grill.steps.length)
+  })
+})
+
+describe('issues and urgency', () => {
+  const tag =
+    (issue: string, urgency?: 'blocking') =>
+    (step: (typeof grill.steps)[number]) => ({
+      ...step,
+      question: { ...step.question, issue, ...(urgency ? { urgency } : {}) },
+    })
+  const tagged = {
+    ...grill,
+    steps: grill.steps.map((step, index) =>
+      index < 3 ? tag(index === 1 ? 'SQD-2' : 'SQD-1', 'blocking')(step) : step,
+    ),
+  }
+
+  it('lists each issue once, in page order', () => {
+    expect(issuesOf(tagged)).toEqual(['SQD-1', 'SQD-2'])
+  })
+
+  it('lists by urgency only on a squad grill', () => {
+    expect(usesUrgency(tagged)).toBe(false)
+    expect(usesUrgency({ ...tagged, kind: 'squad' })).toBe(true)
   })
 })

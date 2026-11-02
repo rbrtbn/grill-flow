@@ -26,6 +26,7 @@ import {
   segments,
   statusOf,
   tally,
+  issuesOf,
   upstreamOf,
   urgencyOf,
   urgencyRank,
@@ -37,6 +38,7 @@ import type { Message as MessageType, Model } from './main'
 import {
   DECIDED,
   FillBox,
+  ISSUE_PAGE,
   LONG_CONCEPT,
   Message,
   OVERVIEW,
@@ -258,6 +260,9 @@ const stateClass = (model: Model, grill: Grill, id: string): string => {
 const stepOf = (grill: Grill, id: string): Option.Option<Step> =>
   Array.findFirst(grill.steps, step => step.question.id === id)
 
+const stepsAbout = (grill: Grill, issue: string): ReadonlyArray<Step> =>
+  grill.steps.filter(step => step.question.issue === issue)
+
 const stepsIn = (grill: Grill, partId: string): ReadonlyArray<Step> =>
   Array.filter(grill.steps, step => step.part === partId)
 
@@ -357,6 +362,10 @@ const currentPartOf = (model: Model, grill: Grill): Option.Option<Part> =>
 
 // PAGE
 
+/** Where Send delivers: the agent's terminal, or nowhere named when the agent collects it. */
+const toSession = (grill: Grill): string =>
+  grill.session === '' ? '' : ` to ${grill.session}`
+
 const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
   const maybePart = currentPartOf(model, grill)
@@ -381,11 +390,18 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 onNone: () =>
                   model.currentPart === DECIDED
                     ? decidedPageView(model, snapshot, h)
-                    : Option.match(urgencyPageOf(model), {
-                        onNone: () => overviewView(model, snapshot, h),
-                        onSome: level =>
-                          urgencyPageView(model, snapshot, level, h),
-                      }),
+                    : model.currentPart.startsWith(ISSUE_PAGE)
+                      ? issuePageView(
+                          model,
+                          snapshot,
+                          model.currentPart.slice(ISSUE_PAGE.length),
+                          h,
+                        )
+                      : Option.match(urgencyPageOf(model), {
+                          onNone: () => overviewView(model, snapshot, h),
+                          onSome: level =>
+                            urgencyPageView(model, snapshot, level, h),
+                        }),
                 onSome: part => conceptView(model, snapshot, part, h),
               }),
             ],
@@ -424,7 +440,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
         [
           h.h2(
             [h.Id('send-title')],
-            [`Send round ${grill.round} to ${grill.session}`],
+            [`Send round ${grill.round}${toSession(grill)}`],
           ),
           h.p(
             [h.Class('send-counts')],
@@ -499,7 +515,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   h.Disabled(isSending || counts.answered === 0),
                   h.OnClick(Message.ClickedConfirmSend()),
                 ],
-                [isSending ? 'Sending…' : `Send to ${grill.session}`],
+                [isSending ? 'Sending…' : `Send${toSession(grill)}`],
               ),
             ],
           ),
@@ -590,10 +606,12 @@ const topbarView = (
                     onNone: () =>
                       model.currentPart === DECIDED
                         ? 'Decided so far'
-                        : Option.match(urgencyPageOf(model), {
-                            onNone: () => 'Overview',
-                            onSome: level => URGENCY_WORDS[level],
-                          }),
+                        : model.currentPart.startsWith(ISSUE_PAGE)
+                          ? model.currentPart.slice(ISSUE_PAGE.length)
+                          : Option.match(urgencyPageOf(model), {
+                              onNone: () => 'Overview',
+                              onSome: level => URGENCY_WORDS[level],
+                            }),
                     onSome: part => part.title,
                   }),
                 ],
@@ -644,7 +662,7 @@ const topbarView = (
                   ? ['Sending…']
                   : [
                       'Send',
-                      h.span([h.Class('wide-only')], [` to ${grill.session}`]),
+                      h.span([h.Class('wide-only')], [toSession(grill)]),
                     ],
               ),
             ],
@@ -664,8 +682,13 @@ const topbarView = (
 
 const navView = (model: Model, grill: Grill, h: H): Html => {
   const hasUrgency = usesUrgency(grill)
-  const byIssue = grill.parts.some(part => part.issue !== undefined)
-  const mode = hasUrgency ? model.sidebar : 'Concepts'
+  const issues = issuesOf(grill)
+  const modes = [
+    'Concepts' as const,
+    ...(issues.length > 0 ? ['Issues' as const] : []),
+    ...(hasUrgency ? ['Urgency' as const] : []),
+  ]
+  const mode = modes.includes(model.sidebar) ? model.sidebar : 'Concepts'
   const item = (pageId: string, content: ReadonlyArray<Html>): Html =>
     h.keyed('button')(
       pageId,
@@ -676,7 +699,10 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
       ],
       content,
     )
-  const modeChoice = (choice: 'Concepts' | 'Urgency', label: string) =>
+  const modeChoice = (
+    choice: 'Concepts' | 'Issues' | 'Urgency',
+    label: string,
+  ) =>
     h.button(
       [
         h.Class(`side-choice${mode === choice ? ' is-active' : ''}`),
@@ -690,17 +716,7 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
   ).length
   const decidedCount = (grill.decided?.length ?? 0) + answeredCount
   const conceptItems = () => {
-    const ordered = hasUrgency
-      ? Array.sort(grill.parts, (a: Part, b: Part) => {
-          const rank = (part: Part) =>
-            Option.match(worstUrgency(model, grill, stepsIn(grill, part.id)), {
-              onNone: () => URGENCY_ORDER.length,
-              onSome: level => URGENCY_ORDER.indexOf(level),
-            })
-          return Math.sign(rank(a) - rank(b)) as -1 | 0 | 1
-        })
-      : grill.parts
-    return Array.map(ordered, part => {
+    return Array.map(grill.parts, part => {
       const steps = stepsIn(grill, part.id)
       const ids = Array.map(steps, step => step.question.id)
       const decided = Array.filter(
@@ -755,27 +771,73 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
         h.span([h.Class('concept-count')], [`${count} to answer`]),
       ])
     })
+  const issueItems = () => {
+    const ordered = hasUrgency
+      ? Array.sort(issues, (a: string, b: string) => {
+          const rank = (key: string) =>
+            Option.match(worstUrgency(model, grill, stepsAbout(grill, key)), {
+              onNone: () => URGENCY_ORDER.length,
+              onSome: level => URGENCY_ORDER.indexOf(level),
+            })
+          return Math.sign(rank(a) - rank(b)) as -1 | 0 | 1
+        })
+      : issues
+    return Array.map(ordered, key => {
+      const steps = stepsAbout(grill, key)
+      const ref = grill.refs?.[key]
+      const decided = steps.filter(
+        step => statusIn(model, grill, step.question.id)._tag === 'Answered',
+      ).length
+      return item(`${ISSUE_PAGE}${key}`, [
+        h.span(
+          [h.Class('concept-name')],
+          [
+            hasUrgency
+              ? Option.match(worstUrgency(model, grill, steps), {
+                  onNone: () => h.span([h.Class('urgency u-none')]),
+                  onSome: level => urgencyDot(level, h),
+                })
+              : h.empty,
+            refLabel(grill, key, h),
+            ref?.text ?? '',
+          ],
+        ),
+        h.span(
+          [h.Class('concept-count')],
+          [
+            `${ref?.state === undefined ? '' : `${ref.state} · `}${decided} of ${steps.length} decided`,
+          ],
+        ),
+      ])
+    })
+  }
+  const labels = {
+    Concepts: 'Concepts',
+    Issues: 'Issues',
+    Urgency: 'Urgency',
+  } as const
   return h.nav(
     [h.Class('concepts'), h.AriaLabel('Concepts')],
     [
-      hasUrgency
+      modes.length > 1
         ? h.div(
             [
               h.Class('side-switch nav-mode'),
               h.Role('group'),
               h.AriaLabel('List questions'),
             ],
-            [
-              modeChoice('Concepts', byIssue ? 'By issue' : 'By concept'),
-              modeChoice('Urgency', 'By urgency'),
-            ],
+            Array.map(modes, choice => modeChoice(choice, labels[choice])),
           )
         : h.empty,
       item(OVERVIEW, [
         h.span([h.Class('concept-name')], ['Overview']),
         h.span([h.Class('concept-count')], ['What this is about']),
       ]),
-      ...(mode === 'Urgency' ? urgencyItems() : conceptItems()),
+      ...(mode === 'Urgency'
+        ? urgencyItems()
+        : mode === 'Issues'
+          ? issueItems()
+          : conceptItems()),
       hasUrgency || grill.decided !== undefined
         ? item(DECIDED, [
             h.span([h.Class('concept-name')], ['Decided so far']),
@@ -901,6 +963,36 @@ const urgencyPageView = (
               questionView(model, snapshot, step, h, true),
             ),
           ),
+    ],
+  )
+}
+
+const issuePageView = (
+  model: Model,
+  snapshot: Snapshot,
+  key: string,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const ref = grill.refs?.[key]
+  return h.div(
+    [h.Class('concept-page')],
+    [
+      h.p(
+        [h.Class('issue-head')],
+        [refOrKey(grill, key, h), ' ', ref?.state ?? ''],
+      ),
+      h.h1([h.Class('concept-title')], [ref?.text ?? key]),
+      h.p(
+        [h.Class('concept-def')],
+        ['Every question about this issue, from whichever concept asks it.'],
+      ),
+      h.div(
+        [h.Class('questions')],
+        Array.map(stepsAbout(grill, key), step =>
+          questionView(model, snapshot, step, h),
+        ),
+      ),
     ],
   )
 }
@@ -1031,7 +1123,7 @@ const conceptView = (
       ),
       h.div(
         [h.Class('questions')],
-        Array.map(steps, step => questionView(model, snapshot, step, h)),
+        Array.map(steps, step => questionView(model, snapshot, step, h, true)),
       ),
     ],
   )
@@ -1718,7 +1810,11 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
             [
               h.p(
                 [h.Class('label')],
-                [`Talking with the agent in ${grill.session}`],
+                [
+                  grill.session === ''
+                    ? 'Talking with the agent'
+                    : `Talking with the agent in ${grill.session}`,
+                ],
               ),
               h.h2([], [part.title]),
             ],
@@ -1826,7 +1922,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
               h.span(
                 [h.Class('hint')],
                 [
-                  `Enter sends, Shift+Enter for a new line. Goes to ${grill.session}; the reply lands here.`,
+                  `Enter sends, Shift+Enter for a new line. ${grill.session === '' ? 'The agent picks it up from here' : `Goes to ${grill.session}`}; the reply lands here.`,
                 ],
               ),
               h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
