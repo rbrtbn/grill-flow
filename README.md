@@ -82,6 +82,13 @@ claude plugin install grill-flow@grill-flow
 Then, in a Claude Code session running in a Herdr terminal, ask for a grill on grill-flow. The
 agent writes the grill to `grills/<id>.json`, loads it and gives you the link.
 
+To make it the default whenever you ask to be grilled, add this line to `~/.claude/CLAUDE.md`
+(or to one repo's `CLAUDE.md` for just that repo):
+
+```markdown
+- When I ask to be grilled, or a skill runs a grill, put each round on a grill-flow page with the `grill-flow:grill` skill whenever this session runs in a Herdr terminal (`$HC_TERMINAL_ID` is set); otherwise grill in chat.
+```
+
 `bun run dev` serves the page and rebuilds it on every change to `src/`; an open page reloads
 itself within a few seconds and keeps what you were typing. `bun test` runs the tests.
 

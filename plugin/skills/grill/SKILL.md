@@ -5,16 +5,28 @@ description: Run a grill on a local grill-flow page, where the user reads the re
 
 # Grill on grill-flow
 
-Run the `grilling` skill's interview (invoke it): the design tree, rounds over
-the frontier, a recommendation per question, facts looked up by subagents and
-never asked of the user. This skill replaces only its round format: each
-round is a grill-flow page, and the chat carries the link.
+A grill is an interview that settles a decision with the user. When a
+`grilling` skill is installed, invoke it for the interview; this skill then
+replaces only its round format. Without one, run it this way:
+
+- Map the decision as a design tree: each decision branches into the ones
+  that hang off it.
+- Work in rounds. A round asks the whole frontier: every decision whose
+  prerequisites are settled. A question that depends on one still open waits
+  for a later round.
+- Give a recommendation for every question, worded so yes takes it.
+- Facts are yours to find, by subagent when it takes more than a read or two;
+  only decisions go to the user.
+- The grill is done when the frontier is empty and the user confirms you
+  share an understanding.
+
+Each round is a grill-flow page, and the chat carries the link.
 
 The checkout is `~/repos/rbrtbn/grill-flow`; a fork changes this line. Below,
 `gf` means `bun run --cwd <checkout> gf`. The server serves
 `http://127.0.0.1:4317` and types the user's asks and reply into your
 terminal through `hc send`, so it needs `$HC_TERMINAL_ID`. Without a Herdr
-terminal or the checkout, use `rbrtbn:grill-with-page` where it is installed.
+terminal or the checkout, grill in chat instead.
 
 ## Each round
 
