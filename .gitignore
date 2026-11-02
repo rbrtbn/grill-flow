@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment variables
+.env
+.env.*
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Claude Code worktrees
+.claude/worktrees/
+data/
+
+# Grill files hold the content of private decisions; the store keeps what was loaded.
+grills/
+
+# Project-local agent tooling: Impeccable (github.com/pbakaus/impeccable) and local settings.
+.claude/

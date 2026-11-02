@@ -1,0 +1,315 @@
+{
+  "id": "squad-sample",
+  "title": "Widgets squad, round 3",
+  "round": 3,
+  "session": "t0",
+  "entities": [],
+  "terms": [],
+  "intro": [
+    "A made-up squad lead's grill, to show urgency, issue references and who asked. Each concept is one Linear issue."
+  ],
+  "parts": [
+    {
+      "id": "sqd-101",
+      "title": "Retry webhook deliveries",
+      "summary": "Webhooks retry with backoff instead of failing on the first error.",
+      "issue": "SQD-101"
+    },
+    {
+      "id": "sqd-104",
+      "title": "Split the export job per tenant",
+      "summary": "The nightly export runs one job per tenant.",
+      "issue": "SQD-104"
+    },
+    {
+      "id": "sqd-107",
+      "title": "Drop the legacy CSV importer",
+      "summary": "The old importer goes once nobody uses it.",
+      "issue": "SQD-107"
+    },
+    {
+      "id": "sqd-109",
+      "title": "Rate-limit the search API",
+      "summary": "Public search gets a per-key limit.",
+      "issue": "SQD-109"
+    }
+  ],
+  "steps": [
+    {
+      "id": "retry-ceiling",
+      "part": "sqd-101",
+      "heading": "When a webhook gives up",
+      "prose": [
+        "PR #212 retries forever today. The receiver side has no dedupe, so every retry is a duplicate risk."
+      ],
+      "question": {
+        "id": "Q1",
+        "title": "Retry ceiling",
+        "scope": "Every webhook delivery",
+        "ask": "Should a webhook give up after 8 tries over 24 hours?",
+        "options": [
+          {
+            "key": "a",
+            "label": "8 tries over 24 hours",
+            "effect": "Failed deliveries stop on day two and land in the dead-letter list.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "20 tries over 3 days",
+            "effect": "Longer outages recover, at triple the duplicate risk.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": [],
+        "urgency": "blocking",
+        "issue": "SQD-101",
+        "from": "builder-101",
+        "row": "B3"
+      }
+    },
+    {
+      "id": "dead-letters",
+      "part": "sqd-101",
+      "heading": "Where a give-up goes",
+      "prose": [
+        "The reviewer on #212 found nowhere for a give-up to go."
+      ],
+      "question": {
+        "id": "Q2",
+        "title": "Dead letters",
+        "scope": "Deliveries that gave up",
+        "ask": "Should failed deliveries go to a dead-letter table the admin page lists?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Dead-letter table plus admin list",
+            "effect": "One more table; support can replay by hand.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Log only",
+            "effect": "Nothing to build; failures are invisible to support.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q1"
+        ],
+        "when": [],
+        "urgency": "soon",
+        "issue": "SQD-101",
+        "from": "reviewer-212",
+        "row": "R2-4"
+      }
+    },
+    {
+      "id": "fan-out",
+      "part": "sqd-104",
+      "heading": "One job or many",
+      "prose": [
+        "Draft PR #215 runs one job across all tenants, which ADR 0012 rules out."
+      ],
+      "question": {
+        "id": "Q3",
+        "title": "Tenant fan-out",
+        "scope": "The nightly export",
+        "ask": "Should the export job enqueue one child job per tenant, per ADR 0012?",
+        "options": [
+          {
+            "key": "a",
+            "label": "One child job per tenant",
+            "effect": "Follows ADR 0012; 300 jobs a night instead of one.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Keep one job, supersede ADR 0012",
+            "effect": "Simpler queue, but a slow tenant delays everyone.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": [],
+        "urgency": "blocking",
+        "issue": "SQD-104",
+        "from": "builder-104",
+        "row": "B1"
+      }
+    },
+    {
+      "id": "export-window",
+      "part": "sqd-104",
+      "heading": "When exports run",
+      "prose": [
+        "Fan-out makes the window longer; nobody has asked to move it yet."
+      ],
+      "question": {
+        "id": "Q4",
+        "title": "Export window",
+        "scope": "The nightly export",
+        "ask": "Should exports keep running at 02:00 UTC?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Keep 02:00 UTC",
+            "effect": "No change for customers.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Move to 00:00 UTC",
+            "effect": "Finishes before EU mornings.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q3"
+        ],
+        "when": [],
+        "urgency": "wait",
+        "issue": "SQD-104",
+        "from": "lead",
+        "row": "L5"
+      }
+    },
+    {
+      "id": "importer",
+      "part": "sqd-107",
+      "heading": "When the importer goes",
+      "prose": [
+        "Two tenants used it last month."
+      ],
+      "question": {
+        "id": "Q5",
+        "title": "Importer removal",
+        "scope": "The CSV importer",
+        "ask": "Should SQD-107 wait until no tenant has used the CSV importer for 30 days?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Wait for 30 quiet days",
+            "effect": "Removal slips at least a month.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Remove now with a notice",
+            "effect": "Two tenants need a new path this week.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": [],
+        "urgency": "fyi",
+        "issue": "SQD-107",
+        "from": "lead",
+        "row": "L7"
+      }
+    },
+    {
+      "id": "limit",
+      "part": "sqd-109",
+      "heading": "How hard to limit",
+      "prose": [
+        "No traffic data yet, so the number is a guess."
+      ],
+      "question": {
+        "id": "Q6",
+        "title": "Limit per key",
+        "scope": "Public search",
+        "ask": "Should the search API allow 60 requests a minute per key?",
+        "options": [
+          {
+            "key": "a",
+            "label": "60 a minute",
+            "effect": "Covers every key seen last week.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "600 a minute",
+            "effect": "Only stops runaway scripts.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": [],
+        "issue": "SQD-109",
+        "from": "lead",
+        "row": "L9"
+      }
+    }
+  ],
+  "next": [
+    "Answers to Q1 and Q3 unblock both builders."
+  ],
+  "refs": {
+    "SQD-101": {
+      "text": "Retry webhook deliveries with backoff",
+      "url": "https://linear.app/example/issue/SQD-101",
+      "state": "In Progress",
+      "type": "started"
+    },
+    "SQD-104": {
+      "text": "Split the export job per tenant",
+      "url": "https://linear.app/example/issue/SQD-104",
+      "state": "Todo",
+      "type": "unstarted"
+    },
+    "SQD-107": {
+      "text": "Drop the legacy CSV importer",
+      "url": "https://linear.app/example/issue/SQD-107",
+      "state": "Triage",
+      "type": "triage"
+    },
+    "SQD-109": {
+      "text": "Rate-limit the public search API",
+      "url": "https://linear.app/example/issue/SQD-109",
+      "state": "Backlog",
+      "type": "backlog"
+    },
+    "#212": {
+      "text": "feat(webhooks): retry with backoff",
+      "url": "https://github.com/example/widgets/pull/212",
+      "state": "Open",
+      "type": "pr"
+    },
+    "#215": {
+      "text": "refactor(export): one job per tenant",
+      "url": "https://github.com/example/widgets/pull/215",
+      "state": "Draft",
+      "type": "pr"
+    },
+    "ADR 0012": {
+      "text": "Background jobs run per tenant, never across tenants"
+    }
+  },
+  "refsAt": "2026-11-02 18:00",
+  "sources": {
+    "lead": {
+      "text": "Portfolio lead for widgets"
+    },
+    "builder-101": {
+      "text": "Builder on SQD-101"
+    },
+    "reviewer-212": {
+      "text": "Round-2 reviewer on PR #212"
+    },
+    "builder-104": {
+      "text": "Builder on SQD-104"
+    }
+  },
+  "decided": [
+    {
+      "id": "D1",
+      "text": "Webhooks sign every delivery with the tenant key (round 1)."
+    },
+    {
+      "id": "D2",
+      "text": "SQD-107 stays in triage until Q5 is answered (round 2)."
+    }
+  ]
+}

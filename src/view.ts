@@ -1,0 +1,2206 @@
+import { Array, Option, Record } from 'effect'
+import { AsyncData } from 'foldkit'
+import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+
+import {
+  OWN,
+  type DiffBlock,
+  type DiffLine,
+  type Grill,
+  type Part,
+  type Ref,
+  type Relation,
+  type Segment,
+  type Snapshot,
+  type Status,
+  type Step,
+  type UrgencyLevel,
+  URGENCY_ORDER,
+  blockOf,
+  diffBlocks,
+  mentionsOf,
+  proseOf,
+  relationsOf,
+  replyText,
+  segments,
+  statusOf,
+  tally,
+  upstreamOf,
+  urgencyOf,
+  urgencyRank,
+  usesUrgency,
+  withRefs,
+  withTerms,
+} from './domain'
+import type { Message as MessageType, Model } from './main'
+import { DECIDED, LONG_CONCEPT, Message, OVERVIEW, URGENCY_PAGE } from './main'
+
+type H = HtmlBuilder<MessageType>
+
+export const view = (model: Model, h: H): Document =>
+  AsyncData.match(model.page, {
+    onIdle: () => shell('Grill', notice('Loading the grill…', h), h),
+    onLoading: () => shell('Grill', notice('Loading the grill…', h), h),
+    onFailure: error =>
+      shell('Grill', notice(`The grill didn't load. ${error}`, h), h),
+    onStale: ({ data }) => shell(data.grill.title, pageView(model, data, h), h),
+    onRefreshing: data => shell(data.grill.title, pageView(model, data, h), h),
+    onSuccess: data => shell(data.grill.title, pageView(model, data, h), h),
+  })
+
+const shell = (title: string, body: Html, h: H): Document => ({
+  title,
+  body: h.div([h.Class('page')], [body]),
+})
+
+const notice = (text: string, h: H): Html => h.p([h.Class('notice')], [text])
+
+// TEXT
+
+const segmentView = (segment: Segment, h: H): Html | string =>
+  segment._tag === 'Code'
+    ? h.code([], [segment.text])
+    : segment._tag === 'Entity'
+      ? h.span(
+          [
+            h.Class(`entity tone-${segment.entity.tone}`),
+            h.Title(`${segment.entity.name}: ${segment.entity.about}`),
+          ],
+          [segment.text],
+        )
+      : segment._tag === 'Term'
+        ? h.span(
+            [
+              h.Class('term'),
+              h.Title(`${segment.term.term}: ${segment.term.about}`),
+            ],
+            [segment.text],
+          )
+        : segment._tag === 'Ref'
+          ? refView(segment.text, segment.ref, h)
+          : segment.text
+
+// Linear's state glyphs, and one for a pull request.
+const GLYPHS: Readonly<Record<string, string>> = {
+  triage: '◇',
+  backlog: '◌',
+  unstarted: '○',
+  started: '◐',
+  completed: '●',
+  canceled: '⊘',
+  pr: '⇄',
+}
+
+const refSummary = (key: string, ref: Ref): string =>
+  [key, ...(ref.state === undefined ? [] : [ref.state]), ref.text].join(' · ')
+
+/** A reference that links out and shows its summary on hover; text only without a url. */
+const refView = (key: string, ref: Ref, h: H): Html => {
+  const body = [
+    ref.type === undefined
+      ? h.empty
+      : h.span(
+          [h.Class('ref-glyph'), h.AriaHidden(true)],
+          [GLYPHS[ref.type] ?? ''],
+        ),
+    key,
+  ]
+  const attributes = [
+    h.Class('ref-link'),
+    h.DataAttribute('summary', refSummary(key, ref)),
+    h.AriaLabel(refSummary(key, ref)),
+  ]
+  return ref.url === undefined
+    ? h.span(attributes, body)
+    : h.a(
+        [
+          ...attributes,
+          h.Href(ref.url),
+          h.Target('_blank'),
+          h.Rel('noreferrer'),
+        ],
+        body,
+      )
+}
+
+/** The same reference as a label inside a button, where a link can't go. */
+const refLabel = (grill: Grill, key: string, h: H): Html => {
+  const ref = grill.refs?.[key]
+  return h.span(
+    [
+      h.Class('ref-label'),
+      h.Title(ref === undefined ? key : refSummary(key, ref)),
+    ],
+    [
+      ref?.type === undefined
+        ? h.empty
+        : h.span(
+            [h.Class('ref-glyph'), h.AriaHidden(true)],
+            [GLYPHS[ref.type] ?? ''],
+          ),
+      key,
+    ],
+  )
+}
+
+const refOrKey = (grill: Grill, key: string, h: H): Html | string => {
+  const ref = grill.refs?.[key]
+  return ref === undefined ? key : refView(key, ref, h)
+}
+
+const URGENCY_WORDS: Readonly<Record<UrgencyLevel, string>> = {
+  blocking: 'Blocking',
+  unset: 'No urgency set',
+  soon: 'Soon',
+  wait: 'Can wait',
+  fyi: 'FYI',
+}
+
+const urgencyDot = (level: UrgencyLevel, h: H): Html =>
+  h.span([
+    h.Class(`urgency u-${level}`),
+    h.Title(URGENCY_WORDS[level]),
+    h.AriaLabel(URGENCY_WORDS[level]),
+  ])
+
+/** Who asked, linking to their session when the grill gives a link. */
+const fromView = (grill: Grill, step: Step, h: H): Html => {
+  const from = step.question.from
+  if (from === undefined) {
+    return h.empty
+  }
+  const source = grill.sources?.[from]
+  const row = step.question.row === undefined ? '' : ` · ${step.question.row}`
+  return h.span(
+    [h.Class('from'), h.Title(source?.text ?? from)],
+    [
+      'from ',
+      source?.link === undefined
+        ? from
+        : h.a(
+            [h.Href(source.link), h.Target('_blank'), h.Rel('noreferrer')],
+            [from],
+          ),
+      row,
+    ],
+  )
+}
+
+const inline = (
+  text: string,
+  grill: Grill,
+  h: H,
+): ReadonlyArray<Html | string> =>
+  Array.map(
+    withRefs(
+      withTerms(segments(text, grill.entities), grill.terms),
+      grill.refs,
+    ),
+    segment => segmentView(segment, h),
+  )
+
+const plain = (
+  text: string,
+  grill: Grill,
+  h: H,
+): ReadonlyArray<Html | string> =>
+  Array.map(segments(text, grill.entities), segment => segmentView(segment, h))
+
+const paragraphView = (paragraph: string, grill: Grill, h: H): Html => {
+  const block = blockOf(paragraph)
+  return block._tag === 'Paragraph'
+    ? h.p([], inline(block.text, grill, h))
+    : h.div(
+        [h.Class('list-block')],
+        [
+          Option.match(block.lead, {
+            onNone: () => h.empty,
+            onSome: lead => h.p([], inline(lead, grill, h)),
+          }),
+          h.ul(
+            [],
+            Array.map(block.items, item => h.li([], inline(item, grill, h))),
+          ),
+        ],
+      )
+}
+
+// STATE HELPERS
+
+const statusIn = (model: Model, grill: Grill, id: string): Status =>
+  statusOf(grill, model.answers, id, model.skipped)
+
+const isSkipped = (model: Model, grill: Grill, id: string): boolean =>
+  Array.contains(model.skipped, id) &&
+  statusIn(model, grill, id)._tag === 'Open'
+
+const stateClass = (model: Model, grill: Grill, id: string): string => {
+  const status = statusIn(model, grill, id)
+  return isSkipped(model, grill, id)
+    ? 'is-skipped'
+    : status._tag === 'Answered'
+      ? 'is-answered'
+      : status._tag === 'Open'
+        ? 'is-open'
+        : status._tag === 'Waiting'
+          ? 'is-waiting'
+          : 'is-moot'
+}
+
+const stepOf = (grill: Grill, id: string): Option.Option<Step> =>
+  Array.findFirst(grill.steps, step => step.question.id === id)
+
+const stepsIn = (grill: Grill, partId: string): ReadonlyArray<Step> =>
+  Array.filter(grill.steps, step => step.part === partId)
+
+const isOpen = (model: Model, grill: Grill, step: Step): boolean => {
+  const id = step.question.id
+  if (Option.exists(model.maybeJustAnswered, answered => answered === id)) {
+    return true
+  }
+  return Option.match(Record.get(model.expanded, id), {
+    onSome: open => open,
+    onNone: () => {
+      const status = statusIn(model, grill, id)
+      if (status._tag === 'Answered' || status._tag === 'NotNeeded') {
+        return false
+      }
+      return stepsIn(grill, step.part).length <= LONG_CONCEPT
+    },
+  })
+}
+
+const answerSummary = (
+  model: Model,
+  grill: Grill,
+  step: Step,
+  h: H,
+): ReadonlyArray<Html | string> => {
+  const id = step.question.id
+  const status = statusIn(model, grill, id)
+  if (isSkipped(model, grill, id)) {
+    return ['Skipped for now']
+  }
+  if (status._tag === 'Answered') {
+    if (status.key === OWN) {
+      return [h.b([], ['Own answer'])]
+    }
+    return Option.match(
+      Array.findFirst(
+        step.question.options,
+        option => option.key === status.key,
+      ),
+      {
+        onNone: () => [status.key],
+        onSome: option => [
+          h.b([], [option.key]),
+          ' ',
+          ...plain(option.label, grill, h),
+        ],
+      },
+    )
+  }
+  if (status._tag === 'Waiting') {
+    return [`Waits for ${Array.join(status.on, ', ')}`]
+  }
+  if (status._tag === 'NotNeeded') {
+    return ['Not needed']
+  }
+  return ['Open']
+}
+
+const urgencyPageOf = (model: Model): Option.Option<UrgencyLevel> =>
+  model.currentPart.startsWith(URGENCY_PAGE)
+    ? Array.findFirst(
+        URGENCY_ORDER,
+        level => `${URGENCY_PAGE}${level}` === model.currentPart,
+      )
+    : Option.none()
+
+/** Questions still to answer: neither answered nor ruled out. */
+const isPending = (model: Model, grill: Grill, step: Step): boolean => {
+  const tag = statusIn(model, grill, step.question.id)._tag
+  return tag !== 'Answered' && tag !== 'NotNeeded'
+}
+
+const worstUrgency = (
+  model: Model,
+  grill: Grill,
+  steps: ReadonlyArray<Step>,
+): Option.Option<UrgencyLevel> =>
+  Option.map(
+    Array.head(
+      Array.sort(
+        Array.filter(steps, step => isPending(model, grill, step)),
+        (a: Step, b: Step) =>
+          Math.sign(urgencyRank(a.question) - urgencyRank(b.question)) as
+            | -1
+            | 0
+            | 1,
+      ),
+    ),
+    step => urgencyOf(step.question),
+  )
+
+const currentPartOf = (model: Model, grill: Grill): Option.Option<Part> =>
+  model.currentPart === OVERVIEW
+    ? Option.none()
+    : Array.findFirst(grill.parts, part => part.id === model.currentPart)
+
+// PAGE
+
+const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const grill = snapshot.grill
+  const maybePart = currentPartOf(model, grill)
+  const side =
+    model.side === 'Map'
+      ? Option.some(mapPanelView(model, snapshot, maybePart, h))
+      : model.side === 'Talk'
+        ? Option.map(maybePart, part => talkView(model, snapshot, part, h))
+        : Option.none()
+  return h.div(
+    [h.Class('app')],
+    [
+      topbarView(model, snapshot, maybePart, h),
+      h.div(
+        [h.Class(`frame${Option.isSome(side) ? ' with-side' : ''}`)],
+        [
+          navView(model, grill, h),
+          h.main(
+            [h.Class('main')],
+            [
+              Option.match(maybePart, {
+                onNone: () =>
+                  model.currentPart === DECIDED
+                    ? decidedPageView(model, snapshot, h)
+                    : Option.match(urgencyPageOf(model), {
+                        onNone: () => overviewView(model, snapshot, h),
+                        onSome: level =>
+                          urgencyPageView(model, snapshot, level, h),
+                      }),
+                onSome: part => conceptView(model, snapshot, part, h),
+              }),
+            ],
+          ),
+          Option.getOrElse(side, () => h.empty),
+        ],
+      ),
+    ],
+  )
+}
+
+// TOP BAR
+
+/** Talk and Map share the right sidebar, so their buttons are one switch: at most one is on. */
+const sideSwitchView = (
+  model: Model,
+  maybePart: Option.Option<Part>,
+  h: H,
+): Html => {
+  const choice = (
+    side: 'Talk' | 'Map',
+    label: string,
+    isAvailable: boolean,
+    title: string,
+  ) =>
+    h.button(
+      [
+        h.Class(
+          `side-choice${model.side === side && isAvailable ? ' is-active' : ''}`,
+        ),
+        h.AriaPressed(String(model.side === side && isAvailable)),
+        h.Disabled(!isAvailable),
+        h.Title(title),
+        h.OnClick(Message.ClickedSide({ side })),
+      ],
+      [label],
+    )
+  return h.div(
+    [h.Class('side-switch'), h.Role('group'), h.AriaLabel('Right sidebar')],
+    [
+      choice(
+        'Talk',
+        'Talk',
+        Option.isSome(maybePart),
+        Option.isSome(maybePart)
+          ? 'Talk about this concept in the sidebar'
+          : 'Open a concept to talk about it',
+      ),
+      choice(
+        'Map',
+        'Map',
+        true,
+        'Show the map of all questions in the sidebar',
+      ),
+    ],
+  )
+}
+
+const topbarView = (
+  model: Model,
+  snapshot: Snapshot,
+  maybePart: Option.Option<Part>,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const counts = tally(grill, model.answers, model.skipped)
+  const needed = counts.total - counts.notNeeded
+  const status =
+    model.send === 'Sent'
+      ? Option.some(
+          `${model.sendDetail.charAt(0).toUpperCase()}${model.sendDetail.slice(1)}.`,
+        )
+      : model.send === 'Failed'
+        ? Option.some(`Not sent: ${model.sendDetail}`)
+        : model.maybeSaveError
+  return h.header(
+    [h.Class('topbar')],
+    [
+      h.div(
+        [h.Class('topbar-inner')],
+        [
+          h.div(
+            [h.Class('topbar-context')],
+            [
+              h.span([h.Class('topbar-title')], [grill.title]),
+              h.span(
+                [h.Class('where-part')],
+                [
+                  Option.match(maybePart, {
+                    onNone: () =>
+                      model.currentPart === DECIDED
+                        ? 'Decided so far'
+                        : Option.match(urgencyPageOf(model), {
+                            onNone: () => 'Overview',
+                            onSome: level => URGENCY_WORDS[level],
+                          }),
+                    onSome: part => part.title,
+                  }),
+                ],
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class('topbar-actions')],
+            [
+              h.span(
+                [h.Class('topbar-count')],
+                [
+                  h.strong([], [`${counts.answered}/${needed}`]),
+                  h.span([h.Class('wide-only')], [' answered']),
+                ],
+              ),
+              sideSwitchView(model, maybePart, h),
+              h.details(
+                [h.Class('preview')],
+                [
+                  h.summary([h.Class('quiet-button')], ['Preview']),
+                  h.pre(
+                    [],
+                    [replyText(grill, model.answers, model.notes, model.own)],
+                  ),
+                ],
+              ),
+              h.button(
+                [
+                  h.Class('quiet-button copy-button'),
+                  h.OnClick(Message.ClickedCopy()),
+                ],
+                [
+                  model.copy === 'Copied'
+                    ? 'Copied'
+                    : model.copy === 'Failed'
+                      ? 'Copy failed'
+                      : 'Copy',
+                ],
+              ),
+              h.button(
+                [
+                  h.Class('send-button'),
+                  h.Disabled(model.send === 'Sending' || counts.answered === 0),
+                  h.OnClick(Message.ClickedSend()),
+                ],
+                model.send === 'Sending'
+                  ? ['Sending…']
+                  : [
+                      'Send',
+                      h.span([h.Class('wide-only')], [` to ${grill.session}`]),
+                    ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      Option.match(status, {
+        onNone: () => h.empty,
+        onSome: text =>
+          h.p([h.Class('topbar-status'), h.AriaLive('polite')], [text]),
+      }),
+    ],
+  )
+}
+
+// CONCEPT NAVIGATION
+
+const navView = (model: Model, grill: Grill, h: H): Html => {
+  const hasUrgency = usesUrgency(grill)
+  const byIssue = grill.parts.some(part => part.issue !== undefined)
+  const mode = hasUrgency ? model.sidebar : 'Concepts'
+  const item = (pageId: string, content: ReadonlyArray<Html>): Html =>
+    h.keyed('button')(
+      pageId,
+      [
+        h.Class(`concept${model.currentPart === pageId ? ' is-current' : ''}`),
+        h.AriaCurrent(model.currentPart === pageId ? 'page' : 'false'),
+        h.OnClick(Message.ClickedConcept({ partId: pageId })),
+      ],
+      content,
+    )
+  const modeChoice = (choice: 'Concepts' | 'Urgency', label: string) =>
+    h.button(
+      [
+        h.Class(`side-choice${mode === choice ? ' is-active' : ''}`),
+        h.AriaPressed(String(mode === choice)),
+        h.OnClick(Message.ClickedSidebarMode({ mode: choice })),
+      ],
+      [label],
+    )
+  const answeredCount = grill.steps.filter(
+    step => statusIn(model, grill, step.question.id)._tag === 'Answered',
+  ).length
+  const decidedCount = (grill.decided?.length ?? 0) + answeredCount
+  const conceptItems = () => {
+    const ordered = hasUrgency
+      ? Array.sort(grill.parts, (a: Part, b: Part) => {
+          const rank = (part: Part) =>
+            Option.match(worstUrgency(model, grill, stepsIn(grill, part.id)), {
+              onNone: () => URGENCY_ORDER.length,
+              onSome: level => URGENCY_ORDER.indexOf(level),
+            })
+          return Math.sign(rank(a) - rank(b)) as -1 | 0 | 1
+        })
+      : grill.parts
+    return Array.map(ordered, part => {
+      const steps = stepsIn(grill, part.id)
+      const ids = Array.map(steps, step => step.question.id)
+      const decided = Array.filter(
+        ids,
+        id => statusIn(model, grill, id)._tag === 'Answered',
+      ).length
+      const state =
+        part.issue === undefined ? undefined : grill.refs?.[part.issue]?.state
+      return item(part.id, [
+        h.span(
+          [h.Class('concept-name')],
+          [
+            hasUrgency
+              ? Option.match(worstUrgency(model, grill, steps), {
+                  onNone: () => h.span([h.Class('urgency u-none')]),
+                  onSome: level => urgencyDot(level, h),
+                })
+              : h.empty,
+            part.issue === undefined ? h.empty : refLabel(grill, part.issue, h),
+            part.title,
+          ],
+        ),
+        h.span(
+          [h.Class('concept-count')],
+          [
+            `${state === undefined ? '' : `${state} · `}${decided} of ${ids.length} decided`,
+          ],
+        ),
+        h.span(
+          [h.Class('dots'), h.AriaHidden(true)],
+          Array.map(ids, id =>
+            h.span([
+              h.Class(`dot ${stateClass(model, grill, id)}`),
+              h.Title(id),
+            ]),
+          ),
+        ),
+      ])
+    })
+  }
+  const urgencyItems = () =>
+    Array.map(URGENCY_ORDER, level => {
+      const count = grill.steps.filter(
+        step =>
+          urgencyOf(step.question) === level && isPending(model, grill, step),
+      ).length
+      return item(`${URGENCY_PAGE}${level}`, [
+        h.span(
+          [h.Class('concept-name')],
+          [urgencyDot(level, h), URGENCY_WORDS[level]],
+        ),
+        h.span([h.Class('concept-count')], [`${count} to answer`]),
+      ])
+    })
+  return h.nav(
+    [h.Class('concepts'), h.AriaLabel('Concepts')],
+    [
+      hasUrgency
+        ? h.div(
+            [
+              h.Class('side-switch nav-mode'),
+              h.Role('group'),
+              h.AriaLabel('List questions'),
+            ],
+            [
+              modeChoice('Concepts', byIssue ? 'By issue' : 'By concept'),
+              modeChoice('Urgency', 'By urgency'),
+            ],
+          )
+        : h.empty,
+      item(OVERVIEW, [
+        h.span([h.Class('concept-name')], ['Overview']),
+        h.span([h.Class('concept-count')], ['What this is about']),
+      ]),
+      ...(mode === 'Urgency' ? urgencyItems() : conceptItems()),
+      hasUrgency || grill.decided !== undefined
+        ? item(DECIDED, [
+            h.span([h.Class('concept-name')], ['Decided so far']),
+            h.span([h.Class('concept-count')], [`${decidedCount} decisions`]),
+          ])
+        : h.empty,
+    ],
+  )
+}
+
+// OVERVIEW
+
+const overviewView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const grill = snapshot.grill
+  return h.div(
+    [h.Class('concept-page')],
+    [
+      h.h1([h.Class('concept-title')], [grill.title]),
+      h.div(
+        [h.Class('prose')],
+        Array.map(grill.intro, paragraph => paragraphView(paragraph, grill, h)),
+      ),
+      grill.entities.length > 0
+        ? h.dl(
+            [h.Class('who')],
+            Array.flatMap(grill.entities, entity => [
+              h.dt(
+                [],
+                [
+                  h.span(
+                    [h.Class(`entity tone-${entity.tone}`)],
+                    [entity.name],
+                  ),
+                ],
+              ),
+              h.dd([], [entity.about]),
+            ]),
+          )
+        : h.empty,
+      h.section(
+        [h.Class('overview-map')],
+        [
+          h.h2([h.Class('section-title')], ['The whole map']),
+          h.p(
+            [h.Class('hint')],
+            [
+              'One row per concept. A solid line waits for an answer; a dashed line mentions it. Hover to see links, click to go.',
+            ],
+          ),
+          mapView(
+            model,
+            snapshot,
+            {
+              orientation: 'Rows',
+              maybeFocus: Option.none(),
+              maybeCurrent: Option.none(),
+            },
+            h,
+          ),
+        ],
+      ),
+      grill.terms.length > 0
+        ? h.section(
+            [h.Class('glossary')],
+            [
+              h.h2([h.Class('section-title')], ['Words used on this page']),
+              h.dl(
+                [h.Class('who')],
+                Array.flatMap(grill.terms, term => [
+                  h.dt([], [h.b([], [term.term])]),
+                  h.dd([], [term.about]),
+                ]),
+              ),
+            ],
+          )
+        : h.empty,
+      h.section(
+        [h.Class('prose')],
+        [
+          h.h2([h.Class('section-title')], ['After this round']),
+          ...Array.map(grill.next, paragraph =>
+            paragraphView(paragraph, grill, h),
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+// URGENCY AND DECIDED PAGES
+
+const urgencyPageView = (
+  model: Model,
+  snapshot: Snapshot,
+  level: UrgencyLevel,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const steps = grill.steps.filter(
+    step => urgencyOf(step.question) === level && isPending(model, grill, step),
+  )
+  return h.div(
+    [h.Class('concept-page')],
+    [
+      h.h1(
+        [h.Class('concept-title')],
+        [urgencyDot(level, h), ' ', URGENCY_WORDS[level]],
+      ),
+      h.p(
+        [h.Class('concept-def')],
+        [
+          'Every question still to answer at this urgency, across issues.',
+          grill.refsAt === undefined
+            ? ''
+            : ` Linear states as of ${grill.refsAt}.`,
+        ],
+      ),
+      Array.isArrayEmpty(steps)
+        ? h.p([h.Class('hint')], ['Nothing here.'])
+        : h.div(
+            [h.Class('questions')],
+            Array.map(steps, step =>
+              questionView(model, snapshot, step, h, true),
+            ),
+          ),
+    ],
+  )
+}
+
+const decidedPageView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const grill = snapshot.grill
+  const answered = grill.steps.filter(
+    step => statusIn(model, grill, step.question.id)._tag === 'Answered',
+  )
+  return h.div(
+    [h.Class('concept-page')],
+    [
+      h.h1([h.Class('concept-title')], ['Decided so far']),
+      h.ul(
+        [h.Class('decided')],
+        [
+          ...Array.map(grill.decided ?? [], decision =>
+            h.li(
+              [],
+              [
+                h.span([h.Class('decided-id')], [decision.id]),
+                h.span([], inline(decision.text, grill, h)),
+              ],
+            ),
+          ),
+          ...Array.map(answered, step =>
+            h.li(
+              [],
+              [
+                h.button(
+                  [
+                    h.Class('ref decided-id'),
+                    h.OnClick(
+                      Message.ClickedMapNode({ question: step.question.id }),
+                    ),
+                  ],
+                  [step.question.id],
+                ),
+                h.span(
+                  [],
+                  [
+                    `${step.question.title}: `,
+                    ...answerSummary(model, grill, step, h),
+                    ' (this round)',
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+// CONCEPT PAGE
+
+const conceptView = (
+  model: Model,
+  snapshot: Snapshot,
+  part: Part,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const steps = stepsIn(grill, part.id)
+  return h.div(
+    [h.Class('concept-page')],
+    [
+      part.issue === undefined
+        ? h.empty
+        : h.p(
+            [h.Class('issue-head')],
+            [
+              refOrKey(grill, part.issue, h),
+              ' ',
+              grill.refs?.[part.issue]?.state ?? '',
+            ],
+          ),
+      h.h1([h.Class('concept-title')], [part.title]),
+      h.p([h.Class('concept-def')], inline(part.summary, grill, h)),
+      h.section(
+        [h.Class('concept-map')],
+        [
+          h.p(
+            [h.Class('hint')],
+            [
+              'This concept on the map, with what it builds on and what it feeds. Hover a question to see its links.',
+            ],
+          ),
+          mapView(
+            model,
+            snapshot,
+            {
+              orientation: 'Rows',
+              maybeFocus: Option.some(part.id),
+              maybeCurrent: Option.none(),
+            },
+            h,
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('shape')],
+        [
+          h.p([h.Class('label')], ['The shape so far']),
+          h.ul(
+            [],
+            Array.map(steps, step =>
+              h.li(
+                [],
+                [
+                  h.button(
+                    [
+                      h.Class('ref'),
+                      h.OnClick(
+                        Message.ClickedMapNode({ question: step.question.id }),
+                      ),
+                    ],
+                    [step.question.id],
+                  ),
+                  ` ${step.question.title}: `,
+                  ...answerSummary(model, grill, step, h),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('questions')],
+        Array.map(steps, step => questionView(model, snapshot, step, h)),
+      ),
+    ],
+  )
+}
+
+const questionView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+  showIssue = false,
+): Html => {
+  const grill = snapshot.grill
+  const id = step.question.id
+  const open = isOpen(model, grill, step)
+  return h.keyed('section')(
+    step.id,
+    [
+      h.Class(
+        `question ${stateClass(model, grill, id)}${open ? ' is-expanded' : ''}`,
+      ),
+      h.Id(`q-${id}`),
+    ],
+    [
+      h.button(
+        [
+          h.Class('row'),
+          h.AriaExpanded(open),
+          h.OnClick(
+            Message.ClickedToggleQuestion({ question: id, open: !open }),
+          ),
+        ],
+        [
+          h.span(
+            [h.Class('row-id')],
+            [
+              usesUrgency(grill)
+                ? urgencyDot(urgencyOf(step.question), h)
+                : h.empty,
+              id,
+            ],
+          ),
+          h.span(
+            [h.Class('row-main')],
+            [
+              h.span(
+                [h.Class('row-title')],
+                [
+                  showIssue && step.question.issue !== undefined
+                    ? refLabel(grill, step.question.issue, h)
+                    : h.empty,
+                  step.heading,
+                ],
+              ),
+              step.question.scope === ''
+                ? h.empty
+                : h.span([h.Class('scope')], [step.question.scope]),
+            ],
+          ),
+          h.span([h.Class('row-state')], answerSummary(model, grill, step, h)),
+        ],
+      ),
+      open ? questionBodyView(model, snapshot, step, h) : h.empty,
+    ],
+  )
+}
+
+const questionBodyView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const question = step.question
+  const id = question.id
+  const status = statusIn(model, grill, id)
+  const inactive = status._tag === 'Waiting' || status._tag === 'NotNeeded'
+  const selected = Record.get(model.answers, id)
+  const note = Option.getOrElse(Record.get(model.notes, id), () => '')
+  const isSquad =
+    question.urgency !== undefined ||
+    question.issue !== undefined ||
+    question.from !== undefined
+  return h.div(
+    [h.Class('question-body')],
+    [
+      isSquad
+        ? h.p(
+            [h.Class('squad-line')],
+            [
+              usesUrgency(grill)
+                ? h.span(
+                    [h.Class('squad-urgency')],
+                    [
+                      urgencyDot(urgencyOf(question), h),
+                      URGENCY_WORDS[urgencyOf(question)],
+                    ],
+                  )
+                : h.empty,
+              question.issue === undefined
+                ? h.empty
+                : refOrKey(grill, question.issue, h),
+              fromView(grill, step, h),
+            ],
+          )
+        : h.empty,
+      outsideView(model, snapshot, step, h),
+      whyView(model, snapshot, step, h),
+      statusLine(model, grill, step, status, h),
+      h.div(
+        [h.Class('ask-block')],
+        [
+          question.scope === ''
+            ? h.empty
+            : h.p(
+                [h.Class('applies')],
+                [h.span([h.Class('label')], ['Applies']), question.scope],
+              ),
+          h.p(
+            [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
+            [
+              h.span([h.Class('question-id')], [`${id} `]),
+              ...inline(question.ask, grill, h),
+            ],
+          ),
+        ],
+      ),
+      h.div(
+        [
+          h.Class('options'),
+          h.Role('radiogroup'),
+          h.AriaLabelledBy(`ask-text-${id}`),
+        ],
+        [
+          ...Array.map(question.options, option => {
+            const isSelected = Option.exists(
+              selected,
+              key => key === option.key,
+            )
+            return h.keyed('button')(
+              option.key,
+              [
+                h.Type('button'),
+                h.Role('radio'),
+                h.AriaChecked(isSelected),
+                h.Disabled(inactive),
+                h.Class(`option${isSelected ? ' is-selected' : ''}`),
+                h.OnClick(
+                  Message.SelectedOption({ question: id, key: option.key }),
+                ),
+              ],
+              [
+                h.span([h.Class('option-key')], [option.key]),
+                h.span(
+                  [h.Class('option-body')],
+                  [
+                    h.span(
+                      [h.Class('option-label')],
+                      [
+                        ...plain(option.label, grill, h),
+                        option.recommended
+                          ? h.span([h.Class('recommended')], ['Recommended'])
+                          : h.empty,
+                      ],
+                    ),
+                    h.span(
+                      [h.Class('option-effect')],
+                      plain(option.effect, grill, h),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          }),
+          ownOptionView(model, id, inactive, h),
+        ],
+      ),
+      h.div(
+        [h.Class('question-foot')],
+        [
+          h.label(
+            [h.For(`note-${id}`), h.Class('label')],
+            ['Note for the agent'],
+          ),
+          h.textarea([
+            h.Id(`note-${id}`),
+            h.Rows(2),
+            h.Value(note),
+            h.Disabled(inactive),
+            h.Placeholder('Optional: a condition or a doubt'),
+            h.OnInput(value => Message.UpdatedNote({ question: id, value })),
+            h.OnBlur(Message.BlurredNote({ question: id })),
+          ]),
+          h.div(
+            [h.Class('question-links')],
+            [
+              status._tag === 'Open' && !Array.contains(model.skipped, id)
+                ? h.button(
+                    [
+                      h.Class('text-button'),
+                      h.OnClick(Message.ClickedSkip({ question: id })),
+                    ],
+                    ['Skip for now'],
+                  )
+                : h.empty,
+              Option.isSome(selected)
+                ? h.button(
+                    [
+                      h.Class('text-button'),
+                      h.OnClick(Message.ClickedClearAnswer({ question: id })),
+                    ],
+                    ['Clear my answer'],
+                  )
+                : h.empty,
+              h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(
+                    Message.ClickedAskAbout({
+                      partId: step.part,
+                      question: id,
+                    }),
+                  ),
+                ],
+                [`Ask about ${id}`],
+              ),
+              h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(
+                    Message.ClickedToggleQuestion({
+                      question: id,
+                      open: false,
+                    }),
+                  ),
+                ],
+                ['Close'],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+/** Questions from other concepts this one builds on or names, as chips that open a card in place. */
+const outsideView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const id = step.question.id
+  const linked = Array.dedupe(
+    Array.appendAll(upstreamOf(step.question), mentionsOf(snapshot, step)),
+  )
+  const outside = Array.filter(linked, other =>
+    Option.exists(stepOf(grill, other), found => found.part !== step.part),
+  )
+  return Array.match(outside, {
+    onEmpty: () => h.empty,
+    onNonEmpty: ids =>
+      h.div(
+        [h.Class('outside')],
+        [
+          h.div(
+            [h.Class('chips')],
+            [
+              h.span([h.Class('label')], ['From other concepts']),
+              ...Array.flatMap(ids, other =>
+                Option.match(stepOf(grill, other), {
+                  onNone: () => [],
+                  onSome: otherStep => [
+                    h.button(
+                      [
+                        h.Class(
+                          `chip${Array.contains(model.peeks, `${id}>${other}`) ? ' is-on' : ''}`,
+                        ),
+                        h.AriaExpanded(
+                          Array.contains(model.peeks, `${id}>${other}`),
+                        ),
+                        h.OnClick(
+                          Message.ClickedPeek({ key: `${id}>${other}` }),
+                        ),
+                      ],
+                      [
+                        h.b([], [other]),
+                        ` ${otherStep.question.title} · `,
+                        ...answerSummary(model, grill, otherStep, h),
+                      ],
+                    ),
+                  ],
+                }),
+              ),
+            ],
+          ),
+          ...Array.flatMap(ids, other =>
+            Array.contains(model.peeks, `${id}>${other}`)
+              ? Option.match(stepOf(grill, other), {
+                  onNone: () => [],
+                  onSome: otherStep => [peekView(model, grill, otherStep, h)],
+                })
+              : [],
+          ),
+        ],
+      ),
+  })
+}
+
+// Controlled, not a native <details>: every redraw sets the element from the Model, so a toggle
+// the Model didn't record would be undone by the next poll.
+const whyView = (model: Model, snapshot: Snapshot, step: Step, h: H): Html => {
+  const open = Option.getOrElse(Record.get(model.whyOpen, step.id), () => false)
+  return h.div(
+    [h.Class(`why${open ? ' is-open' : ''}`)],
+    [
+      h.button(
+        [
+          h.Class('why-toggle'),
+          h.AriaExpanded(open),
+          h.AriaControls(`why-${step.id}`),
+          h.OnClick(Message.ClickedToggleWhy({ stepId: step.id })),
+        ],
+        ["Why we're asking"],
+      ),
+      open
+        ? h.div(
+            [h.Id(`why-${step.id}`), h.Class('why-body')],
+            [reasoningView(model, snapshot, step, h)],
+          )
+        : h.empty,
+    ],
+  )
+}
+
+const peekView = (model: Model, grill: Grill, step: Step, h: H): Html =>
+  h.div(
+    [h.Class('peek')],
+    [
+      h.p(
+        [h.Class('peek-title')],
+        [
+          h.span([h.Class('question-id')], [`${step.question.id} `]),
+          step.heading,
+        ],
+      ),
+      step.question.scope === ''
+        ? h.empty
+        : h.p(
+            [h.Class('applies')],
+            [h.span([h.Class('label')], ['Applies']), step.question.scope],
+          ),
+      h.p([], inline(step.question.ask, grill, h)),
+      h.p([h.Class('peek-answer')], answerSummary(model, grill, step, h)),
+      h.button(
+        [
+          h.Class('text-button'),
+          h.OnClick(Message.ClickedMapNode({ question: step.question.id })),
+        ],
+        [`Go to ${step.question.id}`],
+      ),
+    ],
+  )
+
+const statusLine = (
+  model: Model,
+  grill: Grill,
+  step: Step,
+  status: Status,
+  h: H,
+): Html => {
+  const id = step.question.id
+  if (status._tag === 'Waiting') {
+    return h.p(
+      [h.Class('status-line')],
+      [
+        'Waits for ',
+        ...Array.flatMap(status.on, (other, index) => [
+          index > 0 ? ' and ' : '',
+          h.button(
+            [
+              h.Class('ref'),
+              h.OnClick(Message.ClickedMapNode({ question: other })),
+            ],
+            [other],
+          ),
+        ]),
+        '. Skip that one to answer this now.',
+      ],
+    )
+  }
+  if (status._tag === 'NotNeeded') {
+    return h.p(
+      [h.Class('status-line')],
+      [`Not needed, because ${status.because}.`],
+    )
+  }
+  if (isSkipped(model, grill, id)) {
+    return h.p(
+      [h.Class('status-line skip-line')],
+      [
+        'Skipped for now. The questions that wait on it are open meanwhile. ',
+        h.button(
+          [
+            h.Class('text-button'),
+            h.OnClick(Message.ClickedUnskip({ question: id })),
+          ],
+          ['Answer now'],
+        ),
+      ],
+    )
+  }
+  const skippedUpstream = Array.filter(
+    upstreamOf(step.question),
+    other =>
+      Array.contains(model.skipped, other) && !Record.has(model.answers, other),
+  )
+  return Array.match(skippedUpstream, {
+    onEmpty: () => h.empty,
+    onNonEmpty: ids =>
+      h.p(
+        [h.Class('status-line')],
+        [
+          `${Array.join(ids, ' and ')} ${ids.length > 1 ? 'are' : 'is'} skipped for now, so this answer may change.`,
+        ],
+      ),
+  })
+}
+
+const ownOptionView = (
+  model: Model,
+  id: string,
+  inactive: boolean,
+  h: H,
+): Html => {
+  const isSelected = Option.exists(
+    Record.get(model.answers, id),
+    key => key === OWN,
+  )
+  const text = Option.getOrElse(Record.get(model.own, id), () => '')
+  return h.keyed('div')(
+    OWN,
+    [h.Class(`option own${isSelected ? ' is-selected' : ''}`)],
+    [
+      h.button(
+        [
+          h.Type('button'),
+          h.Role('radio'),
+          h.AriaChecked(isSelected),
+          h.Disabled(inactive),
+          h.Class('own-pick'),
+          h.OnClick(Message.SelectedOwnAnswer({ question: id })),
+        ],
+        [
+          h.span([h.Class('option-key')], ['?']),
+          h.span(
+            [h.Class('option-body')],
+            [
+              h.span([h.Class('option-label')], ['My own answer']),
+              h.span(
+                [h.Class('option-effect')],
+                ['None of these fits. Write what you want instead.'],
+              ),
+            ],
+          ),
+        ],
+      ),
+      isSelected
+        ? h.textarea([
+            h.Id(`own-${id}`),
+            h.Class('own-text'),
+            h.Rows(3),
+            h.Value(text),
+            h.AriaLabel(`Your own answer to ${id}`),
+            h.Placeholder('Your answer, in your words'),
+            h.OnInput(value =>
+              Message.UpdatedOwnAnswer({ question: id, value }),
+            ),
+            h.OnBlur(Message.BlurredOwnAnswer({ question: id })),
+          ])
+        : h.empty,
+    ],
+  )
+}
+
+// REASONING
+
+const reasoningView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const prose = proseOf(snapshot, step)
+  const showDiff = Option.getOrElse(
+    Record.get(model.diffShown, step.id),
+    () => false,
+  )
+  return Option.match(prose.previous, {
+    onNone: () =>
+      h.div(
+        [h.Class('prose')],
+        Array.map(prose.paragraphs, p => paragraphView(p, grill, h)),
+      ),
+    onSome: previous =>
+      h.div(
+        [h.Class('prose is-revised')],
+        [
+          h.p(
+            [h.Class('revision-line')],
+            [
+              'Rewritten on your ask. ',
+              h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(Message.ClickedToggleDiff({ stepId: step.id })),
+                ],
+                [showDiff ? 'Hide changes' : 'Show changes'],
+              ),
+            ],
+          ),
+          showDiff
+            ? h.div(
+                [h.Class('prose diff')],
+                Array.map(
+                  diffBlocks(
+                    Array.join(previous, '\n\n'),
+                    Array.join(prose.paragraphs, '\n\n'),
+                  ),
+                  block => diffBlockView(block, grill, h),
+                ),
+              )
+            : h.div(
+                [h.Class('prose')],
+                Array.map(prose.paragraphs, p => paragraphView(p, grill, h)),
+              ),
+        ],
+      ),
+  })
+}
+
+const diffLineView = (
+  line: DiffLine,
+  grill: Grill,
+  h: H,
+): ReadonlyArray<Html | string> =>
+  Array.map(line, part => {
+    const content = plain(part.text, grill, h)
+    return part._tag === 'Added'
+      ? h.ins([], content)
+      : part._tag === 'Removed'
+        ? h.del([], content)
+        : h.span([], content)
+  })
+
+const diffBlockView = (block: DiffBlock, grill: Grill, h: H): Html =>
+  block._tag === 'Paragraph'
+    ? h.p([], diffLineView(block.parts, grill, h))
+    : h.div(
+        [h.Class('list-block')],
+        [
+          block.lead.length > 0
+            ? h.p([], diffLineView(block.lead, grill, h))
+            : h.empty,
+          h.ul(
+            [],
+            Array.map(block.items, item =>
+              h.li([], diffLineView(item, grill, h)),
+            ),
+          ),
+        ],
+      )
+
+// CONVERSATION
+
+type Said = Readonly<{
+  at: number
+  who: 'you' | 'agent'
+  about: string
+  body: ReadonlyArray<Html | string>
+}>
+
+const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
+  a.at < b.at ? -1 : a.at > b.at ? 1 : 0
+
+const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
+  const grill = snapshot.grill
+  const steps = stepsIn(grill, part.id)
+  const stepIds = new Set(Array.map(steps, step => step.id))
+  const target = `part:${part.id}`
+  const aboutLabel = (stepId: string): string =>
+    stepId === target
+      ? 'the whole concept'
+      : Option.getOrElse(
+          Option.map(
+            Array.findFirst(steps, step => step.id === stepId),
+            step => step.question.id,
+          ),
+          () => stepId,
+        )
+  const asks = Array.filter(
+    snapshot.asks,
+    ask => stepIds.has(ask.stepId) || ask.stepId === target,
+  )
+  const said = Array.flatMap(asks, (ask): ReadonlyArray<Said> => {
+    const replies = Array.filter(
+      snapshot.revisions,
+      revision => revision.askId === ask.id,
+    )
+    const mine: Said = {
+      at: ask.at,
+      who: 'you',
+      about: aboutLabel(ask.stepId),
+      body: [h.p([], inline(ask.text, grill, h))],
+    }
+    if (Array.isArrayEmpty(replies)) {
+      return [
+        mine,
+        {
+          at: ask.at + 1,
+          who: 'agent',
+          about: aboutLabel(ask.stepId),
+          body: [h.p([], [h.em([], ['Working on it…'])])],
+        },
+      ]
+    }
+    return [
+      mine,
+      ...Array.map(replies, (reply): Said => {
+        const question = aboutLabel(reply.stepId)
+        return {
+          at: reply.at,
+          who: 'agent',
+          about: question,
+          body:
+            reply.kind === 'rewrite'
+              ? [
+                  h.p(
+                    [],
+                    [
+                      `I rewrote the reasoning for ${question}. `,
+                      h.button(
+                        [
+                          h.Class('text-button'),
+                          h.OnClick(
+                            Message.ClickedShowChanges({
+                              question,
+                              stepId: reply.stepId,
+                            }),
+                          ),
+                        ],
+                        ['Show the changes'],
+                      ),
+                    ],
+                  ),
+                ]
+              : Array.map(reply.text.split(/\n\s*\n/), paragraph =>
+                  paragraphView(paragraph, grill, h),
+                ),
+        }
+      }),
+    ]
+  })
+  const about = Option.getOrElse(
+    Record.get(model.talkAbout, part.id),
+    () => 'concept',
+  )
+  const draft = Option.getOrElse(
+    Record.get(model.talkDrafts, part.id),
+    () => '',
+  )
+  return h.aside(
+    [h.Class('side talk'), h.AriaLabel(`Conversation about ${part.title}`)],
+    [
+      h.header(
+        [h.Class('side-head')],
+        [
+          h.div(
+            [],
+            [
+              h.p(
+                [h.Class('label')],
+                [`Talking with the agent in ${grill.session}`],
+              ),
+              h.h2([], [part.title]),
+            ],
+          ),
+          h.button(
+            [
+              h.Class('text-button'),
+              h.OnClick(Message.ClickedSide({ side: 'None' })),
+            ],
+            ['Close'],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('messages')],
+        Array.match(said, {
+          onEmpty: () => [
+            h.p(
+              [h.Class('hint')],
+              [
+                `Nothing asked about ${part.title} yet. Ask about the whole concept, or pick one question below.`,
+              ],
+            ),
+          ],
+          onNonEmpty: all =>
+            Array.map(Array.sort(all, bySaidTime), message =>
+              h.div(
+                [h.Class(`message from-${message.who}`)],
+                [
+                  h.p(
+                    [h.Class('message-who')],
+                    [
+                      `${message.who === 'you' ? 'You' : 'Agent'} · about ${message.about}`,
+                    ],
+                  ),
+                  h.div([h.Class('message-body')], message.body),
+                ],
+              ),
+            ),
+        }),
+      ),
+      h.form(
+        [
+          h.Class('composer'),
+          h.OnSubmit(Message.SubmittedTalk({ partId: part.id })),
+        ],
+        [
+          h.div(
+            [h.Class('about')],
+            [
+              h.span([h.Class('label')], ['About']),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `quiet-button${about === 'concept' ? ' is-active' : ''}`,
+                  ),
+                  h.OnClick(
+                    Message.ClickedTalkAbout({
+                      partId: part.id,
+                      about: 'concept',
+                    }),
+                  ),
+                ],
+                ['The whole concept'],
+              ),
+              ...Array.map(steps, step =>
+                h.button(
+                  [
+                    h.Type('button'),
+                    h.Class(
+                      `quiet-button${about === step.question.id ? ' is-active' : ''}`,
+                    ),
+                    h.Title(step.question.title),
+                    h.OnClick(
+                      Message.ClickedTalkAbout({
+                        partId: part.id,
+                        about: step.question.id,
+                      }),
+                    ),
+                  ],
+                  [step.question.id],
+                ),
+              ),
+            ],
+          ),
+          h.textarea([
+            h.Id('talk-box'),
+            h.Rows(4),
+            h.Value(draft),
+            h.AriaLabel('Message to the agent'),
+            h.Placeholder('Ask, push back, or ask for a clearer rewrite'),
+            h.OnInput(value =>
+              Message.UpdatedTalkDraft({ partId: part.id, value }),
+            ),
+            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
+              key === 'Enter' && !shiftKey
+                ? Option.some(Message.SubmittedTalk({ partId: part.id }))
+                : Option.none(),
+            ),
+          ]),
+          h.div(
+            [h.Class('composer-foot')],
+            [
+              h.span(
+                [h.Class('hint')],
+                [
+                  `Enter sends, Shift+Enter for a new line. Goes to ${grill.session}; the reply lands here.`,
+                ],
+              ),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(draft.trim() === ''),
+                ],
+                ['Send'],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+// MAP
+
+const NODE_W = 120
+const NODE_H = 30
+const GAP_X = 8
+const LANE = 124
+const LINE = NODE_H + 10
+const LANE_GAP = 26
+const TOP = 16
+// The concept map sits in the reading column, so a concept's row wraps after this many questions.
+const FOCUS_COLUMNS = 4
+// The sidebar map is the map turned on its side, a column per concept, sized so seven
+// concepts fit the sidebar without scaling the text down.
+const COLUMN_W = 66
+const CELL_W = 56
+const CELL_H = 28
+const CELL_LINE = 40
+const HEAD = 44
+const LABEL_CHARS = 11
+
+type Orientation = 'Rows' | 'Columns'
+type Node = Readonly<{
+  step: Step
+  lane: number
+  x: number
+  y: number
+  w: number
+  h: number
+}>
+type Lane = Readonly<{
+  part: Part
+  x: number
+  y: number
+  lines: ReadonlyArray<string>
+  start: number
+  end: number
+}>
+type Layout = Readonly<{
+  nodes: ReadonlyArray<Node>
+  lanes: ReadonlyArray<Lane>
+}>
+
+const rowsLayout = (grill: Grill, columns: number): Layout =>
+  Array.reduce(
+    grill.parts,
+    { nodes: [], lanes: [] } as Layout,
+    (built, part, lane) => {
+      const start = Option.match(Array.last(built.lanes), {
+        onNone: () => TOP,
+        onSome: last => last.end + LANE_GAP,
+      })
+      const steps = stepsIn(grill, part.id)
+      const lines = Math.max(1, Math.ceil(steps.length / columns))
+      const placed = Array.map(steps, (step, index): Node => ({
+        step,
+        lane,
+        x: LANE + (index % columns) * (NODE_W + GAP_X),
+        y: start + Math.floor(index / columns) * LINE,
+        w: NODE_W,
+        h: NODE_H,
+      }))
+      return {
+        nodes: Array.appendAll(built.nodes, placed),
+        lanes: Array.append(built.lanes, {
+          part,
+          x: 0,
+          y: start + NODE_H / 2 + 4,
+          lines: [shortTitle(part.title, 20)],
+          start,
+          end: start + (lines - 1) * LINE + NODE_H,
+        }),
+      }
+    },
+  )
+
+const columnsLayout = (grill: Grill): Layout => ({
+  nodes: Array.flatMap(grill.parts, (part, lane) =>
+    Array.map(stepsIn(grill, part.id), (step, index): Node => ({
+      step,
+      lane,
+      x: lane * COLUMN_W,
+      y: HEAD + index * CELL_LINE,
+      w: CELL_W,
+      h: CELL_H,
+    })),
+  ),
+  lanes: Array.map(grill.parts, (part, lane): Lane => {
+    const count = stepsIn(grill, part.id).length
+    return {
+      part,
+      x: lane * COLUMN_W + CELL_W / 2,
+      y: 14,
+      lines: wrapLabel(part.title),
+      start: HEAD,
+      end: HEAD + Math.max(0, count - 1) * CELL_LINE + CELL_H,
+    }
+  }),
+})
+
+/** Up to two lines of a concept's title for a column head; the second is cut short if needed. */
+const wrapLabel = (title: string): ReadonlyArray<string> => {
+  const words = title.split(' ')
+  let taken = 1
+  while (
+    taken < words.length &&
+    words.slice(0, taken + 1).join(' ').length <= LABEL_CHARS
+  ) {
+    taken += 1
+  }
+  const rest = words.slice(taken).join(' ')
+  return rest === ''
+    ? [words.slice(0, taken).join(' ')]
+    : [words.slice(0, taken).join(' '), shortTitle(rest, LABEL_CHARS)]
+}
+
+const edgePath = (from: Node, to: Node, orientation: Orientation): string => {
+  if (orientation === 'Columns') {
+    if (from.x === to.x) {
+      const [upper, lower] = from.y < to.y ? [from, to] : [to, from]
+      const x = upper.x + upper.w
+      const y1 = upper.y + upper.h / 2
+      const y2 = lower.y + lower.h / 2
+      return `M ${x} ${y1} C ${x + 14} ${y1}, ${x + 14} ${y2}, ${x} ${y2}`
+    }
+    const [left, right] = from.x < to.x ? [from, to] : [to, from]
+    const sx = left.x + left.w
+    const sy = left.y + left.h / 2
+    const ex = right.x
+    const ey = right.y + right.h / 2
+    const middle = (sx + ex) / 2
+    return `M ${sx} ${sy} C ${middle} ${sy}, ${middle} ${ey}, ${ex} ${ey}`
+  }
+  if (from.y === to.y) {
+    const x1 = from.x + from.w / 2
+    const x2 = to.x + to.w / 2
+    return `M ${x1} ${from.y} C ${x1} ${from.y - 16}, ${x2} ${to.y - 16}, ${x2} ${to.y}`
+  }
+  const [upper, lower] = from.y < to.y ? [from, to] : [to, from]
+  const sx = upper.x + upper.w / 2
+  const ex = lower.x + lower.w / 2
+  const sy = upper.y + upper.h
+  const ey = lower.y
+  const middle = (sy + ey) / 2
+  return `M ${sx} ${sy} C ${sx} ${middle}, ${ex} ${middle}, ${ex} ${ey}`
+}
+
+const shortTitle = (text: string, length: number): string =>
+  text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text
+
+const STATUS_WORDS: Record<string, string> = {
+  'is-answered': 'answered',
+  'is-open': 'open',
+  'is-waiting': 'waiting',
+  'is-skipped': 'skipped',
+  'is-moot': 'not needed',
+}
+
+const statusWord = (model: Model, grill: Grill, id: string): string =>
+  Option.getOrElse(
+    Array.findFirst(
+      stateClass(model, grill, id).split(' '),
+      name => name in STATUS_WORDS,
+    ).pipe(Option.map(name => STATUS_WORDS[name] ?? '')),
+    () => '',
+  )
+
+type MapShape = Readonly<{
+  orientation: Orientation
+  maybeFocus: Option.Option<string>
+  maybeCurrent: Option.Option<string>
+}>
+
+/**
+ * The whole map. With a focus concept, everything it doesn't touch is greyed and the view
+ * crops to its rows; the current concept is only marked.
+ */
+const mapView = (
+  model: Model,
+  snapshot: Snapshot,
+  shape: MapShape,
+  h: H,
+): Html => {
+  const grill = snapshot.grill
+  const { orientation, maybeFocus } = shape
+  const isFull = Option.isNone(maybeFocus)
+  const isColumns = orientation === 'Columns'
+  const placed = isColumns
+    ? columnsLayout(grill)
+    : rowsLayout(
+        grill,
+        isFull
+          ? Math.max(
+              ...Array.map(grill.parts, part => stepsIn(grill, part.id).length),
+            )
+          : FOCUS_COLUMNS,
+      )
+  const nodes = placed.nodes
+  const relations = relationsOf(snapshot)
+  const nodeOf = (id: string) =>
+    Array.findFirst(nodes, node => node.step.question.id === id)
+  const current = Option.orElse(maybeFocus, () => shape.maybeCurrent)
+  const idsIn = (maybePart: Option.Option<string>) =>
+    new Set(
+      Option.match(maybePart, {
+        onNone: () => [],
+        onSome: partId =>
+          Array.map(stepsIn(grill, partId), step => step.question.id),
+      }),
+    )
+  const focusIds = idsIn(maybeFocus)
+  const currentIds = idsIn(current)
+  const relevant = new Set(
+    isFull
+      ? Array.map(nodes, node => node.step.question.id)
+      : [
+          ...focusIds,
+          ...Array.flatMap(relations, relation =>
+            focusIds.has(relation.to)
+              ? [relation.from]
+              : focusIds.has(relation.from)
+                ? [relation.to]
+                : [],
+          ),
+        ],
+  )
+  const hover = Option.getOrElse(model.maybeHover, () => '')
+  const touchesHover = (relation: Relation) =>
+    relation.from === hover || relation.to === hover
+  const hoverNear = new Set(
+    hover === ''
+      ? []
+      : [
+          hover,
+          ...relations
+            .filter(touchesHover)
+            .flatMap(relation => [relation.from, relation.to]),
+        ],
+  )
+  const shownLanes = Array.map(
+    Array.filter(nodes, node => relevant.has(node.step.question.id)),
+    node => node.lane,
+  )
+  const minLane =
+    isFull || Array.isArrayEmpty(shownLanes) ? 0 : Math.min(...shownLanes)
+  const maxLane =
+    isFull || Array.isArrayEmpty(shownLanes)
+      ? grill.parts.length - 1
+      : Math.max(...shownLanes)
+  const inLanes = (node: Node) => node.lane >= minLane && node.lane <= maxLane
+  const lanes = placed.lanes.filter(
+    (_, index) => index >= minLane && index <= maxLane,
+  )
+  const right =
+    Math.max(...nodes.filter(inLanes).map(node => node.x + node.w)) +
+    (isColumns ? 18 : 8)
+  const top = isColumns ? 0 : (lanes[0]?.start ?? TOP) - 22
+  const height = Math.max(...Array.map(lanes, lane => lane.end)) - top + 10
+  const isNatural = isFull && !isColumns
+  const edgeClass = (relation: Relation): string => {
+    const lit = hover !== '' && touchesHover(relation)
+    const inFocus =
+      isFull || focusIds.has(relation.to) || focusIds.has(relation.from)
+    const faint = !inFocus || (hover !== '' && !lit)
+    return `edge${relation.kind === 'mentions' ? ' is-mention' : ''}${lit ? ' is-lit' : ''}${faint ? ' is-faint' : ''}`
+  }
+  const hovered = Option.flatMap(model.maybeHover, nodeOf)
+  return h.div(
+    [
+      h.Class(
+        `map${isFull ? '' : ' is-focused'}${isColumns ? ' is-columns' : ''}`,
+      ),
+    ],
+    [
+      h.div(
+        [h.Class('map-frame')],
+        [
+          h.svg(
+            [
+              h.ViewBox(`-4 ${top} ${right + 4} ${height}`),
+              h.Width(isNatural ? String(right + 4) : '100%'),
+              h.Height(isNatural ? String(height) : 'auto'),
+              h.Role('img'),
+              h.AriaLabel('Map of the questions and how they link'),
+              h.Class('map-svg'),
+            ],
+            [
+              h.g(
+                [],
+                Array.map(lanes, lane =>
+                  h.text(
+                    [
+                      h.X(String(lane.x)),
+                      h.Y(String(lane.y)),
+                      h.Class(
+                        `lane${Option.exists(current, id => id === lane.part.id) ? ' is-current' : ''}`,
+                      ),
+                      h.OnClick(
+                        Message.ClickedMapConcept({ partId: lane.part.id }),
+                      ),
+                    ],
+                    [
+                      h.title([], [lane.part.title]),
+                      ...Array.map(lane.lines, (line, index) =>
+                        h.tspan(
+                          [h.X(String(lane.x)), h.Dy(index === 0 ? '0' : '13')],
+                          [line],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              h.g(
+                [],
+                Array.flatMap(relations, relation =>
+                  Option.match(
+                    Option.all([nodeOf(relation.from), nodeOf(relation.to)]),
+                    {
+                      onNone: () => [],
+                      onSome: ([from, to]) =>
+                        inLanes(from) && inLanes(to)
+                          ? [
+                              h.path([
+                                h.D(edgePath(from, to, orientation)),
+                                h.Class(edgeClass(relation)),
+                              ]),
+                            ]
+                          : [],
+                    },
+                  ),
+                ),
+              ),
+              h.g(
+                [],
+                nodes.filter(inLanes).flatMap(node => {
+                  const id = node.step.question.id
+                  const dim =
+                    !relevant.has(id) || (hover !== '' && !hoverNear.has(id))
+                  const middle = String(node.y + node.h / 2 + 4)
+                  return [
+                    h.g(
+                      [
+                        h.Class(
+                          `node ${stateClass(model, grill, id)}${currentIds.has(id) ? ' is-current' : ''}${dim ? ' is-dim' : ''}${id === hover ? ' is-hover' : ''}`,
+                        ),
+                        h.OnMouseEnter(
+                          Message.HoveredMapNode({ question: id }),
+                        ),
+                        h.OnMouseLeave(Message.LeftMapNode()),
+                        h.OnClick(Message.ClickedMapNode({ question: id })),
+                        h.Role('link'),
+                        h.Tabindex(0),
+                        h.AriaLabel(`${id}: ${node.step.question.title}`),
+                      ],
+                      [
+                        h.title([], [`${id}: ${node.step.heading}`]),
+                        h.rect([
+                          h.X(String(node.x)),
+                          h.Y(String(node.y)),
+                          h.Width(String(node.w)),
+                          h.Height(String(node.h)),
+                          h.Rx('3'),
+                        ]),
+                        ...(isColumns
+                          ? [
+                              h.text(
+                                [
+                                  h.X(String(node.x + node.w / 2)),
+                                  h.Y(middle),
+                                  h.Class('node-id'),
+                                ],
+                                [id],
+                              ),
+                            ]
+                          : [
+                              h.text(
+                                [
+                                  h.X(String(node.x + 7)),
+                                  h.Y(middle),
+                                  h.Class('node-id'),
+                                ],
+                                [id],
+                              ),
+                              h.text(
+                                [
+                                  h.X(String(node.x + 36)),
+                                  h.Y(middle),
+                                  h.Class('node-title'),
+                                ],
+                                [shortTitle(node.step.question.title, 13)],
+                              ),
+                            ]),
+                      ],
+                    ),
+                  ]
+                }),
+              ),
+            ],
+          ),
+        ],
+      ),
+      isColumns
+        ? h.p(
+            [h.Class('map-readout')],
+            Option.match(hovered, {
+              onNone: () => [
+                'Hover a question for its title. Click it, or a concept, to go there.',
+              ],
+              onSome: node => [
+                h.strong([], [node.step.question.id]),
+                ` ${node.step.question.title} · ${statusWord(model, grill, node.step.question.id)} · ${node.step.question.scope}`,
+              ],
+            }),
+          )
+        : h.empty,
+      h.p(
+        [h.Class('legend')],
+        [
+          legendItem('is-answered', 'answered', h),
+          legendItem('is-open', 'open', h),
+          legendItem('is-waiting', 'waiting', h),
+          legendItem('is-skipped', 'skipped', h),
+          legendItem('is-moot', 'not needed', h),
+          h.span([h.Class('legend-line')], ['solid: waits for']),
+          h.span([h.Class('legend-line is-mention')], ['dashed: mentions']),
+        ],
+      ),
+    ],
+  )
+}
+
+const legendItem = (status: string, label: string, h: H): Html =>
+  h.span(
+    [h.Class(`legend-item ${status}`)],
+    [h.span([h.Class('swatch')]), label],
+  )
+
+const mapPanelView = (
+  model: Model,
+  snapshot: Snapshot,
+  maybePart: Option.Option<Part>,
+  h: H,
+): Html =>
+  h.aside(
+    [h.Class('side map-panel'), h.AriaLabel('Map of all questions')],
+    [
+      h.header(
+        [h.Class('side-head')],
+        [
+          h.div(
+            [],
+            [h.p([h.Class('label')], ['All questions']), h.h2([], ['Map'])],
+          ),
+          h.button(
+            [
+              h.Class('text-button'),
+              h.OnClick(Message.ClickedSide({ side: 'None' })),
+            ],
+            ['Close'],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('side-body')],
+        [
+          mapView(
+            model,
+            snapshot,
+            {
+              orientation: 'Columns',
+              maybeFocus: Option.none(),
+              maybeCurrent: Option.map(maybePart, part => part.id),
+            },
+            h,
+          ),
+        ],
+      ),
+    ],
+  )

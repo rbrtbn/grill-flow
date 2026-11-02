@@ -1,0 +1,972 @@
+{
+  "id": "fixture",
+  "title": "A test grill",
+  "round": 1,
+  "session": "t0",
+  "entities": [
+    {
+      "id": "box",
+      "name": "box-1",
+      "tone": "ochre",
+      "about": "A server.",
+      "aliases": [
+        "box-1"
+      ]
+    },
+    {
+      "id": "host",
+      "name": "box-2",
+      "tone": "teal",
+      "about": "Another server.",
+      "aliases": [
+        "box-2"
+      ]
+    },
+    {
+      "id": "agent",
+      "name": "agent",
+      "tone": "violet",
+      "about": "The agent.",
+      "aliases": [
+        "agent"
+      ]
+    },
+    {
+      "id": "worker",
+      "name": "worker",
+      "tone": "rust",
+      "about": "A background worker.",
+      "aliases": [
+        "worker"
+      ]
+    },
+    {
+      "id": "helper",
+      "name": "helper",
+      "tone": "olive",
+      "about": "A helper session.",
+      "aliases": [
+        "helper"
+      ]
+    }
+  ],
+  "terms": [
+    {
+      "term": "gate",
+      "about": "An example definition.",
+      "aliases": [
+        "gate",
+        "gates"
+      ]
+    },
+    {
+      "term": "lease",
+      "about": "An example definition.",
+      "aliases": [
+        "lease"
+      ]
+    },
+    {
+      "term": "queue",
+      "about": "An example definition.",
+      "aliases": [
+        "queue",
+        "queues"
+      ]
+    },
+    {
+      "term": "shard",
+      "about": "An example definition.",
+      "aliases": [
+        "shard",
+        "shards"
+      ]
+    },
+    {
+      "term": "replica",
+      "about": "An example definition.",
+      "aliases": [
+        "replica",
+        "replicas"
+      ]
+    },
+    {
+      "term": "ledger",
+      "about": "An example definition.",
+      "aliases": [
+        "ledger",
+        "ledgers"
+      ]
+    },
+    {
+      "term": "cursor",
+      "about": "An example definition.",
+      "aliases": [
+        "cursor"
+      ]
+    },
+    {
+      "term": "quota",
+      "about": "An example definition.",
+      "aliases": [
+        "quota",
+        "quotas"
+      ]
+    },
+    {
+      "term": "backfill",
+      "about": "An example definition.",
+      "aliases": [
+        "backfill"
+      ]
+    },
+    {
+      "term": "mailbox",
+      "about": "An example definition.",
+      "aliases": [
+        "mailbox",
+        "mailboxes"
+      ]
+    }
+  ],
+  "intro": [
+    "A synthetic grill with the shape of a real one, for tests."
+  ],
+  "parts": [
+    {
+      "id": "part-1",
+      "title": "Part 1",
+      "summary": "What part 1 decides."
+    },
+    {
+      "id": "part-2",
+      "title": "Part 2",
+      "summary": "What part 2 decides."
+    },
+    {
+      "id": "part-3",
+      "title": "Part 3",
+      "summary": "What part 3 decides."
+    },
+    {
+      "id": "part-4",
+      "title": "Part 4",
+      "summary": "What part 4 decides."
+    },
+    {
+      "id": "part-5",
+      "title": "Part 5",
+      "summary": "What part 5 decides."
+    },
+    {
+      "id": "part-6",
+      "title": "Part 6",
+      "summary": "What part 6 decides."
+    },
+    {
+      "id": "part-7",
+      "title": "Part 7",
+      "summary": "What part 7 decides."
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-q1",
+      "part": "part-1",
+      "heading": "Heading for Q1",
+      "prose": [
+        "The reasoning behind Q1."
+      ],
+      "question": {
+        "id": "Q1",
+        "title": "Title Q1",
+        "scope": "Where it applies",
+        "ask": "Should Q1 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes. It builds on Q2, Q3, Q16.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q2",
+      "part": "part-2",
+      "heading": "Heading for Q2",
+      "prose": [
+        "The reasoning behind Q2."
+      ],
+      "question": {
+        "id": "Q2",
+        "title": "Title Q2",
+        "scope": "Where it applies",
+        "ask": "Should Q2 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes. It builds on Q3, Q16.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q1"
+        ],
+        "when": [
+          {
+            "question": "Q1",
+            "oneOf": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "step-q3",
+      "part": "part-2",
+      "heading": "Heading for Q3",
+      "prose": [
+        "The reasoning behind Q3."
+      ],
+      "question": {
+        "id": "Q3",
+        "title": "Title Q3",
+        "scope": "Where it applies",
+        "ask": "Should Q3 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes. It builds on Q6, Q7.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": [
+          {
+            "question": "Q1",
+            "oneOf": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "step-q16",
+      "part": "part-2",
+      "heading": "Heading for Q16",
+      "prose": [
+        "The reasoning behind Q16."
+      ],
+      "question": {
+        "id": "Q16",
+        "title": "Title Q16",
+        "scope": "Where it applies",
+        "ask": "Should Q16 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": [
+          {
+            "question": "Q1",
+            "oneOf": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "step-q4",
+      "part": "part-3",
+      "heading": "Heading for Q4",
+      "prose": [
+        "The reasoning behind Q4."
+      ],
+      "question": {
+        "id": "Q4",
+        "title": "Title Q4",
+        "scope": "Where it applies",
+        "ask": "Should Q4 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q1"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q5",
+      "part": "part-3",
+      "heading": "Heading for Q5",
+      "prose": [
+        "The reasoning behind Q5."
+      ],
+      "question": {
+        "id": "Q5",
+        "title": "Title Q5",
+        "scope": "Where it applies",
+        "ask": "Should Q5 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q4"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q6",
+      "part": "part-3",
+      "heading": "Heading for Q6",
+      "prose": [
+        "The reasoning behind Q6. It builds on Q3."
+      ],
+      "question": {
+        "id": "Q6",
+        "title": "Title Q6",
+        "scope": "Where it applies",
+        "ask": "Should Q6 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes. It builds on Q7.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q3"
+        ],
+        "when": [
+          {
+            "question": "Q3",
+            "oneOf": [
+              "a",
+              "b"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "step-q21",
+      "part": "part-3",
+      "heading": "Heading for Q21",
+      "prose": [
+        "The reasoning behind Q21. It builds on Q6, Q3, Q8, Q9, Q7."
+      ],
+      "question": {
+        "id": "Q21",
+        "title": "Title Q21",
+        "scope": "Where it applies",
+        "ask": "Should Q21 take the recommended option?",
+        "options": [
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": true
+          },
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes. It builds on Q8, Q9.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q6"
+        ],
+        "when": [
+          {
+            "question": "Q3",
+            "oneOf": [
+              "a",
+              "b"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "step-q7",
+      "part": "part-3",
+      "heading": "Heading for Q7",
+      "prose": [
+        "The reasoning behind Q7. It builds on Q2, Q3."
+      ],
+      "question": {
+        "id": "Q7",
+        "title": "Title Q7",
+        "scope": "Where it applies",
+        "ask": "Should Q7 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes. It builds on Q6.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q6"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q18",
+      "part": "part-4",
+      "heading": "Heading for Q18",
+      "prose": [
+        "The reasoning behind Q18."
+      ],
+      "question": {
+        "id": "Q18",
+        "title": "Title Q18",
+        "scope": "Where it applies",
+        "ask": "Should Q18 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q10",
+      "part": "part-4",
+      "heading": "Heading for Q10",
+      "prose": [
+        "The reasoning behind Q10."
+      ],
+      "question": {
+        "id": "Q10",
+        "title": "Title Q10",
+        "scope": "Where it applies",
+        "ask": "Should Q10 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q18"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q11",
+      "part": "part-4",
+      "heading": "Heading for Q11",
+      "prose": [
+        "The reasoning behind Q11. It builds on Q10."
+      ],
+      "question": {
+        "id": "Q11",
+        "title": "Title Q11",
+        "scope": "Where it applies",
+        "ask": "Should Q11 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes. It builds on Q10.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes. It builds on Q3.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q10"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q12",
+      "part": "part-4",
+      "heading": "Heading for Q12",
+      "prose": [
+        "The reasoning behind Q12. It builds on Q4."
+      ],
+      "question": {
+        "id": "Q12",
+        "title": "Title Q12",
+        "scope": "Where it applies",
+        "ask": "Should Q12 take the recommended option?",
+        "options": [
+          {
+            "key": "d",
+            "label": "Option d",
+            "effect": "What d changes.",
+            "recommended": true
+          },
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": false
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q18"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q19",
+      "part": "part-4",
+      "heading": "Heading for Q19",
+      "prose": [
+        "The reasoning behind Q19."
+      ],
+      "question": {
+        "id": "Q19",
+        "title": "Title Q19",
+        "scope": "Where it applies",
+        "ask": "Should Q19 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q18"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q20",
+      "part": "part-4",
+      "heading": "Heading for Q20",
+      "prose": [
+        "The reasoning behind Q20."
+      ],
+      "question": {
+        "id": "Q20",
+        "title": "Title Q20",
+        "scope": "Where it applies",
+        "ask": "Should Q20 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q19"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q13",
+      "part": "part-5",
+      "heading": "Heading for Q13",
+      "prose": [
+        "The reasoning behind Q13."
+      ],
+      "question": {
+        "id": "Q13",
+        "title": "Title Q13",
+        "scope": "Where it applies",
+        "ask": "Should Q13 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q14",
+      "part": "part-5",
+      "heading": "Heading for Q14",
+      "prose": [
+        "The reasoning behind Q14."
+      ],
+      "question": {
+        "id": "Q14",
+        "title": "Title Q14",
+        "scope": "Where it applies",
+        "ask": "Should Q14 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q13"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q15",
+      "part": "part-5",
+      "heading": "Heading for Q15",
+      "prose": [
+        "The reasoning behind Q15."
+      ],
+      "question": {
+        "id": "Q15",
+        "title": "Title Q15",
+        "scope": "Where it applies",
+        "ask": "Should Q15 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes. It builds on Q16.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q13"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q8",
+      "part": "part-6",
+      "heading": "Heading for Q8",
+      "prose": [
+        "The reasoning behind Q8."
+      ],
+      "question": {
+        "id": "Q8",
+        "title": "Title Q8",
+        "scope": "Where it applies",
+        "ask": "Should Q8 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q9",
+      "part": "part-6",
+      "heading": "Heading for Q9",
+      "prose": [
+        "The reasoning behind Q9."
+      ],
+      "question": {
+        "id": "Q9",
+        "title": "Title Q9",
+        "scope": "Where it applies",
+        "ask": "Should Q9 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          },
+          {
+            "key": "c",
+            "label": "Option c",
+            "effect": "What c changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q8"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "step-q17",
+      "part": "part-7",
+      "heading": "Heading for Q17",
+      "prose": [
+        "The reasoning behind Q17."
+      ],
+      "question": {
+        "id": "Q17",
+        "title": "Title Q17",
+        "scope": "Where it applies",
+        "ask": "Should Q17 take the recommended option?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Option a",
+            "effect": "What a changes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Option b",
+            "effect": "What b changes.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": []
+      }
+    }
+  ],
+  "next": [
+    "Nothing; it's a test."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "grill-flow",
+  "description": "grill-flow: a local page for an agent's grill, read concept by concept and answered back into the session",
+  "owner": {
+    "name": "Robert Ban"
+  },
+  "plugins": [
+    {
+      "name": "grill-flow",
+      "source": "./plugin",
+      "description": "Run a grill on a local grill-flow page"
+    }
+  ]
+}
