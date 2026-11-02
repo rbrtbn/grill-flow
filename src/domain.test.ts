@@ -154,9 +154,7 @@ describe('segments', () => {
 
   it('leaves names inside longer words alone', () => {
     expect(
-      segments('sub-agent workers', grill.entities).map(
-        part => part._tag,
-      ),
+      segments('sub-agent workers', grill.entities).map(part => part._tag),
     ).toEqual(['Text'])
   })
 })
@@ -216,9 +214,7 @@ describe('neighbourStep', () => {
     )
 
   it('starts at the first section from the introduction', () => {
-    expect(id(neighbourStep(grill, {}, Option.none(), 'next'))).toBe(
-      'step-q1',
-    )
+    expect(id(neighbourStep(grill, {}, Option.none(), 'next'))).toBe('step-q1')
     expect(id(neighbourStep(grill, {}, Option.none(), 'previous'))).toBe('none')
   })
 

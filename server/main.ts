@@ -222,13 +222,24 @@ const handleEvent = async (
   return json(snapshot(db, grill))
 }
 
-const handleSend = async (grillId: string): Promise<Response> => {
+const MESSAGE_LIMIT = 4000
+
+const handleSend = async (
+  grillId: string,
+  request: Request,
+): Promise<Response> => {
   const grill = getGrill(db, grillId)
   if (!grill) {
     return json({ error: 'no such grill' }, 404)
   }
+  const body = (await request.json()) as Record<string, unknown>
+  const message =
+    typeof body.message === 'string'
+      ? body.message.trim().slice(0, MESSAGE_LIMIT)
+      : ''
   const state = snapshot(db, grill)
-  const text = `[grill-flow] Answers from the ${grill.title} page:\n${replyText(grill, state.answers, state.notes, state.own)}`
+  const reply = replyText(grill, state.answers, state.notes, state.own)
+  const text = `[grill-flow] Answers from the ${grill.title} page:\n${reply}${message === '' ? '' : `\nMessage: ${message}`}`
   const result = await sendToSession(sessionFor(grill.session), text)
   appendEvent(db, grillId, 'sent', { ...result, what: 'answers', text })
   return json(snapshot(db, grill))
@@ -281,7 +292,7 @@ Bun.serve({
         return handleEvent(grillId, request)
       }
       if (parts[3] === 'send') {
-        return handleSend(grillId)
+        return handleSend(grillId, request)
       }
     }
     return new Response('Not found', { status: 404 })

@@ -46,6 +46,9 @@ Q9 other: the user's own answer
 Open: Q10, Q11 (note left on an open question)
 ```
 
+Either form can end with a `Message:` line: what the user added in the send
+dialog about the round as a whole. Weigh it before the next round.
+
 `Open:` questions stay on the frontier with the same id, as is or reworded.
 A note on an open question is not an answer: weigh it, for example a reason
 to wait or a fact to look up, before asking again. `gf state <id>` prints the

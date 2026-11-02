@@ -54,6 +54,8 @@ export const Model = Schema.Struct({
   diffShown: Schema.Record(Schema.String, Schema.Boolean),
   whyOpen: Schema.Record(Schema.String, Schema.Boolean),
   send: SendState,
+  isSendOpen: Schema.Boolean,
+  sendMessage: Schema.String,
   sendDetail: Schema.String,
   copy: CopyState,
   maybeSaveError: Schema.Option(Schema.String),
@@ -93,6 +95,9 @@ export const Message = defineMessageUnion({
   BlurredNote: { question: Schema.String },
   CompletedPostEvent: { result: Schema.Result(Snapshot, Schema.String) },
   ClickedSend: {},
+  ClickedConfirmSend: {},
+  ClickedCancelSend: {},
+  UpdatedSendMessage: { value: Schema.String },
   CompletedSendAnswers: { result: Schema.Result(Snapshot, Schema.String) },
   ClickedCopy: {},
   CompletedCopyReply: { copied: Schema.Boolean },
@@ -330,7 +335,20 @@ export const update = (model: Model, message: Message) =>
 
     CompletedPostEvent: ({ result }) => settleWrite(model, result),
 
-    ClickedSend: () =>
+    ClickedSend: () => ({
+      model: modifyFields(model, { isSendOpen: () => true }),
+      commands: [FocusSendBox()],
+    }),
+
+    ClickedCancelSend: () => ({
+      model: modifyFields(model, { isSendOpen: () => false }),
+    }),
+
+    UpdatedSendMessage: ({ value }) => ({
+      model: modifyFields(model, { sendMessage: () => value }),
+    }),
+
+    ClickedConfirmSend: () =>
       Option.match(grillIdOf(model), {
         onNone: () => ({ model }),
         onSome: grillId => ({
@@ -338,7 +356,7 @@ export const update = (model: Model, message: Message) =>
             send: () => 'Sending' as const,
             sendDetail: () => '',
           }),
-          commands: [SendAnswers({ grillId })],
+          commands: [SendAnswers({ grillId, message: model.sendMessage })],
         }),
       }),
 
@@ -348,6 +366,9 @@ export const update = (model: Model, message: Message) =>
             model: modifyFields(refreshPage(model, result.success), {
               send: () => latestSendState(result.success),
               sendDetail: () => latestSendDetail(result.success),
+              isSendOpen: () => latestSendState(result.success) !== 'Sent',
+              sendMessage: message =>
+                latestSendState(result.success) === 'Sent' ? '' : message,
             }),
           }
         : {
@@ -644,6 +665,8 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => ({
     diffShown: {},
     whyOpen: {},
     send: 'Idle',
+    isSendOpen: false,
+    sendMessage: '',
     sendDetail: '',
     copy: 'Idle',
     maybeSaveError: Option.none(),
@@ -719,14 +742,14 @@ export const PostEvent = Command.define('PostEvent', {
 })
 
 export const SendAnswers = Command.define('SendAnswers', {
-  args: { grillId: Schema.String },
+  args: { grillId: Schema.String, message: Schema.String },
   messages: [Message.CompletedSendAnswers],
-  execute: ({ grillId }) =>
+  execute: ({ grillId, message }) =>
     pipe(
       requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/send`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ message }),
       }),
       Effect.map(result => Message.CompletedSendAnswers({ result })),
     ),
@@ -793,6 +816,16 @@ export const FocusTalkBox = Command.define('FocusTalkBox', {
   execute: pipe(
     Effect.sleep(Duration.millis(30)),
     Effect.flatMap(() => Dom.focus('#talk-box')),
+    Effect.catch(() => Effect.void),
+    Effect.map(() => Message.CompletedFocus()),
+  ),
+})
+
+export const FocusSendBox = Command.define('FocusSendBox', {
+  messages: [Message.CompletedFocus],
+  execute: pipe(
+    Effect.sleep(Duration.millis(30)),
+    Effect.flatMap(() => Dom.focus('#send-message')),
     Effect.catch(() => Effect.void),
     Effect.map(() => Message.CompletedFocus()),
   ),

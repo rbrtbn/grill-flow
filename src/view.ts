@@ -385,6 +385,114 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
           Option.getOrElse(side, () => h.empty),
         ],
       ),
+      model.isSendOpen ? sendDialogView(model, snapshot, h) : h.empty,
+    ],
+  )
+}
+
+// SEND
+
+/** The review before Send: counts, every question with its answer folded away, and a message. */
+const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const grill = snapshot.grill
+  const counts = tally(grill, model.answers, model.skipped)
+  const needed = counts.total - counts.notNeeded
+  const isSending = model.send === 'Sending'
+  return h.div(
+    [h.Class('dialog-layer')],
+    [
+      h.div([
+        h.Class('dialog-backdrop'),
+        h.OnClick(Message.ClickedCancelSend()),
+      ]),
+      h.div(
+        [
+          h.Class('dialog send-dialog'),
+          h.Role('dialog'),
+          h.AriaModal(true),
+          h.AriaLabelledBy('send-title'),
+        ],
+        [
+          h.h2([h.Id('send-title')], [`Send to ${grill.session}`]),
+          h.p(
+            [h.Class('send-counts')],
+            [
+              `${counts.answered} of ${needed} answered`,
+              needed - counts.answered > 0
+                ? `, ${needed - counts.answered} still open and listed as open`
+                : '',
+              counts.notNeeded > 0 ? `, ${counts.notNeeded} not needed` : '',
+              '.',
+            ],
+          ),
+          h.details(
+            [h.Class('send-review')],
+            [
+              h.summary([], ['Questions and answers']),
+              h.ul(
+                [],
+                Array.map(grill.steps, step =>
+                  h.li(
+                    [
+                      h.Class(
+                        `send-row ${stateClass(model, grill, step.question.id)}`,
+                      ),
+                    ],
+                    [
+                      h.span([h.Class('send-id')], [step.question.id]),
+                      h.span([h.Class('send-title')], [step.question.title]),
+                      h.span(
+                        [h.Class('send-answer')],
+                        answerSummary(model, grill, step, h),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          h.label(
+            [h.Class('label'), h.For('send-message')],
+            ['A message with your answers (optional)'],
+          ),
+          h.textarea([
+            h.Id('send-message'),
+            h.Rows(4),
+            h.Value(model.sendMessage),
+            h.Placeholder('Anything the agent should know about this round'),
+            h.OnInput(value => Message.UpdatedSendMessage({ value })),
+            h.OnKeyDownPreventDefault((key, { metaKey, ctrlKey }) =>
+              key === 'Enter' && (metaKey || ctrlKey)
+                ? Option.some(Message.ClickedConfirmSend())
+                : Option.none(),
+            ),
+          ]),
+          model.send === 'Failed'
+            ? h.p([h.Class('send-error')], [`Not sent: ${model.sendDetail}`])
+            : h.empty,
+          h.div(
+            [h.Class('send-actions')],
+            [
+              h.span([h.Class('hint')], ['Cmd+Enter sends']),
+              h.button(
+                [
+                  h.Class('quiet-button'),
+                  h.OnClick(Message.ClickedCancelSend()),
+                ],
+                ['Cancel'],
+              ),
+              h.button(
+                [
+                  h.Class('send-button'),
+                  h.Disabled(isSending || counts.answered === 0),
+                  h.OnClick(Message.ClickedConfirmSend()),
+                ],
+                [isSending ? 'Sending…' : `Send to ${grill.session}`],
+              ),
+            ],
+          ),
+        ],
+      ),
     ],
   )
 }

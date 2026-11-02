@@ -9,129 +9,90 @@
       "name": "box-1",
       "tone": "ochre",
       "about": "A server.",
-      "aliases": [
-        "box-1"
-      ]
+      "aliases": ["box-1"]
     },
     {
       "id": "host",
       "name": "box-2",
       "tone": "teal",
       "about": "Another server.",
-      "aliases": [
-        "box-2"
-      ]
+      "aliases": ["box-2"]
     },
     {
       "id": "agent",
       "name": "agent",
       "tone": "violet",
       "about": "The agent.",
-      "aliases": [
-        "agent"
-      ]
+      "aliases": ["agent"]
     },
     {
       "id": "worker",
       "name": "worker",
       "tone": "rust",
       "about": "A background worker.",
-      "aliases": [
-        "worker"
-      ]
+      "aliases": ["worker"]
     },
     {
       "id": "helper",
       "name": "helper",
       "tone": "olive",
       "about": "A helper session.",
-      "aliases": [
-        "helper"
-      ]
+      "aliases": ["helper"]
     }
   ],
   "terms": [
     {
       "term": "gate",
       "about": "An example definition.",
-      "aliases": [
-        "gate",
-        "gates"
-      ]
+      "aliases": ["gate", "gates"]
     },
     {
       "term": "lease",
       "about": "An example definition.",
-      "aliases": [
-        "lease"
-      ]
+      "aliases": ["lease"]
     },
     {
       "term": "queue",
       "about": "An example definition.",
-      "aliases": [
-        "queue",
-        "queues"
-      ]
+      "aliases": ["queue", "queues"]
     },
     {
       "term": "shard",
       "about": "An example definition.",
-      "aliases": [
-        "shard",
-        "shards"
-      ]
+      "aliases": ["shard", "shards"]
     },
     {
       "term": "replica",
       "about": "An example definition.",
-      "aliases": [
-        "replica",
-        "replicas"
-      ]
+      "aliases": ["replica", "replicas"]
     },
     {
       "term": "ledger",
       "about": "An example definition.",
-      "aliases": [
-        "ledger",
-        "ledgers"
-      ]
+      "aliases": ["ledger", "ledgers"]
     },
     {
       "term": "cursor",
       "about": "An example definition.",
-      "aliases": [
-        "cursor"
-      ]
+      "aliases": ["cursor"]
     },
     {
       "term": "quota",
       "about": "An example definition.",
-      "aliases": [
-        "quota",
-        "quotas"
-      ]
+      "aliases": ["quota", "quotas"]
     },
     {
       "term": "backfill",
       "about": "An example definition.",
-      "aliases": [
-        "backfill"
-      ]
+      "aliases": ["backfill"]
     },
     {
       "term": "mailbox",
       "about": "An example definition.",
-      "aliases": [
-        "mailbox",
-        "mailboxes"
-      ]
+      "aliases": ["mailbox", "mailboxes"]
     }
   ],
-  "intro": [
-    "A synthetic grill with the shape of a real one, for tests."
-  ],
+  "intro": ["A synthetic grill with the shape of a real one, for tests."],
   "parts": [
     {
       "id": "part-1",
@@ -174,9 +135,7 @@
       "id": "step-q1",
       "part": "part-1",
       "heading": "Heading for Q1",
-      "prose": [
-        "The reasoning behind Q1."
-      ],
+      "prose": ["The reasoning behind Q1."],
       "question": {
         "id": "Q1",
         "title": "Title Q1",
@@ -204,9 +163,7 @@
       "id": "step-q2",
       "part": "part-2",
       "heading": "Heading for Q2",
-      "prose": [
-        "The reasoning behind Q2."
-      ],
+      "prose": ["The reasoning behind Q2."],
       "question": {
         "id": "Q2",
         "title": "Title Q2",
@@ -232,15 +189,11 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q1"
-        ],
+        "dependsOn": ["Q1"],
         "when": [
           {
             "question": "Q1",
-            "oneOf": [
-              "a"
-            ]
+            "oneOf": ["a"]
           }
         ]
       }
@@ -249,9 +202,7 @@
       "id": "step-q3",
       "part": "part-2",
       "heading": "Heading for Q3",
-      "prose": [
-        "The reasoning behind Q3."
-      ],
+      "prose": ["The reasoning behind Q3."],
       "question": {
         "id": "Q3",
         "title": "Title Q3",
@@ -277,15 +228,11 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q2"
-        ],
+        "dependsOn": ["Q2"],
         "when": [
           {
             "question": "Q1",
-            "oneOf": [
-              "a"
-            ]
+            "oneOf": ["a"]
           }
         ]
       }
@@ -294,9 +241,7 @@
       "id": "step-q16",
       "part": "part-2",
       "heading": "Heading for Q16",
-      "prose": [
-        "The reasoning behind Q16."
-      ],
+      "prose": ["The reasoning behind Q16."],
       "question": {
         "id": "Q16",
         "title": "Title Q16",
@@ -316,15 +261,11 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q2"
-        ],
+        "dependsOn": ["Q2"],
         "when": [
           {
             "question": "Q1",
-            "oneOf": [
-              "a"
-            ]
+            "oneOf": ["a"]
           }
         ]
       }
@@ -333,9 +274,7 @@
       "id": "step-q4",
       "part": "part-3",
       "heading": "Heading for Q4",
-      "prose": [
-        "The reasoning behind Q4."
-      ],
+      "prose": ["The reasoning behind Q4."],
       "question": {
         "id": "Q4",
         "title": "Title Q4",
@@ -361,9 +300,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q1"
-        ],
+        "dependsOn": ["Q1"],
         "when": []
       }
     },
@@ -371,9 +308,7 @@
       "id": "step-q5",
       "part": "part-3",
       "heading": "Heading for Q5",
-      "prose": [
-        "The reasoning behind Q5."
-      ],
+      "prose": ["The reasoning behind Q5."],
       "question": {
         "id": "Q5",
         "title": "Title Q5",
@@ -399,9 +334,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q4"
-        ],
+        "dependsOn": ["Q4"],
         "when": []
       }
     },
@@ -409,9 +342,7 @@
       "id": "step-q6",
       "part": "part-3",
       "heading": "Heading for Q6",
-      "prose": [
-        "The reasoning behind Q6. It builds on Q3."
-      ],
+      "prose": ["The reasoning behind Q6. It builds on Q3."],
       "question": {
         "id": "Q6",
         "title": "Title Q6",
@@ -437,16 +368,11 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q3"
-        ],
+        "dependsOn": ["Q3"],
         "when": [
           {
             "question": "Q3",
-            "oneOf": [
-              "a",
-              "b"
-            ]
+            "oneOf": ["a", "b"]
           }
         ]
       }
@@ -455,9 +381,7 @@
       "id": "step-q21",
       "part": "part-3",
       "heading": "Heading for Q21",
-      "prose": [
-        "The reasoning behind Q21. It builds on Q6, Q3, Q8, Q9, Q7."
-      ],
+      "prose": ["The reasoning behind Q21. It builds on Q6, Q3, Q8, Q9, Q7."],
       "question": {
         "id": "Q21",
         "title": "Title Q21",
@@ -483,16 +407,11 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q6"
-        ],
+        "dependsOn": ["Q6"],
         "when": [
           {
             "question": "Q3",
-            "oneOf": [
-              "a",
-              "b"
-            ]
+            "oneOf": ["a", "b"]
           }
         ]
       }
@@ -501,9 +420,7 @@
       "id": "step-q7",
       "part": "part-3",
       "heading": "Heading for Q7",
-      "prose": [
-        "The reasoning behind Q7. It builds on Q2, Q3."
-      ],
+      "prose": ["The reasoning behind Q7. It builds on Q2, Q3."],
       "question": {
         "id": "Q7",
         "title": "Title Q7",
@@ -529,9 +446,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q6"
-        ],
+        "dependsOn": ["Q6"],
         "when": []
       }
     },
@@ -539,9 +454,7 @@
       "id": "step-q18",
       "part": "part-4",
       "heading": "Heading for Q18",
-      "prose": [
-        "The reasoning behind Q18."
-      ],
+      "prose": ["The reasoning behind Q18."],
       "question": {
         "id": "Q18",
         "title": "Title Q18",
@@ -567,9 +480,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q2"
-        ],
+        "dependsOn": ["Q2"],
         "when": []
       }
     },
@@ -577,9 +488,7 @@
       "id": "step-q10",
       "part": "part-4",
       "heading": "Heading for Q10",
-      "prose": [
-        "The reasoning behind Q10."
-      ],
+      "prose": ["The reasoning behind Q10."],
       "question": {
         "id": "Q10",
         "title": "Title Q10",
@@ -599,9 +508,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q18"
-        ],
+        "dependsOn": ["Q18"],
         "when": []
       }
     },
@@ -609,9 +516,7 @@
       "id": "step-q11",
       "part": "part-4",
       "heading": "Heading for Q11",
-      "prose": [
-        "The reasoning behind Q11. It builds on Q10."
-      ],
+      "prose": ["The reasoning behind Q11. It builds on Q10."],
       "question": {
         "id": "Q11",
         "title": "Title Q11",
@@ -637,9 +542,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q10"
-        ],
+        "dependsOn": ["Q10"],
         "when": []
       }
     },
@@ -647,9 +550,7 @@
       "id": "step-q12",
       "part": "part-4",
       "heading": "Heading for Q12",
-      "prose": [
-        "The reasoning behind Q12. It builds on Q4."
-      ],
+      "prose": ["The reasoning behind Q12. It builds on Q4."],
       "question": {
         "id": "Q12",
         "title": "Title Q12",
@@ -681,9 +582,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q18"
-        ],
+        "dependsOn": ["Q18"],
         "when": []
       }
     },
@@ -691,9 +590,7 @@
       "id": "step-q19",
       "part": "part-4",
       "heading": "Heading for Q19",
-      "prose": [
-        "The reasoning behind Q19."
-      ],
+      "prose": ["The reasoning behind Q19."],
       "question": {
         "id": "Q19",
         "title": "Title Q19",
@@ -713,9 +610,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q18"
-        ],
+        "dependsOn": ["Q18"],
         "when": []
       }
     },
@@ -723,9 +618,7 @@
       "id": "step-q20",
       "part": "part-4",
       "heading": "Heading for Q20",
-      "prose": [
-        "The reasoning behind Q20."
-      ],
+      "prose": ["The reasoning behind Q20."],
       "question": {
         "id": "Q20",
         "title": "Title Q20",
@@ -745,9 +638,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q19"
-        ],
+        "dependsOn": ["Q19"],
         "when": []
       }
     },
@@ -755,9 +646,7 @@
       "id": "step-q13",
       "part": "part-5",
       "heading": "Heading for Q13",
-      "prose": [
-        "The reasoning behind Q13."
-      ],
+      "prose": ["The reasoning behind Q13."],
       "question": {
         "id": "Q13",
         "title": "Title Q13",
@@ -783,9 +672,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q2"
-        ],
+        "dependsOn": ["Q2"],
         "when": []
       }
     },
@@ -793,9 +680,7 @@
       "id": "step-q14",
       "part": "part-5",
       "heading": "Heading for Q14",
-      "prose": [
-        "The reasoning behind Q14."
-      ],
+      "prose": ["The reasoning behind Q14."],
       "question": {
         "id": "Q14",
         "title": "Title Q14",
@@ -815,9 +700,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q13"
-        ],
+        "dependsOn": ["Q13"],
         "when": []
       }
     },
@@ -825,9 +708,7 @@
       "id": "step-q15",
       "part": "part-5",
       "heading": "Heading for Q15",
-      "prose": [
-        "The reasoning behind Q15."
-      ],
+      "prose": ["The reasoning behind Q15."],
       "question": {
         "id": "Q15",
         "title": "Title Q15",
@@ -853,9 +734,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q13"
-        ],
+        "dependsOn": ["Q13"],
         "when": []
       }
     },
@@ -863,9 +742,7 @@
       "id": "step-q8",
       "part": "part-6",
       "heading": "Heading for Q8",
-      "prose": [
-        "The reasoning behind Q8."
-      ],
+      "prose": ["The reasoning behind Q8."],
       "question": {
         "id": "Q8",
         "title": "Title Q8",
@@ -891,9 +768,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q2"
-        ],
+        "dependsOn": ["Q2"],
         "when": []
       }
     },
@@ -901,9 +776,7 @@
       "id": "step-q9",
       "part": "part-6",
       "heading": "Heading for Q9",
-      "prose": [
-        "The reasoning behind Q9."
-      ],
+      "prose": ["The reasoning behind Q9."],
       "question": {
         "id": "Q9",
         "title": "Title Q9",
@@ -929,9 +802,7 @@
             "recommended": false
           }
         ],
-        "dependsOn": [
-          "Q8"
-        ],
+        "dependsOn": ["Q8"],
         "when": []
       }
     },
@@ -939,9 +810,7 @@
       "id": "step-q17",
       "part": "part-7",
       "heading": "Heading for Q17",
-      "prose": [
-        "The reasoning behind Q17."
-      ],
+      "prose": ["The reasoning behind Q17."],
       "question": {
         "id": "Q17",
         "title": "Title Q17",
@@ -966,7 +835,5 @@
       }
     }
   ],
-  "next": [
-    "Nothing; it's a test."
-  ]
+  "next": ["Nothing; it's a test."]
 }
