@@ -456,6 +456,23 @@ describe('plan', () => {
   it('ranks the issue that holds the most work first', () => {
     expect(waitingOnYou(planned, {}).map(found => found.id)).toEqual(['B', 'D'])
   })
+
+  it('also waits on a running build whose review needs an answer, after any build that cannot start', () => {
+    const reviewing = Schema.decodeUnknownSync(Grill)({
+      ...planned,
+      plan: {
+        issues: [
+          { id: 'R', title: 'Running', phase: 'building', review: ['Q6'] },
+          { id: 'S', title: 'Gated', phase: 'gated', start: ['Q5'] },
+        ],
+      },
+    })
+    expect(waitingOnYou(reviewing, {}).map(found => found.id)).toEqual([
+      'S',
+      'R',
+    ])
+    expect(waitingOnYou(reviewing, { Q5: 'a', Q6: 'a' })).toEqual([])
+  })
 })
 
 describe('page addresses', () => {

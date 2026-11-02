@@ -240,6 +240,17 @@ export const openGatesOf = (
     id => statusOf(grill, answers, id)._tag !== 'Answered',
   )
 
+/** The questions its review needs that are still unanswered. */
+export const openReviewOf = (
+  grill: Grill,
+  issue: PlanIssue,
+  answers: Answers,
+): ReadonlyArray<string> =>
+  Array.filter(
+    issue.review ?? [],
+    id => statusOf(grill, answers, id)._tag !== 'Answered',
+  )
+
 /** Every in-run issue that waits, directly or through others, on this one. */
 export const downstreamOf = (
   grill: Grill,
@@ -264,7 +275,8 @@ export const downstreamOf = (
 }
 
 /**
- * The issues waiting on Rob, most urgent first: the more work an issue holds up, the earlier it
+ * The issues waiting on Rob, most urgent first. A builder that can't start comes before a running
+ * one whose review needs an answer; within each, the more work an issue holds up, the earlier it
  * comes, the critical chain breaks ties, and then fewer questions left to answer.
  */
 export const waitingOnYou = (
@@ -273,6 +285,7 @@ export const waitingOnYou = (
 ): ReadonlyArray<PlanIssue> => {
   const critical = new Set(grill.plan?.critical ?? [])
   const weight = (issue: PlanIssue): number =>
+    (openGatesOf(grill, issue, answers).length > 0 ? 100 : 0) +
     downstreamOf(grill, issue.id).length * 2 +
     (critical.has(issue.id) ? 3 : 0) -
     openGatesOf(grill, issue, answers).length * 0.1
@@ -280,7 +293,12 @@ export const waitingOnYou = (
     grill.plan?.issues ?? [],
     Array.filter(issue => {
       const phase = planPhaseOf(grill, issue, answers)
-      return phase === 'you' || phase === 'stuck'
+      return (
+        phase === 'you' ||
+        phase === 'stuck' ||
+        ((phase === 'building' || phase === 'review') &&
+          openReviewOf(grill, issue, answers).length > 0)
+      )
     }),
     Array.sort(
       Order.mapInput(Order.Number, (issue: PlanIssue) => -weight(issue)),

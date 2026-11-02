@@ -475,9 +475,25 @@ const URGENCY_NAV: ReadonlyArray<UrgencyLevel> = [
   'unset',
 ]
 
-/** The plan issue a card is the design gate of, when the grill has a plan. */
-const cardIssue = (grill: Grill, card: string): Option.Option<PlanIssue> =>
-  Array.findFirst(grill.plan?.issues ?? [], issue => issue.card === card)
+/**
+ * The plan issue a card belongs to: the one the plan names for it, else the one every question
+ * on the card is about (a later card for an issue already gated).
+ */
+const cardIssue = (grill: Grill, card: string): Option.Option<PlanIssue> => {
+  const issues = grill.plan?.issues ?? []
+  const named = Array.findFirst(issues, issue => issue.card === card)
+  if (Option.isSome(named)) {
+    return named
+  }
+  const about = Array.dedupe(
+    Array.flatMap(stepsOnCard(grill, card), step =>
+      step.question.issue === undefined ? [] : [step.question.issue],
+    ),
+  )
+  return about.length === 1
+    ? Array.findFirst(issues, issue => issue.id === about[0])
+    : Option.none()
+}
 
 /** A card goes by its issue's title wherever the plan names it, so a link and its page agree. */
 const cardName = (grill: Grill, card: string): string =>
@@ -1189,7 +1205,7 @@ const planSummary = (grill: Grill, model: Model): string => {
   return [
     waiting === 0
       ? 'Nothing waits on you'
-      : `${waiting} build${waiting === 1 ? '' : 's'} wait on you`,
+      : `${waiting} ${waiting === 1 ? 'build waits' : 'builds wait'} on you`,
     ...(deadline === undefined || model.now === 0
       ? []
       : [timeLeft(deadline, model.now)]),
@@ -1307,13 +1323,20 @@ const waitingBlock = (
             : h.empty,
         ],
       ),
-      h.div(
-        [h.Class('plan-qs')],
-        [
-          h.span([h.Class('label')], ['Its builder starts once you answer']),
-          ...Array.map(open, id => planQuestion(model, grill, issue, id, h)),
-        ],
-      ),
+      Array.isReadonlyArrayEmpty(open)
+        ? h.empty
+        : h.div(
+            [h.Class('plan-qs')],
+            [
+              h.span(
+                [h.Class('label')],
+                ['Its builder starts once you answer'],
+              ),
+              ...Array.map(open, id =>
+                planQuestion(model, grill, issue, id, h),
+              ),
+            ],
+          ),
       Array.isArrayEmpty(answeredStart)
         ? h.empty
         : h.p(
@@ -1328,7 +1351,14 @@ const waitingBlock = (
         : h.div(
             [h.Class('plan-qs')],
             [
-              h.span([h.Class('label')], ['Can wait until its first review']),
+              h.span(
+                [h.Class('label')],
+                [
+                  Array.isReadonlyArrayEmpty(open)
+                    ? 'Its review needs your answer to'
+                    : 'Can wait until its first review',
+                ],
+              ),
               ...Array.map(review, id =>
                 planQuestion(model, grill, issue, id, h),
               ),
@@ -1458,7 +1488,13 @@ const planPageView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
       phases.includes(planPhaseOf(grill, issue, model.answers)),
     )
   const columns: ReadonlyArray<readonly [string, ReadonlyArray<PlanIssue>]> = [
-    ['Building now', inPhase(['building', 'review'])],
+    [
+      'Building now',
+      Array.filter(
+        inPhase(['building', 'review']),
+        issue => !waiting.some(other => other.id === issue.id),
+      ),
+    ],
     ['Ready to start', inPhase(['ready'])],
     ['Waiting on another issue', inPhase(['after'])],
   ]
