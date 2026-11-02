@@ -65,6 +65,8 @@ export const Question = Schema.Struct({
   options: Schema.Array(AnswerOption),
   dependsOn: Schema.Array(Schema.String),
   when: Schema.Array(Condition),
+  // The round that first asked it; untagged questions belong to round 1.
+  round: Schema.optionalKey(Schema.Number),
   urgency: Schema.optionalKey(Urgency),
   // A `refs` key: the issue the question is mainly about.
   issue: Schema.optionalKey(Schema.String),
@@ -342,13 +344,20 @@ export type Tally = Readonly<{
   notNeeded: number
 }>
 
+/** The questions this round asks, or every question when none carries a round. */
+export const roundSteps = (grill: Grill): ReadonlyArray<Step> =>
+  grill.steps.some(step => step.question.round !== undefined)
+    ? grill.steps.filter(step => (step.question.round ?? 1) === grill.round)
+    : grill.steps
+
 export const tally = (
   grill: Grill,
   answers: Answers,
   skipped: ReadonlyArray<string> = [],
+  steps: ReadonlyArray<Step> = grill.steps,
 ): Tally =>
   Array.reduce(
-    grill.steps,
+    steps,
     { total: 0, answered: 0, open: 0, waiting: 0, notNeeded: 0 },
     (counts, step) => {
       const status = statusOf(grill, answers, step.question.id, skipped)
@@ -394,7 +403,7 @@ export const replyText = (
   notes: Notes,
   own: Notes = {},
 ): string => {
-  const statuses = Array.map(grill.steps, step => ({
+  const statuses = Array.map(roundSteps(grill), step => ({
     question: step.question,
     status: statusOf(grill, answers, step.question.id),
   }))

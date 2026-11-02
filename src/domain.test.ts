@@ -12,6 +12,7 @@ import {
   withRefs,
   withTerms,
   replyText,
+  roundSteps,
   urgencyRank,
   usesUrgency,
   segments,
@@ -312,5 +313,31 @@ describe('squad fields', () => {
     expect(urgencyRank(question)).toBeLessThan(
       urgencyRank({ ...question, urgency: 'soon' }),
     )
+  })
+})
+
+describe('rounds', () => {
+  const tagged = {
+    ...grill,
+    round: 2,
+    steps: grill.steps.map(step =>
+      step.question.id === 'Q1' || step.question.id === 'Q17'
+        ? { ...step, question: { ...step.question, round: 2 } }
+        : step,
+    ),
+  }
+
+  it('replies with only the questions the current round asks', () => {
+    expect(roundSteps(tagged).map(step => step.question.id)).toEqual([
+      'Q1',
+      'Q17',
+    ])
+    expect(replyText(tagged, { Q1: 'a', Q2: 'a', Q17: 'b' }, {})).toBe(
+      'Round 2:\nQ1 a\nQ17 b',
+    )
+  })
+
+  it('keeps every question when none carries a round', () => {
+    expect(roundSteps(grill)).toHaveLength(grill.steps.length)
   })
 })

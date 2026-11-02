@@ -22,6 +22,7 @@ import {
   proseOf,
   relationsOf,
   replyText,
+  roundSteps,
   segments,
   statusOf,
   tally,
@@ -33,7 +34,14 @@ import {
   withTerms,
 } from './domain'
 import type { Message as MessageType, Model } from './main'
-import { DECIDED, LONG_CONCEPT, Message, OVERVIEW, URGENCY_PAGE } from './main'
+import {
+  DECIDED,
+  FillBox,
+  LONG_CONCEPT,
+  Message,
+  OVERVIEW,
+  URGENCY_PAGE,
+} from './main'
 
 type H = HtmlBuilder<MessageType>
 
@@ -395,7 +403,8 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
 /** The review before Send: counts, every question with its answer folded away, and a message. */
 const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
-  const counts = tally(grill, model.answers, model.skipped)
+  const steps = roundSteps(grill)
+  const counts = tally(grill, model.answers, model.skipped, steps)
   const needed = counts.total - counts.notNeeded
   const isSending = model.send === 'Sending'
   return h.div(
@@ -413,7 +422,10 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
           h.AriaLabelledBy('send-title'),
         ],
         [
-          h.h2([h.Id('send-title')], [`Send to ${grill.session}`]),
+          h.h2(
+            [h.Id('send-title')],
+            [`Send round ${grill.round} to ${grill.session}`],
+          ),
           h.p(
             [h.Class('send-counts')],
             [
@@ -431,7 +443,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
               h.summary([], ['Questions and answers']),
               h.ul(
                 [],
-                Array.map(grill.steps, step =>
+                Array.map(steps, step =>
                   h.li(
                     [
                       h.Class(
@@ -458,7 +470,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
           h.textarea([
             h.Id('send-message'),
             h.Rows(4),
-            h.Value(model.sendMessage),
+            h.OnMount(FillBox({ text: model.sendMessage })),
             h.Placeholder('Anything the agent should know about this round'),
             h.OnInput(value => Message.UpdatedSendMessage({ value })),
             h.OnKeyDownPreventDefault((key, { metaKey, ctrlKey }) =>
@@ -1793,10 +1805,10 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
               ),
             ],
           ),
-          h.textarea([
+          h.keyed('textarea')(`talk-${part.id}-${model.talkGeneration}`, [
             h.Id('talk-box'),
             h.Rows(4),
-            h.Value(draft),
+            h.OnMount(FillBox({ text: draft })),
             h.AriaLabel('Message to the agent'),
             h.Placeholder('Ask, push back, or ask for a clearer rewrite'),
             h.OnInput(value =>
@@ -1817,14 +1829,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                   `Enter sends, Shift+Enter for a new line. Goes to ${grill.session}; the reply lands here.`,
                 ],
               ),
-              h.button(
-                [
-                  h.Type('submit'),
-                  h.Class('send-button'),
-                  h.Disabled(draft.trim() === ''),
-                ],
-                ['Send'],
-              ),
+              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
             ],
           ),
         ],

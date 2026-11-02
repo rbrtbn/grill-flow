@@ -9,7 +9,15 @@ import {
   Stream,
   pipe,
 } from 'effect'
-import { AsyncData, Command, Dom, Runtime, Subscription, Update } from 'foldkit'
+import {
+  AsyncData,
+  Command,
+  Dom,
+  Mount,
+  Runtime,
+  Subscription,
+  Update,
+} from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 
@@ -56,6 +64,8 @@ export const Model = Schema.Struct({
   send: SendState,
   isSendOpen: Schema.Boolean,
   sendMessage: Schema.String,
+  // Bumped after each sent talk message, so the box remounts empty.
+  talkGeneration: Schema.Number,
   sendDetail: Schema.String,
   copy: CopyState,
   maybeSaveError: Schema.Option(Schema.String),
@@ -113,6 +123,10 @@ export const Message = defineMessageUnion({
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
   SubmittedTalk: { partId: Schema.String },
+  ReadTalkBox: { partId: Schema.String, text: Schema.String },
+  ReadSendBox: { text: Schema.String },
+  ScrolledToAbout: { partId: Schema.String, about: Schema.String },
+  CompletedFillBox: {},
   ClickedAskAbout: { partId: Schema.String, question: Schema.String },
   ClickedShowChanges: { question: Schema.String, stepId: Schema.String },
   HoveredMapNode: { question: Schema.String },
@@ -348,17 +362,29 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { sendMessage: () => value }),
     }),
 
-    ClickedConfirmSend: () =>
+    ClickedConfirmSend: () => ({
+      model,
+      commands: [ReadSendBoxCommand()],
+    }),
+
+    ReadSendBox: ({ text }) =>
       Option.match(grillIdOf(model), {
         onNone: () => ({ model }),
         onSome: grillId => ({
           model: modifyFields(model, {
             send: () => 'Sending' as const,
             sendDetail: () => '',
+            sendMessage: () => text,
           }),
-          commands: [SendAnswers({ grillId, message: model.sendMessage })],
+          commands: [SendAnswers({ grillId, message: text })],
         }),
       }),
+
+    CompletedFillBox: () => ({ model }),
+
+    ScrolledToAbout: ({ partId, about }) => ({
+      model: modifyFields(model, { talkAbout: Record.set(partId, about) }),
+    }),
 
     CompletedSendAnswers: ({ result }) =>
       result._tag === 'Success'
@@ -499,12 +525,14 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { talkDrafts: Record.set(partId, value) }),
     }),
 
-    SubmittedTalk: ({ partId }) =>
+    SubmittedTalk: ({ partId }) => ({
+      model,
+      commands: [ReadTalkBoxCommand({ partId })],
+    }),
+
+    ReadTalkBox: ({ partId, text: boxText }) =>
       withSnapshot(model, snapshot => {
-        const text = Option.getOrElse(
-          Record.get(model.talkDrafts, partId),
-          () => '',
-        ).trim()
+        const text = boxText.trim()
         const about = Option.getOrElse(
           Record.get(model.talkAbout, partId),
           () => 'concept',
@@ -520,7 +548,10 @@ export const update = (model: Model, message: Message) =>
           return { model }
         }
         return postEvent(
-          modifyFields(model, { talkDrafts: Record.remove(partId) }),
+          modifyFields(model, {
+            talkDrafts: Record.remove(partId),
+            talkGeneration: generation => generation + 1,
+          }),
           {
             kind: 'asked',
             stepId: target,
@@ -667,6 +698,7 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => ({
     send: 'Idle',
     isSendOpen: false,
     sendMessage: '',
+    talkGeneration: 0,
     sendDetail: '',
     copy: 'Idle',
     maybeSaveError: Option.none(),
@@ -821,6 +853,43 @@ export const FocusTalkBox = Command.define('FocusTalkBox', {
   ),
 })
 
+// Dictation tools can set a box's text without an input event, which a value bound to the
+// Model would undo at once. So these boxes own their text: the Model fills them when they
+// mount and reads them when they send.
+
+const boxText = (id: string): string => {
+  const element = document.getElementById(id)
+  return element instanceof HTMLTextAreaElement ? element.value : ''
+}
+
+export const ReadTalkBoxCommand = Command.define('ReadTalkBox', {
+  args: { partId: Schema.String },
+  messages: [Message.ReadTalkBox],
+  execute: ({ partId }) =>
+    Effect.sync(() =>
+      Message.ReadTalkBox({ partId, text: boxText('talk-box') }),
+    ),
+})
+
+export const ReadSendBoxCommand = Command.define('ReadSendBox', {
+  messages: [Message.ReadSendBox],
+  execute: Effect.sync(() =>
+    Message.ReadSendBox({ text: boxText('send-message') }),
+  ),
+})
+
+export const FillBox = Mount.define('FillBox', {
+  args: { text: Schema.String },
+  messages: [Message.CompletedFillBox],
+  execute: ({ element, text }) =>
+    Effect.sync(() => {
+      if (element instanceof HTMLTextAreaElement && element.value === '') {
+        element.value = text
+      }
+      return Message.CompletedFillBox()
+    }),
+})
+
 export const FocusSendBox = Command.define('FocusSendBox', {
   messages: [Message.CompletedFocus],
   execute: pipe(
@@ -926,7 +995,68 @@ const outOfView = (question: string): Option.Option<Option.Option<number>> => {
       : Option.none()
 }
 
+/**
+ * What the reader is on: the concept while its title shows, else the question under a reading
+ * line a third of the way down the view, or the nearest one to it.
+ */
+const onScreenAbout = (): Option.Option<string> => {
+  const barBottom =
+    document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0
+  const title = document.querySelector('.concept-title')
+  if (title !== null && title.getBoundingClientRect().bottom > barBottom) {
+    return Option.some('concept')
+  }
+  const line = barBottom + (window.innerHeight - barBottom) / 3
+  const distance = (box: DOMRect): number =>
+    box.top <= line && box.bottom >= line
+      ? 0
+      : Math.min(Math.abs(box.top - line), Math.abs(box.bottom - line))
+  return Option.map(
+    Array.head(
+      Array.sort(
+        Array.map(
+          Array.fromIterable(document.querySelectorAll('.questions .question')),
+          section => ({
+            id: section.id.replace(/^q-/, ''),
+            distance: distance(section.getBoundingClientRect()),
+          }),
+        ),
+        (a: { distance: number }, b: { distance: number }) =>
+          Math.sign(a.distance - b.distance) as -1 | 0 | 1,
+      ),
+    ),
+    entry => entry.id,
+  )
+}
+
+const isConceptPage = (page: string): boolean =>
+  page !== OVERVIEW && page !== DECIDED && !page.startsWith(URGENCY_PAGE)
+
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  // While Talk is open on a concept, its About follows what the reader scrolls to.
+  followQuestion: entry(
+    { partId: Schema.String },
+    {
+      modelToDependencies: model => ({
+        partId:
+          model.side === 'Talk' && isConceptPage(model.currentPart)
+            ? model.currentPart
+            : '',
+      }),
+      dependenciesToStream: ({ partId }) =>
+        Stream.when(
+          Dom.streamFromEventFilterMap({
+            target: window,
+            type: 'scroll',
+            filterMapEvent: () => onScreenAbout(),
+          }).pipe(
+            Stream.changes,
+            Stream.map(about => Message.ScrolledToAbout({ partId, about })),
+          ),
+          Effect.sync(() => partId !== ''),
+        ),
+    },
+  ),
   // The question just answered stays open until it scrolls out of view, then folds to its row.
   collapseAnswered: entry(
     { justAnswered: Schema.String },

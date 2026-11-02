@@ -33,8 +33,10 @@ terminal or the checkout, grill in chat instead.
 1. `gf up`. It starts the server under hc unless it already answers.
 2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill,
    below). Round 1 creates it; a later round edits the same file: add the new
-   frontier with the next free ids, bump `round`, and keep every answered
-   question, which the page folds to its answer. `<id>` is unique across
+   frontier with the next free ids, set `round` on each new question and on
+   the grill, and keep every answered question, which the page folds to its
+   answer. The reply and the send dialog then cover only this round's
+   questions. `<id>` is unique across
    every agent's grills, e.g. `<repo>-<topic>`.
 3. `gf load grills/<id>.json`. Answers, notes and asks already given stay,
    keyed by question id.
