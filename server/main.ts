@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, normalize } from 'node:path'
+import { dirname, join, normalize } from 'node:path'
 
 import { OWN, answerLines, replyText } from '../src/domain'
 import { dashboard } from './dashboard'
@@ -12,6 +12,7 @@ import {
   getGrill,
   listGrills,
   open,
+  remoteOf,
   snapshot,
 } from './store'
 
@@ -200,7 +201,7 @@ const handleEvent = async (
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })
       const result = await sendToSession(
         sessionFor(grill.session),
-        askMessage(grillId, stepId, askId, text),
+        askMessage(grillId, stepId, askId, text, gfFor(grillId)),
       )
       appendEvent(db, grillId, 'sent', { ...result, what: 'ask', askId })
       break
@@ -209,6 +210,15 @@ const handleEvent = async (
       return json({ error: 'unknown event kind' }, 400)
   }
   return json(snapshot(db, grill))
+}
+
+// A pulled grill's agent answers into its outbox from its own checkout, at the path the grill
+// skill names, not from this machine's.
+const gfFor = (grillId: string): string | undefined => {
+  const remote = remoteOf(db, grillId)
+  return remote === undefined
+    ? undefined
+    : `GF_OUTBOX=${dirname(remote.dir)} bun run --cwd ~/repos/rbrtbn/grill-flow gf`
 }
 
 const MESSAGE_LIMIT = 4000

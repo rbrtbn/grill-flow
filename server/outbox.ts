@@ -9,7 +9,7 @@ import { join } from 'node:path'
 
 import { type Grill, type Snapshot, replyText } from '../src/domain'
 import { askMessage } from './messages'
-import { decodeGrill } from './store'
+import { ROOT, decodeGrill } from './store'
 
 // The agent side on a machine without the server: grills and replies go into an outbox folder
 // that a grill-flow server elsewhere pulls over hc, and its state.json comes back beside them
@@ -35,6 +35,7 @@ export const newsSince = (
     Readonly<{ id: number; kind: string; payload: Record<string, unknown> }>
   >,
   answeredAsks: ReadonlySet<number>,
+  gf?: string,
 ): News => ({
   lines: fresh.flatMap(event =>
     event.kind === 'asked' && !answeredAsks.has(event.id)
@@ -44,6 +45,7 @@ export const newsSince = (
             String(event.payload.stepId),
             event.id,
             String(event.payload.text),
+            gf,
           ),
         ]
       : event.kind === 'sent' && event.payload.what === 'answers'
@@ -185,6 +187,7 @@ export const runOutbox = async (
               .filter(ask => ask.answered)
               .map(ask => ask.id),
           ),
+          `GF_OUTBOX=${outbox} bun run --cwd ${ROOT} gf`,
         )
         if (news.lines.length > 0) {
           console.log(news.lines.join('\n\n'))

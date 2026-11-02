@@ -144,6 +144,17 @@ export const reviseGrill = (
   }
 }
 
+/** Where a grill pulled from another machine's outbox lives there, if it was. */
+export const remoteOf = (
+  db: Database,
+  grillId: string,
+): { machine: string; dir: string } | undefined =>
+  db
+    .query<{ machine: string; dir: string }, [string]>(
+      'SELECT machine, dir FROM grill_remotes WHERE grill_id = ?',
+    )
+    .get(grillId) ?? undefined
+
 export const lastEventId = (db: Database, grillId: string): number =>
   db
     .query<{ id: number | null }, [string]>(
