@@ -3,13 +3,53 @@
 A local page for an agent's grill: the interview an agent runs to settle a decision with you.
 The page lays the reasoning out concept by concept, puts a question at each decision point, says
 what each option changes, and greys a question until what it depends on is answered. You answer
-on the page, ask about anything you don't follow, and get rewrites back as diffs. Send types your
-answers into the agent's terminal.
+on the page, ask about anything you don't follow, and get rewrites back as diffs. Send reviews
+your answers, takes an optional message, and types it all into the agent's terminal.
 
-![A squad grill listed by issue, with the map in the sidebar and a PR's state on hover](docs/screenshots/by-issue.png)
+![A decision grill: the overview with its colour-coded names and the map of questions](docs/screenshots/decision-overview.png)
 
 Everything stays on your machine. Every answer, note, ask and rewrite is kept as an event in a
 local SQLite file, so you can later mine how you use the pages.
+
+## Two kinds of grill
+
+One page serves both; which one you get depends only on the fields the grill's file fills in.
+
+### A decision grill
+
+The everyday kind: one decision, thought through in order. Start here.
+
+- **Concepts** down the left, one idea each; the page shows one at a time with its part of the
+  map.
+- **Names in colour.** The agent lists the names that keep coming up (machines, services,
+  people) as `entities`, each with a colour. They're coloured the same way everywhere on the
+  page, and a key under the introduction says what each one is.
+- **A glossary.** Words the reasoning leans on (`terms`) are underlined and explained on hover.
+- **Questions that wait.** `dependsOn` greys a question until its inputs are answered; `when`
+  marks it not needed after an answer that rules it out.
+- **Talk per concept.** Ask about a question or the whole concept from the sidebar. The agent
+  answers there, or rewrites the reasoning and you see the diff.
+
+![A concept with the agent's reply and the rewrite it made, shown as a diff](docs/screenshots/decision-concept.png)
+
+`examples/decision-sample.json` is a whole one.
+
+### A squad grill
+
+For a long-running multi-agent effort, where questions from several agents and issues pile up
+for one person. It adds, on top of the above:
+
+- **Urgency** on each question (blocking, soon, can wait, FYI), and a sidebar that lists by issue
+  or by urgency.
+- **References that link out.** Each Linear issue or PR named in the text links to it and shows
+  its state on hover.
+- **Who asked**, with the asker's own row id, and **decided so far** from earlier rounds.
+
+![A squad grill listed by issue, with a PR's state on hover](docs/screenshots/squad-by-issue.png)
+
+![The same grill listed by urgency](docs/screenshots/squad-by-urgency.png)
+
+`examples/squad-sample.json` uses every field.
 
 ## What you need
 
@@ -18,7 +58,7 @@ local SQLite file, so you can later mine how you use the pages.
 - [Claude Code](https://claude.com/claude-code), for the `grill` skill the agent follows.
 - Herdr's `hc`, which carries your asks and answers into the agent's terminal. The agent runs in
   a Herdr terminal so it has an address (`$HC_TERMINAL_ID`). Without it, Copy still puts your
-  reply on the clipboard to paste.
+  reply on the clipboard to paste, but asks from the page don't reach the agent.
 
 ## Get started
 
@@ -26,10 +66,11 @@ local SQLite file, so you can later mine how you use the pages.
 git clone <your fork> grill-flow && cd grill-flow
 bun install
 bun run gf up          # builds the page and starts the server at http://127.0.0.1:4317
-bun run gf load examples/squad-sample.json
+bun run gf load examples/decision-sample.json
 ```
 
-Open `http://127.0.0.1:4317/g/squad-sample` to see a made-up grill.
+Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill. `GF_PORT` and `GF_DB`
+move the server and its database elsewhere, say for a second copy.
 
 Install the skill from your checkout, so your edits take effect without a release:
 
@@ -44,30 +85,14 @@ agent writes the grill to `grills/<id>.json`, loads it and gives you the link.
 `bun run dev` serves the page and rebuilds it on every change to `src/`; an open page reloads
 itself within a few seconds and keeps what you were typing. `bun test` runs the tests.
 
-## How a grill is shaped
-
-A grill is one JSON file; `Grill` in `src/domain.ts` is the schema and
-`examples/squad-sample.json` uses every field.
-
-- **Concepts** (`parts`): one idea each. The sidebar lists them, and the page shows one at a time.
-- **Steps**: the reasoning in thinking order, each ending in one question with options, a
-  recommendation, and what each option changes.
-- **Links between questions**: `dependsOn` greys a question until its inputs are answered; `when`
-  marks it not needed after an answer that rules it out. The map draws both.
-- **Glossary and names** (`terms`, `entities`): explained on hover wherever they appear.
-- **Squad fields**, all optional: urgency, the Linear issue or PR behind a question, who asked,
-  and decisions already made. The sidebar then lists by issue or by urgency.
-
-![The same grill listed by urgency](docs/screenshots/by-urgency.png)
-
 ## Make it yours
 
 This is a base to fork and bend to how you think, not a product taking requests.
 
 - **The skill**: `plugin/skills/grill/SKILL.md`. Change the checkout path near the top to where
   you cloned it, and the rest to how you want agents to grill you.
-- **The look**: `src/styles.css`, with colour tokens for light and dark at the top. `DESIGN.md`
-  and `PRODUCT.md` record why it looks the way it does.
+- **The look**: `src/styles.css`, with colour tokens for light and dark at the top, including the
+  five entity colours. `DESIGN.md` and `PRODUCT.md` record why it looks the way it does.
 - **The grill shape**: `src/domain.ts`. A new field goes in the schema, then into `src/view.ts`.
 - **Where answers go**: `server/main.ts` sends through `hc send`; swap that for whatever reaches
   your agent.

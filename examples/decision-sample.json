@@ -1,0 +1,358 @@
+{
+  "id": "decision-sample",
+  "title": "Move the jobs off the web server",
+  "round": 1,
+  "session": "t0",
+  "entities": [
+    {
+      "id": "web",
+      "name": "web-1",
+      "tone": "ochre",
+      "about": "The web server. It runs the app and, today, every background job too.",
+      "aliases": [
+        "web-1"
+      ]
+    },
+    {
+      "id": "jobs",
+      "name": "jobs-1",
+      "tone": "teal",
+      "about": "A new machine that would run background jobs only.",
+      "aliases": [
+        "jobs-1"
+      ]
+    },
+    {
+      "id": "scheduler",
+      "name": "scheduler",
+      "tone": "violet",
+      "about": "The process that starts timed jobs, like a nightly export.",
+      "aliases": [
+        "scheduler"
+      ]
+    },
+    {
+      "id": "worker",
+      "name": "workers",
+      "tone": "rust",
+      "about": "Processes that take jobs off the queue and run them.",
+      "aliases": [
+        "workers",
+        "worker"
+      ]
+    },
+    {
+      "id": "queue",
+      "name": "queue",
+      "tone": "olive",
+      "about": "The Redis list where jobs wait for a worker.",
+      "aliases": [
+        "queue"
+      ]
+    }
+  ],
+  "terms": [
+    {
+      "term": "drain",
+      "about": "Let running jobs finish and take no new ones before stopping.",
+      "aliases": [
+        "drain",
+        "drains",
+        "drained"
+      ]
+    },
+    {
+      "term": "lease",
+      "about": "A worker's time-limited claim on a job; when it runs out, another worker may take the job.",
+      "aliases": [
+        "lease",
+        "leases"
+      ]
+    },
+    {
+      "term": "dead letter",
+      "about": "A job that failed too often and is set aside for a person to look at.",
+      "aliases": [
+        "dead letter",
+        "dead letters"
+      ]
+    },
+    {
+      "term": "cutover",
+      "about": "The moment jobs stop running in the old place and start in the new one.",
+      "aliases": [
+        "cutover"
+      ]
+    }
+  ],
+  "intro": [
+    "Page loads on `web-1` slow down every night while the export runs. This grill decides whether the background jobs move to their own machine, and how to move them without losing a job.",
+    "Each concept on the left is one part of the decision. Questions wait until what they depend on is answered."
+  ],
+  "parts": [
+    {
+      "id": "why",
+      "title": "Why move",
+      "summary": "Whether the jobs leave `web-1` at all."
+    },
+    {
+      "id": "what",
+      "title": "What moves",
+      "summary": "Which pieces go to `jobs-1` and which stay."
+    },
+    {
+      "id": "safety",
+      "title": "No lost jobs",
+      "summary": "How a job survives a crash or a bad run."
+    },
+    {
+      "id": "cutover",
+      "title": "The cutover",
+      "summary": "How the switch happens and how to undo it."
+    }
+  ],
+  "steps": [
+    {
+      "id": "why-move",
+      "part": "why",
+      "heading": "Move the jobs at all",
+      "prose": [
+        "The nightly export takes most of `web-1`'s memory for about forty minutes, and page loads slow down while it runs.",
+        "There are two ways out:\n- Move the jobs to their own machine, `jobs-1`. The web server then only serves pages.\n- Give `web-1` more memory. Cheaper today, but the next heavy job brings the slowdown back."
+      ],
+      "question": {
+        "id": "Q1",
+        "title": "Move the jobs",
+        "scope": "Every background job",
+        "ask": "Should background jobs move from `web-1` to a new `jobs-1`?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Move them to `jobs-1`",
+            "effect": "Page loads stop depending on job load. One more machine to run.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Keep them; add memory to `web-1`",
+            "effect": "No move. The slowdown returns with the next heavy job.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [],
+        "when": []
+      }
+    },
+    {
+      "id": "what-scheduler",
+      "part": "what",
+      "heading": "Does the scheduler go too",
+      "prose": [
+        "The `scheduler` only starts jobs; the `workers` run them. Left on `web-1`, it keeps a reason to deploy jobs code there, and a `web-1` restart would skip a timed job."
+      ],
+      "question": {
+        "id": "Q2",
+        "title": "Scheduler",
+        "scope": "Timed jobs",
+        "ask": "Should the `scheduler` move to `jobs-1` with the `workers`?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Both move",
+            "effect": "`web-1` holds no jobs code at all.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Only the workers move",
+            "effect": "Smaller move; `web-1` still restarts the timed jobs.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q1"
+        ],
+        "when": [
+          {
+            "question": "Q1",
+            "oneOf": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "what-queue",
+      "part": "what",
+      "heading": "Where the queue lives",
+      "prose": [
+        "The `queue` sits in the Redis on `web-1`, next to the session cache. Moving it means a second Redis to back up; keeping it means `jobs-1` reaches across the network for every job."
+      ],
+      "question": {
+        "id": "Q3",
+        "title": "Queue",
+        "scope": "Every job",
+        "ask": "Should the `queue` stay in `web-1`'s Redis?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Keep it on `web-1`",
+            "effect": "Nothing new to run. Jobs wait on one network hop.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Its own Redis on `jobs-1`",
+            "effect": "Jobs and pages fully apart, one more thing to back up.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q1"
+        ],
+        "when": [
+          {
+            "question": "Q1",
+            "oneOf": [
+              "a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "safety-lease",
+      "part": "safety",
+      "heading": "When a worker dies mid-job",
+      "prose": [
+        "Today a job taken by a worker that crashes is simply gone. A lease fixes that: the worker claims the job for a few minutes and renews the claim while it runs, so a dead worker's jobs come back to the `queue`."
+      ],
+      "question": {
+        "id": "Q4",
+        "title": "Leases",
+        "scope": "Every job",
+        "ask": "Should each worker hold a 5-minute lease on the job it runs?",
+        "options": [
+          {
+            "key": "a",
+            "label": "5-minute leases",
+            "effect": "A crashed job is retried within five minutes.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "No leases",
+            "effect": "Simpler, and a crash still loses the job.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "safety-dead",
+      "part": "safety",
+      "heading": "When a job keeps failing",
+      "prose": [
+        "With leases, a job that crashes its worker comes back forever. After a few tries it should stop and wait for a person."
+      ],
+      "question": {
+        "id": "Q5",
+        "title": "Dead letters",
+        "scope": "Failing jobs",
+        "ask": "Should a job that fails 5 times go to dead letters?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Dead letters after 5 tries",
+            "effect": "A bad job stops after five tries; someone looks at the list.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Retry forever",
+            "effect": "Nothing to look at, and a bad job can block a worker for good.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q4"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "cutover-drain",
+      "part": "cutover",
+      "heading": "Stopping the old workers",
+      "prose": [
+        "At the cutover, the `workers` on `web-1` may be halfway through jobs. Drained, they finish and stop; stopped hard, their jobs come back through the leases from Q4.",
+        "Where the `queue` lives (Q3) decides whether `jobs-1` sees the same jobs from the first second."
+      ],
+      "question": {
+        "id": "Q6",
+        "title": "Drain first",
+        "scope": "The cutover",
+        "ask": "Should `web-1`'s workers drain before `jobs-1` starts?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Drain, then start",
+            "effect": "No job runs twice. A few minutes with nothing running.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Start `jobs-1`, then stop `web-1`",
+            "effect": "No pause, and a job may run twice.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q2",
+          "Q3"
+        ],
+        "when": []
+      }
+    },
+    {
+      "id": "cutover-rollback",
+      "part": "cutover",
+      "heading": "Undoing it",
+      "prose": [
+        "If `jobs-1` misbehaves in the first week, the fastest way back is to start the old `workers` again."
+      ],
+      "question": {
+        "id": "Q7",
+        "title": "Rollback",
+        "scope": "First week after the cutover",
+        "ask": "Should `web-1` keep its workers installed but stopped for a week?",
+        "options": [
+          {
+            "key": "a",
+            "label": "Keep them for a week",
+            "effect": "Rolling back is one command.",
+            "recommended": true
+          },
+          {
+            "key": "b",
+            "label": "Remove them at the cutover",
+            "effect": "Clean at once; rolling back is a deploy.",
+            "recommended": false
+          }
+        ],
+        "dependsOn": [
+          "Q6"
+        ],
+        "when": []
+      }
+    }
+  ],
+  "next": [
+    "The answers settle the move plan; the cutover gets a date once Q6 and Q7 are answered."
+  ]
+}

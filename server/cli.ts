@@ -12,7 +12,7 @@ import {
   snapshot,
 } from './store'
 
-const BASE = 'http://127.0.0.1:4317'
+const BASE = `http://127.0.0.1:${process.env.GF_PORT ?? 4317}`
 
 const usage = `gf: grill-flow's agent-side commands
 
