@@ -77,7 +77,8 @@ bun run gf up          # builds the page and starts the server at http://127.0.0
 bun run gf load examples/decision-sample.json
 ```
 
-Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill. `GF_PORT` and `GF_DB`
+Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill, or `http://127.0.0.1:4317/`
+for every grill the server holds; a grill page's title links back there. `GF_PORT` and `GF_DB`
 move the server and its database elsewhere, say for a second copy.
 
 Install the skill from your checkout, so your edits take effect without a release:

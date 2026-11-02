@@ -1,9 +1,17 @@
-import { Array, Option, Record } from 'effect'
+import { Array, Match, Option, Record } from 'effect'
 import { AsyncData } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 
 import {
+  FORMAT_VERSION,
   OWN,
+  type Plan,
+  type PlanIssue,
+  type PlanPhase,
+  downstreamOf,
+  openGatesOf,
+  planPhaseOf,
+  waitingOnYou,
   type DiffBlock,
   type DiffLine,
   type Grill,
@@ -21,28 +29,44 @@ import {
   mentionsOf,
   proseOf,
   relationsOf,
+  answerLines,
+  isSent,
   replyText,
   roundSteps,
   segments,
+  splitParagraphs,
   statusOf,
   tally,
+  cardOf,
+  cardsOf,
   issuesOf,
   upstreamOf,
   urgencyOf,
   urgencyRank,
   usesUrgency,
+  withQuestions,
   withRefs,
   withTerms,
 } from './domain'
-import type { Message as MessageType, Model } from './main'
+import type {
+  Message as MessageType,
+  Model,
+  PlanView,
+  SidebarMode,
+} from './main'
 import {
+  CARD_PAGE,
   DECIDED,
   FillBox,
   ISSUE_PAGE,
   LONG_CONCEPT,
   Message,
   OVERVIEW,
+  PLAN,
   URGENCY_PAGE,
+  modesOf,
+  pageQuestions,
+  sidebarModeOf,
 } from './main'
 
 type H = HtmlBuilder<MessageType>
@@ -67,28 +91,107 @@ const notice = (text: string, h: H): Html => h.p([h.Class('notice')], [text])
 
 // TEXT
 
-const segmentView = (segment: Segment, h: H): Html | string =>
-  segment._tag === 'Code'
-    ? h.code([], [segment.text])
-    : segment._tag === 'Entity'
-      ? h.span(
-          [
-            h.Class(`entity tone-${segment.entity.tone}`),
-            h.Title(`${segment.entity.name}: ${segment.entity.about}`),
-          ],
-          [segment.text],
-        )
-      : segment._tag === 'Term'
-        ? h.span(
-            [
-              h.Class('term'),
-              h.Title(`${segment.term.term}: ${segment.term.about}`),
-            ],
-            [segment.text],
-          )
-        : segment._tag === 'Ref'
-          ? refView(segment.text, segment.ref, h)
-          : segment.text
+/**
+ * How a run of text renders: `tips` gives names and terms an explanation card, `links` lets refs
+ * and question ids be clicked. Text inside a button has no links; text inside a card has no cards.
+ */
+type TextMode = Readonly<{ tips: boolean; links: boolean }>
+
+const tipCard = (head: Html, body: ReadonlyArray<Html | string>, h: H): Html =>
+  h.span(
+    [h.Class('tip'), h.Role('tooltip')],
+    [h.span([h.Class('tip-card')], [head, ' ', ...body])],
+  )
+
+/** A word with its explanation in a card that opens on hover, close enough to reach its links. */
+const tipped = (
+  className: string,
+  word: string,
+  head: Html,
+  body: ReadonlyArray<Html | string>,
+  h: H,
+): Html =>
+  h.span([h.Class(`${className} has-tip`)], [word, tipCard(head, body, h)])
+
+const tipBody = (
+  text: string,
+  grill: Grill,
+  links: boolean,
+  h: H,
+): ReadonlyArray<Html | string> =>
+  Array.map(
+    withQuestions(
+      links
+        ? withRefs(segments(text, grill.entities), grill.refs)
+        : segments(text, grill.entities),
+      grill,
+    ),
+    segment => segmentView(segment, grill, { tips: false, links }, h),
+  )
+
+const segmentView = (
+  segment: Segment,
+  grill: Grill,
+  mode: TextMode,
+  h: H,
+): Html | string =>
+  Match.value(segment).pipe(
+    Match.tagsExhaustive({
+      Code: ({ text }) => h.code([], [text]),
+      Entity: ({ text, entity }) => {
+        const tone = `entity tone-${entity.tone}`
+        return mode.tips
+          ? tipped(
+              tone,
+              text,
+              h.b([h.Class(tone)], [entity.name]),
+              tipBody(entity.about, grill, mode.links, h),
+              h,
+            )
+          : h.span([h.Class(tone)], [text])
+      },
+      Term: ({ text, term }) =>
+        mode.tips
+          ? tipped(
+              'term',
+              text,
+              h.b([], [term.term]),
+              tipBody(term.about, grill, mode.links, h),
+              h,
+            )
+          : text,
+      Ref: ({ text, ref }) => (mode.links ? refView(text, ref, h) : text),
+      Question: ({ text: id }) =>
+        mode.links
+          ? questionLink(id, grill, mode, h)
+          : h.span([h.Class('ref')], [id]),
+      Text: ({ text }) => text,
+    }),
+  )
+
+/** A question id that jumps to its question, with the question in a card on hover. */
+const questionLink = (id: string, grill: Grill, mode: TextMode, h: H): Html => {
+  const tip = Option.filter(stepOf(grill, id), () => mode.tips)
+  return h.button(
+    [
+      h.Class(`ref${Option.isSome(tip) ? ' has-tip' : ''}`),
+      h.AriaLabel(`Go to ${id}`),
+      h.OnClick(Message.ClickedMapNode({ question: id })),
+    ],
+    [
+      id,
+      Option.match(tip, {
+        onNone: () => h.empty,
+        onSome: step =>
+          tipCard(
+            h.b([], [`${id} ${step.question.title}`]),
+            tipBody(step.question.ask, grill, false, h),
+            h,
+          ),
+      }),
+    ],
+  )
+}
 
 // Linear's state glyphs, and one for a pull request.
 const GLYPHS: Readonly<Record<string, string>> = {
@@ -166,9 +269,10 @@ const URGENCY_WORDS: Readonly<Record<UrgencyLevel, string>> = {
   fyi: 'FYI',
 }
 
-const urgencyDot = (level: UrgencyLevel, h: H): Html =>
+/** An urgency dot; `trailing` when it follows a title rather than leading a label. */
+const urgencyDot = (level: UrgencyLevel, h: H, trailing = false): Html =>
   h.span([
-    h.Class(`urgency u-${level}`),
+    h.Class(`urgency${trailing ? ' is-trailing' : ''} u-${level}`),
     h.Title(URGENCY_WORDS[level]),
     h.AriaLabel(URGENCY_WORDS[level]),
   ])
@@ -202,11 +306,14 @@ const inline = (
   h: H,
 ): ReadonlyArray<Html | string> =>
   Array.map(
-    withRefs(
-      withTerms(segments(text, grill.entities), grill.terms),
-      grill.refs,
+    withQuestions(
+      withRefs(
+        withTerms(segments(text, grill.entities), grill.terms),
+        grill.refs,
+      ),
+      grill,
     ),
-    segment => segmentView(segment, h),
+    segment => segmentView(segment, grill, { tips: true, links: true }, h),
   )
 
 const plain = (
@@ -214,25 +321,29 @@ const plain = (
   grill: Grill,
   h: H,
 ): ReadonlyArray<Html | string> =>
-  Array.map(segments(text, grill.entities), segment => segmentView(segment, h))
+  Array.map(segments(text, grill.entities), segment =>
+    segmentView(segment, grill, { tips: true, links: false }, h),
+  )
 
 const paragraphView = (paragraph: string, grill: Grill, h: H): Html => {
   const block = blockOf(paragraph)
-  return block._tag === 'Paragraph'
-    ? h.p([], inline(block.text, grill, h))
-    : h.div(
-        [h.Class('list-block')],
-        [
-          Option.match(block.lead, {
-            onNone: () => h.empty,
-            onSome: lead => h.p([], inline(lead, grill, h)),
-          }),
-          h.ul(
-            [],
-            Array.map(block.items, item => h.li([], inline(item, grill, h))),
-          ),
-        ],
-      )
+  return block._tag === 'Figure'
+    ? h.pre([h.Class('figure')], [h.code([], [block.text])])
+    : block._tag === 'Paragraph'
+      ? h.p([], inline(block.text, grill, h))
+      : h.div(
+          [h.Class('list-block')],
+          [
+            Option.match(block.lead, {
+              onNone: () => h.empty,
+              onSome: lead => h.p([], inline(lead, grill, h)),
+            }),
+            h.ul(
+              [],
+              Array.map(block.items, item => h.li([], inline(item, grill, h))),
+            ),
+          ],
+        )
 }
 
 // STATE HELPERS
@@ -257,11 +368,43 @@ const stateClass = (model: Model, grill: Grill, id: string): string => {
           : 'is-moot'
 }
 
+/** Questions whose answer already went out, unchanged, in an earlier send. */
+const sentIdsOf = (model: Model, snapshot: Snapshot): ReadonlySet<string> => {
+  const lines = answerLines(
+    snapshot.grill,
+    model.answers,
+    model.notes,
+    model.own,
+  )
+  const sent = snapshot.sent ?? {}
+  return new Set(
+    Array.filter(Record.keys(lines), id => isSent(sent, lines, id)),
+  )
+}
+
+/** Answers that haven't gone out, or changed since they did: what a Send would carry. */
+const freshAnswerCount = (model: Model, snapshot: Snapshot): number => {
+  const sent = sentIdsOf(model, snapshot)
+  return Array.filter(
+    Record.keys(
+      answerLines(snapshot.grill, model.answers, model.notes, model.own),
+    ),
+    id => !sent.has(id),
+  ).length
+}
+
+const NOTHING_NEW = 'Nothing new to send: every answer already went out'
+
 const stepOf = (grill: Grill, id: string): Option.Option<Step> =>
   Array.findFirst(grill.steps, step => step.question.id === id)
 
 const stepsAbout = (grill: Grill, issue: string): ReadonlyArray<Step> =>
   grill.steps.filter(step => step.question.issue === issue)
+
+const stepsOnCard = (grill: Grill, card: string): ReadonlyArray<Step> =>
+  grill.steps.filter(step =>
+    Option.exists(cardOf(step.question), found => found === card),
+  )
 
 const stepsIn = (grill: Grill, partId: string): ReadonlyArray<Step> =>
   Array.filter(grill.steps, step => step.part === partId)
@@ -322,6 +465,77 @@ const answerSummary = (
   return ['Open']
 }
 
+// The sidebar reads as a scale, most urgent first, with the unrated questions after it; sorting
+// questions still ranks unset right after blocking (URGENCY_ORDER).
+const URGENCY_NAV: ReadonlyArray<UrgencyLevel> = [
+  'blocking',
+  'soon',
+  'wait',
+  'fyi',
+  'unset',
+]
+
+/** The plan issue a card is the design gate of, when the grill has a plan. */
+const cardIssue = (grill: Grill, card: string): Option.Option<PlanIssue> =>
+  Array.findFirst(grill.plan?.issues ?? [], issue => issue.card === card)
+
+/** A card goes by its issue's title wherever the plan names it, so a link and its page agree. */
+const cardName = (grill: Grill, card: string): string =>
+  Option.getOrElse(
+    Option.map(cardIssue(grill, card), issue => issue.title),
+    () => `Card ${card}`,
+  )
+
+/** What a page is called, in the top bar and on the back link. */
+const pageTitle = (model: Model, grill: Grill, page: string): string =>
+  page === OVERVIEW
+    ? 'Overview'
+    : page === PLAN
+      ? 'Plan'
+      : page === DECIDED
+        ? 'Decided so far'
+        : page.startsWith(CARD_PAGE)
+          ? cardName(grill, page.slice(CARD_PAGE.length))
+          : page.startsWith(ISSUE_PAGE)
+            ? page.slice(ISSUE_PAGE.length)
+            : Option.match(
+                Array.findFirst(
+                  URGENCY_ORDER,
+                  level => `${URGENCY_PAGE}${level}` === page,
+                ),
+                {
+                  onSome: level => URGENCY_WORDS[level],
+                  onNone: () =>
+                    Option.getOrElse(
+                      Option.map(
+                        Array.findFirst(grill.parts, part => part.id === page),
+                        part => part.title,
+                      ),
+                      () => 'Overview',
+                    ),
+                },
+              )
+
+/** Back to the page the reader came from, named, on every page but the starting ones. */
+const backView = (model: Model, grill: Grill, h: H): Html =>
+  Option.match(
+    Option.filter(
+      model.maybePrevious,
+      page =>
+        page !== model.currentPart &&
+        model.currentPart !== PLAN &&
+        model.currentPart !== OVERVIEW,
+    ),
+    {
+      onNone: () => h.empty,
+      onSome: page =>
+        h.button(
+          [h.Class('back-link'), h.OnClick(Message.ClickedBack())],
+          [`← ${pageTitle(model, grill, page)}`],
+        ),
+    },
+  )
+
 const urgencyPageOf = (model: Model): Option.Option<UrgencyLevel> =>
   model.currentPart.startsWith(URGENCY_PAGE)
     ? Array.findFirst(
@@ -360,6 +574,25 @@ const currentPartOf = (model: Model, grill: Grill): Option.Option<Part> =>
     ? Option.none()
     : Array.findFirst(grill.parts, part => part.id === model.currentPart)
 
+/** The questions an urgency or issue page lists; none on any other page. */
+const mixedPageSteps = (model: Model, grill: Grill): ReadonlyArray<Step> =>
+  pageQuestions(grill, model.currentPart)
+
+/** The concept Talk shows: the open one, or on a mixed page the one of the question in view. */
+const talkPartOf = (model: Model, grill: Grill): Option.Option<Part> => {
+  const steps = mixedPageSteps(model, grill)
+  if (Array.isReadonlyArrayEmpty(steps)) {
+    return currentPartOf(model, grill)
+  }
+  const partId = Option.getOrElse(
+    Option.filter(model.maybeTalkPart, id =>
+      Array.some(steps, step => step.part === id),
+    ),
+    () => steps[0]?.part ?? '',
+  )
+  return Array.findFirst(grill.parts, part => part.id === partId)
+}
+
 // PAGE
 
 /** Where Send delivers: the agent's terminal, or nowhere named when the agent collects it. */
@@ -373,12 +606,14 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
     model.side === 'Map'
       ? Option.some(mapPanelView(model, snapshot, maybePart, h))
       : model.side === 'Talk'
-        ? Option.map(maybePart, part => talkView(model, snapshot, part, h))
+        ? Option.map(talkPartOf(model, grill), part =>
+            talkView(model, snapshot, part, h),
+          )
         : Option.none()
   return h.div(
     [h.Class('app')],
     [
-      topbarView(model, snapshot, maybePart, h),
+      topbarView(model, snapshot, maybePart, talkPartOf(model, grill), h),
       h.div(
         [h.Class(`frame${Option.isSome(side) ? ' with-side' : ''}`)],
         [
@@ -386,22 +621,32 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
           h.main(
             [h.Class('main')],
             [
+              backView(model, grill, h),
               Option.match(maybePart, {
                 onNone: () =>
                   model.currentPart === DECIDED
                     ? decidedPageView(model, snapshot, h)
-                    : model.currentPart.startsWith(ISSUE_PAGE)
-                      ? issuePageView(
-                          model,
-                          snapshot,
-                          model.currentPart.slice(ISSUE_PAGE.length),
-                          h,
-                        )
-                      : Option.match(urgencyPageOf(model), {
-                          onNone: () => overviewView(model, snapshot, h),
-                          onSome: level =>
-                            urgencyPageView(model, snapshot, level, h),
-                        }),
+                    : model.currentPart === PLAN && grill.plan !== undefined
+                      ? planPageView(model, grill, grill.plan, h)
+                      : model.currentPart.startsWith(ISSUE_PAGE)
+                        ? issuePageView(
+                            model,
+                            snapshot,
+                            model.currentPart.slice(ISSUE_PAGE.length),
+                            h,
+                          )
+                        : model.currentPart.startsWith(CARD_PAGE)
+                          ? cardPageView(
+                              model,
+                              snapshot,
+                              model.currentPart.slice(CARD_PAGE.length),
+                              h,
+                            )
+                          : Option.match(urgencyPageOf(model), {
+                              onNone: () => overviewView(model, snapshot, h),
+                              onSome: level =>
+                                urgencyPageView(model, snapshot, level, h),
+                            }),
                 onSome: part => conceptView(model, snapshot, part, h),
               }),
             ],
@@ -419,10 +664,14 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
 /** The review before Send: counts, every question with its answer folded away, and a message. */
 const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
+  const sentIds = sentIdsOf(model, snapshot)
   const steps = roundSteps(grill)
   const counts = tally(grill, model.answers, model.skipped, steps)
   const needed = counts.total - counts.notNeeded
   const isSending = model.send === 'Sending'
+  const sentCount = Array.filter(steps, step =>
+    sentIds.has(step.question.id),
+  ).length
   return h.div(
     [h.Class('dialog-layer')],
     [
@@ -446,6 +695,9 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
             [h.Class('send-counts')],
             [
               `${counts.answered} of ${needed} answered`,
+              sentCount > 0
+                ? `, ${sentCount} of them sent before and left out`
+                : '',
               needed - counts.answered > 0
                 ? `, ${needed - counts.answered} still open and listed as open`
                 : '',
@@ -459,22 +711,24 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
               h.summary([], ['Questions and answers']),
               h.ul(
                 [],
-                Array.map(steps, step =>
-                  h.li(
-                    [
-                      h.Class(
-                        `send-row ${stateClass(model, grill, step.question.id)}`,
-                      ),
-                    ],
-                    [
-                      h.span([h.Class('send-id')], [step.question.id]),
-                      h.span([h.Class('send-title')], [step.question.title]),
-                      h.span(
-                        [h.Class('send-answer')],
-                        answerSummary(model, grill, step, h),
-                      ),
-                    ],
-                  ),
+                Array.map(
+                  Array.filter(steps, step => !sentIds.has(step.question.id)),
+                  step =>
+                    h.li(
+                      [
+                        h.Class(
+                          `send-row ${stateClass(model, grill, step.question.id)}`,
+                        ),
+                      ],
+                      [
+                        h.span([h.Class('send-id')], [step.question.id]),
+                        h.span([h.Class('send-title')], [step.question.title]),
+                        h.span(
+                          [h.Class('send-answer')],
+                          answerSummary(model, grill, step, h),
+                        ),
+                      ],
+                    ),
                 ),
               ),
             ],
@@ -512,7 +766,12 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
               h.button(
                 [
                   h.Class('send-button'),
-                  h.Disabled(isSending || counts.answered === 0),
+                  h.Disabled(
+                    isSending || freshAnswerCount(model, snapshot) === 0,
+                  ),
+                  h.Title(
+                    freshAnswerCount(model, snapshot) === 0 ? NOTHING_NEW : '',
+                  ),
                   h.OnClick(Message.ClickedConfirmSend()),
                 ],
                 [isSending ? 'Sending…' : `Send${toSession(grill)}`],
@@ -530,7 +789,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
 /** Talk and Map share the right sidebar, so their buttons are one switch: at most one is on. */
 const sideSwitchView = (
   model: Model,
-  maybePart: Option.Option<Part>,
+  maybeTalkPart: Option.Option<Part>,
   h: H,
 ): Html => {
   const choice = (
@@ -557,8 +816,8 @@ const sideSwitchView = (
       choice(
         'Talk',
         'Talk',
-        Option.isSome(maybePart),
-        Option.isSome(maybePart)
+        Option.isSome(maybeTalkPart),
+        Option.isSome(maybeTalkPart)
           ? 'Talk about this concept in the sidebar'
           : 'Open a concept to talk about it',
       ),
@@ -576,6 +835,7 @@ const topbarView = (
   model: Model,
   snapshot: Snapshot,
   maybePart: Option.Option<Part>,
+  maybeTalkPart: Option.Option<Part>,
   h: H,
 ): Html => {
   const grill = snapshot.grill
@@ -598,23 +858,24 @@ const topbarView = (
           h.div(
             [h.Class('topbar-context')],
             [
-              h.span([h.Class('topbar-title')], [grill.title]),
+              h.a(
+                [h.Class('topbar-title'), h.Href('/'), h.Title('All grills')],
+                [grill.title],
+              ),
               h.span(
                 [h.Class('where-part')],
+                [pageTitle(model, grill, model.currentPart)],
+              ),
+              // Inline, so the bar keeps one line: the sidebars hang from its fixed height.
+              h.span(
                 [
-                  Option.match(maybePart, {
-                    onNone: () =>
-                      model.currentPart === DECIDED
-                        ? 'Decided so far'
-                        : model.currentPart.startsWith(ISSUE_PAGE)
-                          ? model.currentPart.slice(ISSUE_PAGE.length)
-                          : Option.match(urgencyPageOf(model), {
-                              onNone: () => 'Overview',
-                              onSome: level => URGENCY_WORDS[level],
-                            }),
-                    onSome: part => part.title,
-                  }),
+                  h.Class(
+                    `topbar-status${model.send === 'Failed' ? ' is-failed' : ''}`,
+                  ),
+                  h.AriaLive('polite'),
+                  h.Title(Option.getOrElse(status, () => '')),
                 ],
+                [Option.getOrElse(status, () => '')],
               ),
             ],
           ),
@@ -628,14 +889,22 @@ const topbarView = (
                   h.span([h.Class('wide-only')], [' answered']),
                 ],
               ),
-              sideSwitchView(model, maybePart, h),
+              sideSwitchView(model, maybeTalkPart, h),
               h.details(
                 [h.Class('preview')],
                 [
                   h.summary([h.Class('quiet-button')], ['Preview']),
                   h.pre(
                     [],
-                    [replyText(grill, model.answers, model.notes, model.own)],
+                    [
+                      replyText(
+                        grill,
+                        model.answers,
+                        model.notes,
+                        model.own,
+                        snapshot.sent,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -655,7 +924,13 @@ const topbarView = (
               h.button(
                 [
                   h.Class('send-button'),
-                  h.Disabled(model.send === 'Sending' || counts.answered === 0),
+                  h.Disabled(
+                    model.send === 'Sending' ||
+                      freshAnswerCount(model, snapshot) === 0,
+                  ),
+                  h.Title(
+                    freshAnswerCount(model, snapshot) === 0 ? NOTHING_NEW : '',
+                  ),
                   h.OnClick(Message.ClickedSend()),
                 ],
                 model.send === 'Sending'
@@ -669,11 +944,6 @@ const topbarView = (
           ),
         ],
       ),
-      Option.match(status, {
-        onNone: () => h.empty,
-        onSome: text =>
-          h.p([h.Class('topbar-status'), h.AriaLive('polite')], [text]),
-      }),
     ],
   )
 }
@@ -683,12 +953,11 @@ const topbarView = (
 const navView = (model: Model, grill: Grill, h: H): Html => {
   const hasUrgency = usesUrgency(grill)
   const issues = issuesOf(grill)
-  const modes = [
-    'Concepts' as const,
-    ...(issues.length > 0 ? ['Issues' as const] : []),
-    ...(hasUrgency ? ['Urgency' as const] : []),
-  ]
-  const mode = modes.includes(model.sidebar) ? model.sidebar : 'Concepts'
+  const cards = cardsOf(grill)
+  // A squad's questions already carry their issue on every row; which run card raised them says
+  // more, so a squad grill lists by card first and has no issue list (modesOf in main.ts).
+  const modes = modesOf(grill)
+  const mode = sidebarModeOf(model, grill)
   const item = (pageId: string, content: ReadonlyArray<Html>): Html =>
     h.keyed('button')(
       pageId,
@@ -699,10 +968,7 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
       ],
       content,
     )
-  const modeChoice = (
-    choice: 'Concepts' | 'Issues' | 'Urgency',
-    label: string,
-  ) =>
+  const modeChoice = (choice: SidebarMode, label: string) =>
     h.button(
       [
         h.Class(`side-choice${mode === choice ? ' is-active' : ''}`),
@@ -715,6 +981,14 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
     step => statusIn(model, grill, step.question.id)._tag === 'Answered',
   ).length
   const decidedCount = (grill.decided?.length ?? 0) + answeredCount
+  // Titles read issue, name, then urgency; a concept with nothing left to answer has no dot.
+  const navUrgency = (steps: ReadonlyArray<Step>): Html =>
+    hasUrgency
+      ? Option.match(worstUrgency(model, grill, steps), {
+          onNone: () => h.empty,
+          onSome: level => urgencyDot(level, h, true),
+        })
+      : h.empty
   const conceptItems = () => {
     return Array.map(grill.parts, part => {
       const steps = stepsIn(grill, part.id)
@@ -729,14 +1003,9 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
         h.span(
           [h.Class('concept-name')],
           [
-            hasUrgency
-              ? Option.match(worstUrgency(model, grill, steps), {
-                  onNone: () => h.span([h.Class('urgency u-none')]),
-                  onSome: level => urgencyDot(level, h),
-                })
-              : h.empty,
             part.issue === undefined ? h.empty : refLabel(grill, part.issue, h),
             part.title,
+            navUrgency(steps),
           ],
         ),
         h.span(
@@ -758,7 +1027,7 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
     })
   }
   const urgencyItems = () =>
-    Array.map(URGENCY_ORDER, level => {
+    Array.map(URGENCY_NAV, level => {
       const count = grill.steps.filter(
         step =>
           urgencyOf(step.question) === level && isPending(model, grill, step),
@@ -791,16 +1060,7 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
       return item(`${ISSUE_PAGE}${key}`, [
         h.span(
           [h.Class('concept-name')],
-          [
-            hasUrgency
-              ? Option.match(worstUrgency(model, grill, steps), {
-                  onNone: () => h.span([h.Class('urgency u-none')]),
-                  onSome: level => urgencyDot(level, h),
-                })
-              : h.empty,
-            refLabel(grill, key, h),
-            ref?.text ?? '',
-          ],
+          [refLabel(grill, key, h), ref?.text ?? '', navUrgency(steps)],
         ),
         h.span(
           [h.Class('concept-count')],
@@ -811,38 +1071,514 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
       ])
     })
   }
-  const labels = {
+  const cardItems = () =>
+    Array.map(cards, card => {
+      const steps = stepsOnCard(grill, card)
+      const decided = steps.filter(
+        step => statusIn(model, grill, step.question.id)._tag === 'Answered',
+      ).length
+      const issue = cardIssue(grill, card)
+      return item(`${CARD_PAGE}${card}`, [
+        h.span(
+          [h.Class('concept-name')],
+          Option.match(issue, {
+            onNone: () => [card, navUrgency(steps)],
+            onSome: found => [
+              refLabel(grill, found.id, h),
+              found.title,
+              navUrgency(steps),
+            ],
+          }),
+        ),
+        h.span(
+          [h.Class('concept-count')],
+          [
+            `${Option.isSome(issue) ? `${card} · ` : ''}${decided} of ${steps.length} decided`,
+          ],
+        ),
+      ])
+    })
+  const labels: Readonly<Record<SidebarMode, string>> = {
     Concepts: 'Concepts',
     Issues: 'Issues',
+    Cards: 'Cards',
     Urgency: 'Urgency',
-  } as const
+  }
+  // The whole grill's pages first, then the questions in the list the reader picked, then what
+  // is already decided.
   return h.nav(
-    [h.Class('concepts'), h.AriaLabel('Concepts')],
+    [h.Class('concepts'), h.AriaLabel('Pages')],
     [
-      modes.length > 1
-        ? h.div(
-            [
-              h.Class('side-switch nav-mode'),
-              h.Role('group'),
-              h.AriaLabel('List questions'),
-            ],
-            Array.map(modes, choice => modeChoice(choice, labels[choice])),
-          )
-        : h.empty,
       item(OVERVIEW, [
         h.span([h.Class('concept-name')], ['Overview']),
         h.span([h.Class('concept-count')], ['What this is about']),
       ]),
+      grill.plan === undefined
+        ? h.empty
+        : item(PLAN, [
+            h.span([h.Class('concept-name')], ['Plan']),
+            h.span([h.Class('concept-count')], [planSummary(grill, model)]),
+          ]),
+      h.div(
+        [h.Class('nav-section')],
+        [
+          h.span([h.Class('label')], ['Questions by']),
+          modes.length > 1
+            ? h.div(
+                [
+                  h.Class('side-switch nav-mode'),
+                  h.Role('group'),
+                  h.AriaLabel('List questions by'),
+                ],
+                Array.map(modes, choice => modeChoice(choice, labels[choice])),
+              )
+            : h.span([h.Class('label')], [labels[mode]]),
+        ],
+      ),
       ...(mode === 'Urgency'
         ? urgencyItems()
         : mode === 'Issues'
           ? issueItems()
-          : conceptItems()),
+          : mode === 'Cards'
+            ? cardItems()
+            : conceptItems()),
       hasUrgency || grill.decided !== undefined
         ? item(DECIDED, [
             h.span([h.Class('concept-name')], ['Decided so far']),
             h.span([h.Class('concept-count')], [`${decidedCount} decisions`]),
           ])
+        : h.empty,
+    ],
+  )
+}
+
+// PLAN
+
+const PHASE_WORDS: Readonly<Record<PlanPhase, string>> = {
+  building: 'Building now',
+  review: 'In review',
+  merged: 'Merged',
+  ready: 'Ready to start',
+  you: 'Waiting on you',
+  stuck: 'Stuck, waiting on you',
+  after: 'Waiting on another issue',
+  outside: 'Outside the run',
+}
+
+const timeLeft = (deadline: string, now: number): string => {
+  const hours = Math.max(
+    0,
+    Math.floor((new Date(deadline).getTime() - now) / 3_600_000),
+  )
+  return hours >= 24
+    ? `${Math.floor(hours / 24)}d ${hours % 24}h left`
+    : `${hours}h left`
+}
+
+const deadlineWords = (deadline: string): string =>
+  new Date(deadline).toLocaleString('en-GB', {
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+/** The sidebar line under Plan: how many builds wait on Rob, and the time left. */
+const planSummary = (grill: Grill, model: Model): string => {
+  const waiting = waitingOnYou(grill, model.answers).length
+  const deadline = grill.plan?.deadline
+  return [
+    waiting === 0
+      ? 'Nothing waits on you'
+      : `${waiting} build${waiting === 1 ? '' : 's'} wait on you`,
+    ...(deadline === undefined || model.now === 0
+      ? []
+      : [timeLeft(deadline, model.now)]),
+  ].join(' · ')
+}
+
+const phasePill = (phase: PlanPhase, h: H): Html =>
+  h.span([h.Class(`pill ph-${phase}`)], [PHASE_WORDS[phase]])
+
+/** An issue's title, opening its card's questions when the plan names the card. */
+const issueHeading = (issue: PlanIssue, h: H): Html =>
+  issue.card === undefined
+    ? h.span([h.Class('plan-title')], [issue.title])
+    : h.button(
+        [
+          h.Class('plan-title'),
+          h.Title(`Open card ${issue.card}`),
+          h.OnClick(
+            Message.ClickedConcept({ partId: `${CARD_PAGE}${issue.card}` }),
+          ),
+        ],
+        [issue.title],
+      )
+
+const planLink = (grill: Grill, id: string, h: H): Html =>
+  questionLink(id, grill, { tips: true, links: true }, h)
+
+const planQuestion = (
+  model: Model,
+  grill: Grill,
+  issue: PlanIssue,
+  id: string,
+  h: H,
+): Html => {
+  const also = Array.filter(
+    grill.plan?.issues ?? [],
+    other => other.id !== issue.id && (other.start ?? []).includes(id),
+  )
+  return h.div(
+    [
+      h.Class(
+        `plan-q${statusIn(model, grill, id)._tag === 'Answered' ? ' is-done' : ''}`,
+      ),
+    ],
+    [
+      planLink(grill, id, h),
+      h.span(
+        [],
+        [
+          Option.match(stepOf(grill, id), {
+            onNone: () => id,
+            onSome: step => step.question.title,
+          }),
+          Array.isArrayEmpty(also)
+            ? h.empty
+            : h.span(
+                [h.Class('plan-also')],
+                [
+                  ` also holds ${Array.join(
+                    Array.map(also, other => other.id),
+                    ', ',
+                  )}`,
+                ],
+              ),
+        ],
+      ),
+    ],
+  )
+}
+
+const chainView = (
+  grill: Grill,
+  ids: ReadonlyArray<string>,
+  h: H,
+): ReadonlyArray<Html | string> =>
+  Array.flatMap(ids, (id, index) => [
+    index > 0 ? ' → ' : '',
+    refOrKey(grill, id, h),
+  ])
+
+/** An issue waiting on Rob: the questions it needs by when, and what follows it. */
+const waitingBlock = (
+  model: Model,
+  grill: Grill,
+  issue: PlanIssue,
+  rank: number,
+  h: H,
+): Html => {
+  const critical = grill.plan?.critical ?? []
+  const open = openGatesOf(grill, issue, model.answers)
+  const answeredStart = Array.filter(
+    issue.start ?? [],
+    id => !open.includes(id),
+  )
+  const review = Array.filter(
+    issue.review ?? [],
+    id => statusIn(model, grill, id)._tag !== 'Answered',
+  )
+  const after = downstreamOf(grill, issue.id)
+  return h.article(
+    [h.Class(`plan-issue${rank === 1 ? ' is-first' : ''}`)],
+    [
+      h.div(
+        [h.Class('plan-head')],
+        [
+          h.span(
+            [h.Class('plan-rank')],
+            [rank === 1 ? '1 · start here' : String(rank)],
+          ),
+          refOrKey(grill, issue.id, h),
+          issueHeading(issue, h),
+          phasePill(planPhaseOf(grill, issue, model.answers), h),
+          critical.includes(issue.id)
+            ? h.span([h.Class('plan-crit')], ['critical path'])
+            : h.empty,
+        ],
+      ),
+      h.div(
+        [h.Class('plan-qs')],
+        [
+          h.span([h.Class('label')], ['Its builder starts once you answer']),
+          ...Array.map(open, id => planQuestion(model, grill, issue, id, h)),
+        ],
+      ),
+      Array.isArrayEmpty(answeredStart)
+        ? h.empty
+        : h.p(
+            [h.Class('plan-then')],
+            [
+              'Already answered for its start: ',
+              ...Array.map(answeredStart, id => planLink(grill, id, h)),
+            ],
+          ),
+      Array.isArrayEmpty(review)
+        ? h.empty
+        : h.div(
+            [h.Class('plan-qs')],
+            [
+              h.span([h.Class('label')], ['Can wait until its first review']),
+              ...Array.map(review, id =>
+                planQuestion(model, grill, issue, id, h),
+              ),
+            ],
+          ),
+      Array.isReadonlyArrayEmpty(after)
+        ? h.empty
+        : h.p(
+            [h.Class('plan-then')],
+            ['Then ', ...chainView(grill, after, h), ' can follow'],
+          ),
+      issue.note === undefined
+        ? h.empty
+        : h.p([h.Class('plan-then')], [issue.note]),
+    ],
+  )
+}
+
+/** One line for an issue that needs nothing from Rob: what it is and what it waits for. */
+const issueLine = (
+  model: Model,
+  grill: Grill,
+  issue: PlanIssue,
+  h: H,
+): Html => {
+  const phase = planPhaseOf(grill, issue, model.answers)
+  const detail =
+    phase === 'after'
+      ? `after ${Array.join(issue.follows ?? [], ', ')}`
+      : phase === 'ready'
+        ? 'starts once you send the round and an agent is free'
+        : (issue.agent ?? PHASE_WORDS[phase])
+  return h.div(
+    [h.Class('plan-line')],
+    [
+      h.span([], [refOrKey(grill, issue.id, h), ' ', issueHeading(issue, h)]),
+      h.span([h.Class('plan-detail')], [detail]),
+    ],
+  )
+}
+
+/** The deadline, and why the first issue comes first: the critical chain it holds. */
+const deadlineView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
+  const chain = plan.critical ?? []
+  const gates = Option.match(
+    Array.findFirst(plan.issues, issue => issue.id === chain[0]),
+    {
+      onNone: () => [],
+      onSome: issue => openGatesOf(grill, issue, model.answers),
+    },
+  )
+  if (plan.deadline === undefined && Array.isReadonlyArrayEmpty(chain)) {
+    return h.empty
+  }
+  return h.div(
+    [h.Class('plan-deadline')],
+    [
+      plan.deadline === undefined
+        ? h.empty
+        : h.span(
+            [h.Class('plan-when')],
+            [
+              'Deadline ',
+              h.b([], [deadlineWords(plan.deadline)]),
+              ...(model.now === 0
+                ? []
+                : [h.br([]), timeLeft(plan.deadline, model.now)]),
+            ],
+          ),
+      Array.isReadonlyArrayEmpty(chain)
+        ? h.empty
+        : h.p(
+            [],
+            Array.isReadonlyArrayEmpty(gates)
+              ? [
+                  'The longest chain is ',
+                  ...chainView(grill, chain, h),
+                  '; nothing in it waits on you.',
+                ]
+              : [
+                  'The longest chain is ',
+                  ...chainView(grill, chain, h),
+                  ', and none of it can start until you answer ',
+                  ...Array.flatMap(gates, (id, index) => [
+                    index > 0 ? ' ' : '',
+                    planLink(grill, id, h),
+                  ]),
+                  '. That is why its questions come first.',
+                ],
+          ),
+    ],
+  )
+}
+
+const agentsView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
+  if (plan.slots === undefined) {
+    return h.empty
+  }
+  const busy = Array.filter(plan.issues, issue => {
+    const phase = planPhaseOf(grill, issue, model.answers)
+    return phase === 'building' || phase === 'review' || phase === 'stuck'
+  })
+  return h.p(
+    [h.Class('plan-agents')],
+    [
+      h.span([h.Class('label')], [`Agents (${plan.slots})`]),
+      ...Array.map(busy, issue =>
+        h.span(
+          [h.Class(`plan-slot${issue.phase === 'stuck' ? ' is-stuck' : ''}`)],
+          [
+            `${issue.id} · ${issue.agent ?? PHASE_WORDS[planPhaseOf(grill, issue, model.answers)]}`,
+          ],
+        ),
+      ),
+      ...Array.makeBy(Math.max(0, plan.slots - busy.length), () =>
+        h.span([h.Class('plan-slot is-idle')], ['idle']),
+      ),
+    ],
+  )
+}
+
+/** The run's plan: what waits on Rob first, ranked, then everything else, as a list or a board. */
+const planPageView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
+  const waiting = waitingOnYou(grill, model.answers)
+  const inPhase = (phases: ReadonlyArray<PlanPhase>) =>
+    Array.filter(plan.issues, issue =>
+      phases.includes(planPhaseOf(grill, issue, model.answers)),
+    )
+  const columns: ReadonlyArray<readonly [string, ReadonlyArray<PlanIssue>]> = [
+    ['Building now', inPhase(['building', 'review'])],
+    ['Ready to start', inPhase(['ready'])],
+    ['Waiting on another issue', inPhase(['after'])],
+  ]
+  const footnotes: ReadonlyArray<readonly [string, ReadonlyArray<PlanIssue>]> =
+    [
+      ['Merged', inPhase(['merged'])],
+      ['Outside the run', inPhase(['outside'])],
+    ]
+  const waitingColumn = h.div(
+    [h.Class('plan-col is-waiting')],
+    [
+      h.h2([], ['Waiting on you, most urgent first']),
+      ...(Array.isReadonlyArrayEmpty(waiting)
+        ? [h.p([h.Class('hint')], ['Nothing waits on you.'])]
+        : Array.map(waiting, (issue, index) =>
+            waitingBlock(model, grill, issue, index + 1, h),
+          )),
+    ],
+  )
+  const viewChoice = (view: PlanView) =>
+    h.button(
+      [
+        h.Class(`side-choice${model.planView === view ? ' is-active' : ''}`),
+        h.AriaPressed(String(model.planView === view)),
+        h.OnClick(Message.ClickedPlanView({ view })),
+      ],
+      [view],
+    )
+  const group = (
+    title: string,
+    issues: ReadonlyArray<PlanIssue>,
+    asCards: boolean,
+  ): Html =>
+    h.section(
+      [h.Class(asCards ? 'plan-col' : 'plan-group')],
+      [
+        h.h2([], [title]),
+        ...(Array.isReadonlyArrayEmpty(issues)
+          ? [h.p([h.Class('hint')], ['None.'])]
+          : Array.map(issues, issue =>
+              asCards
+                ? h.article(
+                    [
+                      h.Class(
+                        `plan-card${(plan.critical ?? []).includes(issue.id) ? ' is-crit' : ''}`,
+                      ),
+                    ],
+                    [issueLine(model, grill, issue, h)],
+                  )
+                : issueLine(model, grill, issue, h),
+            )),
+      ],
+    )
+  const isBoard = model.planView === 'Board'
+  return h.div(
+    [h.Class(`concept-page plan-page${isBoard ? ' is-board' : ''}`)],
+    [
+      h.div(
+        [h.Class('plan-top')],
+        [
+          h.h1([h.Class('concept-title')], ['Plan']),
+          h.div(
+            [
+              h.Class('side-switch'),
+              h.Role('group'),
+              h.AriaLabel('Plan layout'),
+            ],
+            [viewChoice('List'), viewChoice('Board')],
+          ),
+        ],
+      ),
+      deadlineView(model, grill, plan, h),
+      agentsView(model, grill, plan, h),
+      h.div(
+        [h.Class(isBoard ? 'plan-board' : 'plan-list')],
+        isBoard
+          ? [
+              waitingColumn,
+              ...Array.map(columns, ([title, issues]) =>
+                group(title, issues, true),
+              ),
+            ]
+          : [
+              waitingColumn,
+              // What is moving, then what waits on other issues or isn't the run's.
+              ...Array.map(
+                [
+                  [columns[0], columns[1], footnotes[0]],
+                  [columns[2], footnotes[1]],
+                ],
+                panel =>
+                  h.div(
+                    [h.Class('plan-rest')],
+                    Array.flatMap(panel, entry =>
+                      entry === undefined ||
+                      Array.isReadonlyArrayEmpty(entry[1])
+                        ? []
+                        : [group(entry[0], entry[1], false)],
+                    ),
+                  ),
+              ),
+            ],
+      ),
+      isBoard
+        ? h.p(
+            [h.Class('plan-then')],
+            Array.flatMap(footnotes, ([title, issues]) =>
+              Array.isReadonlyArrayEmpty(issues)
+                ? []
+                : [
+                    `${title}: `,
+                    ...chainView(
+                      grill,
+                      Array.map(issues, issue => issue.id),
+                      h,
+                    ),
+                    '. ',
+                  ],
+            ),
+          )
         : h.empty,
     ],
   )
@@ -855,6 +1591,14 @@ const overviewView = (model: Model, snapshot: Snapshot, h: H): Html => {
   return h.div(
     [h.Class('concept-page')],
     [
+      (grill.version ?? 1) > FORMAT_VERSION
+        ? h.p(
+            [h.Class('hint')],
+            [
+              `This grill uses format ${grill.version}; this page reads up to ${FORMAT_VERSION}, so some parts may not show. Pull grill-flow to see them.`,
+            ],
+          )
+        : h.empty,
       h.h1([h.Class('concept-title')], [grill.title]),
       h.div(
         [h.Class('prose')],
@@ -936,9 +1680,7 @@ const urgencyPageView = (
   h: H,
 ): Html => {
   const grill = snapshot.grill
-  const steps = grill.steps.filter(
-    step => urgencyOf(step.question) === level && isPending(model, grill, step),
-  )
+  const steps = mixedPageSteps(model, grill)
   return h.div(
     [h.Class('concept-page')],
     [
@@ -949,13 +1691,13 @@ const urgencyPageView = (
       h.p(
         [h.Class('concept-def')],
         [
-          'Every question still to answer at this urgency, across issues.',
+          'Every question at this urgency, across issues.',
           grill.refsAt === undefined
             ? ''
             : ` Linear states as of ${grill.refsAt}.`,
         ],
       ),
-      Array.isArrayEmpty(steps)
+      Array.isReadonlyArrayEmpty(steps)
         ? h.p([h.Class('hint')], ['Nothing here.'])
         : h.div(
             [h.Class('questions')],
@@ -989,13 +1731,59 @@ const issuePageView = (
       ),
       h.div(
         [h.Class('questions')],
-        Array.map(stepsAbout(grill, key), step =>
+        Array.map(mixedPageSteps(model, grill), step =>
           questionView(model, snapshot, step, h),
         ),
       ),
     ],
   )
 }
+
+const cardPageView = (
+  model: Model,
+  snapshot: Snapshot,
+  card: string,
+  h: H,
+): Html =>
+  h.div(
+    [h.Class('concept-page')],
+    [
+      // A card is one issue's design gate: say which, and where it stands in the plan.
+      Option.match(cardIssue(snapshot.grill, card), {
+        onNone: () => h.empty,
+        onSome: issue =>
+          h.p(
+            [h.Class('issue-head')],
+            [
+              refOrKey(snapshot.grill, issue.id, h),
+              ' ',
+              phasePill(planPhaseOf(snapshot.grill, issue, model.answers), h),
+              ' ',
+              h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(Message.ClickedConcept({ partId: PLAN })),
+                ],
+                ['See it in the Plan'],
+              ),
+            ],
+          ),
+      }),
+      h.h1([h.Class('concept-title')], [cardName(snapshot.grill, card)]),
+      h.p(
+        [h.Class('concept-def')],
+        [
+          `Card ${card}: the questions its design gate left for you, from whichever concept asks them.`,
+        ],
+      ),
+      h.div(
+        [h.Class('questions')],
+        Array.map(mixedPageSteps(model, snapshot.grill), step =>
+          questionView(model, snapshot, step, h, true),
+        ),
+      ),
+    ],
+  )
 
 const decidedPageView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
@@ -1139,11 +1927,12 @@ const questionView = (
   const grill = snapshot.grill
   const id = step.question.id
   const open = isOpen(model, grill, step)
+  const isSentBefore = sentIdsOf(model, snapshot).has(id)
   return h.keyed('section')(
     step.id,
     [
       h.Class(
-        `question ${stateClass(model, grill, id)}${open ? ' is-expanded' : ''}`,
+        `question ${stateClass(model, grill, id)}${isSentBefore ? ' is-sent' : ''}${open ? ' is-expanded' : ''}`,
       ),
       h.Id(`q-${id}`),
     ],
@@ -1157,15 +1946,7 @@ const questionView = (
           ),
         ],
         [
-          h.span(
-            [h.Class('row-id')],
-            [
-              usesUrgency(grill)
-                ? urgencyDot(urgencyOf(step.question), h)
-                : h.empty,
-              id,
-            ],
-          ),
+          h.span([h.Class('row-id')], [id]),
           h.span(
             [h.Class('row-main')],
             [
@@ -1176,6 +1957,9 @@ const questionView = (
                     ? refLabel(grill, step.question.issue, h)
                     : h.empty,
                   step.heading,
+                  usesUrgency(grill)
+                    ? urgencyDot(urgencyOf(step.question), h, true)
+                    : h.empty,
                 ],
               ),
               step.question.scope === ''
@@ -1183,7 +1967,23 @@ const questionView = (
                 : h.span([h.Class('scope')], [step.question.scope]),
             ],
           ),
-          h.span([h.Class('row-state')], answerSummary(model, grill, step, h)),
+          h.span(
+            [h.Class('row-state')],
+            [
+              ...answerSummary(model, grill, step, h),
+              isSentBefore
+                ? h.span(
+                    [
+                      h.Class('sent-tag'),
+                      h.Title(
+                        'Already sent; Send leaves it out unless you change it',
+                      ),
+                    ],
+                    ['sent'],
+                  )
+                : h.empty,
+            ],
+          ),
         ],
       ),
       open ? questionBodyView(model, snapshot, step, h) : h.empty,
@@ -1215,6 +2015,10 @@ const questionBodyView = (
         ? h.p(
             [h.Class('squad-line')],
             [
+              question.issue === undefined
+                ? h.empty
+                : refOrKey(grill, question.issue, h),
+              fromView(grill, step, h),
               usesUrgency(grill)
                 ? h.span(
                     [h.Class('squad-urgency')],
@@ -1224,10 +2028,6 @@ const questionBodyView = (
                     ],
                   )
                 : h.empty,
-              question.issue === undefined
-                ? h.empty
-                : refOrKey(grill, question.issue, h),
-              fromView(grill, step, h),
             ],
           )
         : h.empty,
@@ -1716,6 +2516,9 @@ const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
 const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
   const grill = snapshot.grill
   const steps = stepsIn(grill, part.id)
+  // A mixed page offers every question it lists; picking one from another concept moves Talk there.
+  const mixedSteps = mixedPageSteps(model, grill)
+  const aboutSteps = Array.isReadonlyArrayEmpty(mixedSteps) ? steps : mixedSteps
   const stepIds = new Set(Array.map(steps, step => step.id))
   const target = `part:${part.id}`
   const aboutLabel = (stepId: string): string =>
@@ -1784,7 +2587,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                     ],
                   ),
                 ]
-              : Array.map(reply.text.split(/\n\s*\n/), paragraph =>
+              : Array.map(splitParagraphs(reply.text), paragraph =>
                   paragraphView(paragraph, grill, h),
                 ),
         }
@@ -1881,17 +2684,17 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                 ],
                 ['The whole concept'],
               ),
-              ...Array.map(steps, step =>
+              ...Array.map(aboutSteps, step =>
                 h.button(
                   [
                     h.Type('button'),
                     h.Class(
-                      `quiet-button${about === step.question.id ? ' is-active' : ''}`,
+                      `quiet-button${step.part === part.id && about === step.question.id ? ' is-active' : ''}`,
                     ),
                     h.Title(step.question.title),
                     h.OnClick(
                       Message.ClickedTalkAbout({
-                        partId: part.id,
+                        partId: step.part,
                         about: step.question.id,
                       }),
                     ),
@@ -2191,7 +2994,8 @@ const mapView = (
     (isColumns ? 18 : 8)
   const top = isColumns ? 0 : (lanes[0]?.start ?? TOP) - 22
   const height = Math.max(...Array.map(lanes, lane => lane.end)) - top + 10
-  const isNatural = isFull && !isColumns
+  // Row maps keep the drawing's own scale; the sidebar's columns stretch to fill it.
+  const isNatural = !isColumns
   const edgeClass = (relation: Relation): string => {
     const lit = hover !== '' && touchesHover(relation)
     const inFocus =

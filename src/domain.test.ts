@@ -9,6 +9,7 @@ import {
   diffWords,
   neighbourStep,
   relationsOf,
+  withQuestions,
   withRefs,
   withTerms,
   replyText,
@@ -17,8 +18,11 @@ import {
   urgencyRank,
   usesUrgency,
   segments,
+  splitParagraphs,
   statusOf,
   tally,
+  planPhaseOf,
+  waitingOnYou,
 } from './domain'
 
 const grill = Schema.decodeUnknownSync(Grill)(
@@ -161,6 +165,50 @@ describe('segments', () => {
   })
 })
 
+describe('withQuestions', () => {
+  it("marks the grill's question ids and leaves unknown ids and longer words alone", () => {
+    const parts = withQuestions(
+      [{ _tag: 'Text', text: 'See Q2 and Q1, not Q99, Q123 or Q2-b.' }],
+      grill,
+    )
+    expect(parts.map(part => [part._tag, part.text])).toEqual([
+      ['Text', 'See '],
+      ['Question', 'Q2'],
+      ['Text', ' and '],
+      ['Question', 'Q1'],
+      ['Text', ', not Q99, Q123 or Q2-b.'],
+    ])
+  })
+})
+
+describe('figures', () => {
+  const text = [
+    'Two orders:',
+    '',
+    '```',
+    'A  ──●── drop ──●── stealth',
+    '',
+    'B  ──●── stealth ──●── drop',
+    '```',
+    'After the block.',
+  ].join('\n')
+
+  it('keeps a fenced block whole across its blank lines', () => {
+    expect(splitParagraphs(text)).toEqual([
+      'Two orders:',
+      '```\nA  ──●── drop ──●── stealth\n\nB  ──●── stealth ──●── drop\n```',
+      'After the block.',
+    ])
+  })
+
+  it('reads a fenced block as a figure with its spacing as written', () => {
+    expect(blockOf(splitParagraphs(text)[1] ?? '')).toEqual({
+      _tag: 'Figure',
+      text: 'A  ──●── drop ──●── stealth\n\nB  ──●── stealth ──●── drop',
+    })
+  })
+})
+
 describe('blockOf', () => {
   it('reads a lead line and dash items as a list', () => {
     const block = blockOf('It keeps:\n- the wiki\n- web search\n  and more')
@@ -267,6 +315,7 @@ describe('relationsOf', () => {
       asks: [],
       revisions: [],
       sends: [],
+      sent: {},
     }
     const relations = relationsOf(snapshot)
     expect(relations).toContainEqual({ from: 'Q18', to: 'Q10', kind: 'waits' })
@@ -364,5 +413,47 @@ describe('issues and urgency', () => {
   it('lists by urgency only on a squad grill', () => {
     expect(usesUrgency(tagged)).toBe(false)
     expect(usesUrgency({ ...tagged, kind: 'squad' })).toBe(true)
+  })
+})
+
+describe('plan', () => {
+  const planned = Schema.decodeUnknownSync(Grill)({
+    ...JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),
+    version: 2,
+    plan: {
+      critical: ['B', 'C'],
+      issues: [
+        { id: 'A', title: 'Building', phase: 'building', start: ['Q1'] },
+        {
+          id: 'B',
+          title: 'Head of the chain',
+          phase: 'gated',
+          start: ['Q1', 'Q4'],
+        },
+        { id: 'C', title: 'After B', phase: 'later', follows: ['B'] },
+        { id: 'D', title: 'Small', phase: 'gated', start: ['Q5'] },
+        { id: 'E', title: 'Newer phase', phase: 'paused-by-rob', start: [] },
+      ],
+    },
+  })
+  const issue = (id: string) =>
+    planned.plan?.issues.find(candidate => candidate.id === id) ?? fail(id)
+  const fail = (id: string): never => {
+    throw new Error(`no issue ${id}`)
+  }
+
+  it('reads each issue from the run and the answers', () => {
+    expect(planPhaseOf(planned, issue('A'), {})).toBe('building')
+    expect(planPhaseOf(planned, issue('B'), {})).toBe('you')
+    expect(planPhaseOf(planned, issue('C'), {})).toBe('after')
+    expect(planPhaseOf(planned, issue('B'), { Q1: 'a', Q4: 'a' })).toBe('ready')
+  })
+
+  it('reads a phase it does not know as not yet started', () => {
+    expect(planPhaseOf(planned, issue('E'), {})).toBe('ready')
+  })
+
+  it('ranks the issue that holds the most work first', () => {
+    expect(waitingOnYou(planned, {}).map(found => found.id)).toEqual(['B', 'D'])
   })
 })

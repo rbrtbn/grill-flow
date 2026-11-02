@@ -9,6 +9,10 @@ const application = Runtime.makeApplication({
   update,
   view,
   subscriptions,
+  routing: {
+    onUrlRequest: request => Message.RequestedUrl({ request }),
+    onUrlChange: url => Message.ChangedUrl({ url }),
+  },
   container: document.getElementById('root'),
   devTools: {
     Message,

@@ -1,5 +1,6 @@
 import {
   Array,
+  Clock,
   Duration,
   Effect,
   Option,
@@ -14,14 +15,28 @@ import {
   Command,
   Dom,
   Mount,
+  Navigation,
   Runtime,
   Subscription,
   Update,
+  Url,
 } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 
-import { OWN, Snapshot, replyText, statusOf } from './domain'
+import {
+  type Grill,
+  OWN,
+  Snapshot,
+  type Step,
+  cardOf,
+  cardsOf,
+  issuesOf,
+  replyText,
+  statusOf,
+  urgencyOf,
+  usesUrgency,
+} from './domain'
 
 const POLL_INTERVAL = Duration.seconds(4)
 
@@ -29,9 +44,13 @@ const POLL_INTERVAL = Duration.seconds(4)
 export const LONG_CONCEPT = 6
 
 export const OVERVIEW = 'overview'
+// A squad grill with a plan gets a page of which builds wait on what.
+export const PLAN = 'plan'
 // Pages the urgency sidebar adds beside the concepts: one per urgency, and the decided list.
 export const URGENCY_PAGE = 'urgency:'
 export const ISSUE_PAGE = 'issue:'
+// A squad grill's questions grouped by the run card they came from.
+export const CARD_PAGE = 'card:'
 export const DECIDED = 'decided'
 
 // MODEL
@@ -50,8 +69,17 @@ export const Side = Schema.Literals(['Talk', 'Map', 'None'])
 export type Side = typeof Side.Type
 
 /** How the left sidebar lists the questions: by concept (an issue, on a squad grill) or by urgency. */
-export const SidebarMode = Schema.Literals(['Concepts', 'Issues', 'Urgency'])
+export const SidebarMode = Schema.Literals([
+  'Concepts',
+  'Issues',
+  'Cards',
+  'Urgency',
+])
 export type SidebarMode = typeof SidebarMode.Type
+
+/** How the Plan page lays out the run: a ranked list, or a board of columns by phase. */
+export const PlanView = Schema.Literals(['List', 'Board'])
+export type PlanView = typeof PlanView.Type
 
 export const Model = Schema.Struct({
   page: PageData.schema,
@@ -73,12 +101,20 @@ export const Model = Schema.Struct({
   maybeBuild: Schema.Option(Schema.String),
   currentPart: Schema.String,
   side: Side,
-  sidebar: SidebarMode,
+  // The list the reader picked; none until they pick, so the grill's first list shows.
+  sidebar: Schema.Option(SidebarMode),
+  // The page the reader came from, for the back link.
+  maybePrevious: Schema.Option(Schema.String),
+  planView: PlanView,
+  // The clock a plan's deadline counts down against, read by the clock subscription.
+  now: Schema.Number,
   skipped: Schema.Array(Schema.String),
   expanded: Schema.Record(Schema.String, Schema.Boolean),
   peeks: Schema.Array(Schema.String),
   maybeHover: Schema.Option(Schema.String),
   maybeJustAnswered: Schema.Option(Schema.String),
+  // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
+  maybeTalkPart: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -115,18 +151,25 @@ export const Message = defineMessageUnion({
   ClickedToggleDiff: { stepId: Schema.String },
   ClickedToggleWhy: { stepId: Schema.String },
   ClickedConcept: { partId: Schema.String },
+  ClickedBack: {},
+  ChangedUrl: { url: Url.Url },
+  RequestedUrl: { request: Navigation.UrlRequest },
+  CompletedNavigate: {},
   ClickedToggleQuestion: { question: Schema.String, open: Schema.Boolean },
   ClickedPeek: { key: Schema.String },
   ClickedSkip: { question: Schema.String },
   ClickedUnskip: { question: Schema.String },
   ClickedSide: { side: Side },
   ClickedSidebarMode: { mode: SidebarMode },
+  ClickedPlanView: { view: PlanView },
+  TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
   SubmittedTalk: { partId: Schema.String },
   ReadTalkBox: { partId: Schema.String, text: Schema.String },
   ReadSendBox: { text: Schema.String },
   ScrolledToAbout: { partId: Schema.String, about: Schema.String },
+  ScrolledToQuestion: { question: Schema.String },
   CompletedFillBox: {},
   ClickedAskAbout: { partId: Schema.String, question: Schema.String },
   ClickedShowChanges: { question: Schema.String, stepId: Schema.String },
@@ -135,7 +178,7 @@ export const Message = defineMessageUnion({
   ClickedMapNode: { question: Schema.String },
   ClickedMapConcept: { partId: Schema.String },
   CompletedScroll: {},
-  ScrolledAwayFromAnswered: {
+  LeftAnswered: {
     question: Schema.String,
     maybeBottomAbove: Schema.Option(Schema.Number),
   },
@@ -404,6 +447,19 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { talkAbout: Record.set(partId, about) }),
     }),
 
+    ScrolledToQuestion: ({ question }) =>
+      withSnapshot(model, snapshot =>
+        Option.match(partOf(snapshot, question), {
+          onNone: () => ({ model }),
+          onSome: partId => ({
+            model: modifyFields(model, {
+              maybeTalkPart: () => Option.some(partId),
+              talkAbout: Record.set(partId, question),
+            }),
+          }),
+        }),
+      ),
+
     CompletedSendAnswers: ({ result }) =>
       result._tag === 'Success'
         ? {
@@ -461,14 +517,75 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedConcept: ({ partId }) => ({
-      model: modifyFields(model, {
-        currentPart: () => partId,
-        peeks: () => [],
-        maybeJustAnswered: () => Option.none(),
+    ClickedConcept: ({ partId }) =>
+      withSnapshot(model, snapshot => {
+        const next = modifyFields(goTo(model, snapshot.grill, partId), {
+          maybeJustAnswered: () => Option.none(),
+        })
+        return {
+          model: next,
+          commands: [
+            ...pushIfMoved(model, next, snapshot.grill),
+            ScrollToTop(),
+          ],
+        }
       }),
-      commands: [ScrollToTop()],
-    }),
+
+    ClickedBack: () =>
+      withSnapshot(model, snapshot =>
+        Option.match(model.maybePrevious, {
+          onNone: () => ({ model }),
+          onSome: page => {
+            const next = modifyFields(goTo(model, snapshot.grill, page), {
+              maybeJustAnswered: () => Option.none(),
+            })
+            return {
+              model: next,
+              commands: [
+                ...pushIfMoved(model, next, snapshot.grill),
+                ScrollToTop(),
+              ],
+            }
+          },
+        }),
+      ),
+
+    // Back, forward, or our own push: show the page the address names.
+    ChangedUrl: ({ url }) =>
+      withSnapshot(model, snapshot => {
+        const page = pageOfPath(url.pathname)
+        return page === '' || page === model.currentPart
+          ? { model }
+          : {
+              model: modifyFields(goTo(model, snapshot.grill, page), {
+                maybeJustAnswered: () => Option.none(),
+              }),
+              commands: [ScrollToTop()],
+            }
+      }),
+
+    // A link inside this grill moves within the page; anything else, the dashboard included, loads.
+    RequestedUrl: ({ request }) =>
+      withSnapshot(model, snapshot =>
+        request._tag === 'Internal' &&
+        request.url.pathname.startsWith(
+          `/g/${encodeURIComponent(snapshot.grill.id)}`,
+        )
+          ? { model, commands: [PushPage({ url: Url.toString(request.url) })] }
+          : {
+              model,
+              commands: [
+                LoadUrl({
+                  href:
+                    request._tag === 'Internal'
+                      ? Url.toString(request.url)
+                      : request.href,
+                }),
+              ],
+            },
+      ),
+
+    CompletedNavigate: () => ({ model }),
 
     ClickedToggleQuestion: ({ question, open }) =>
       withSnapshot(model, snapshot => ({
@@ -525,7 +642,15 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedSidebarMode: ({ mode }) => ({
-      model: modifyFields(model, { sidebar: () => mode }),
+      model: modifyFields(model, { sidebar: () => Option.some(mode) }),
+    }),
+
+    ClickedPlanView: ({ view }) => ({
+      model: modifyFields(model, { planView: () => view }),
+    }),
+
+    TickedClock: ({ now }) => ({
+      model: modifyFields(model, { now: () => now }),
     }),
 
     ClickedSide: ({ side }) => ({
@@ -536,7 +661,10 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedTalkAbout: ({ partId, about }) => ({
-      model: modifyFields(model, { talkAbout: Record.set(partId, about) }),
+      model: modifyFields(model, {
+        talkAbout: Record.set(partId, about),
+        maybeTalkPart: () => Option.some(partId),
+      }),
     }),
 
     UpdatedTalkDraft: ({ partId, value }) => ({
@@ -582,20 +710,32 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         side: () => 'Talk',
         talkAbout: Record.set(partId, question),
+        maybeTalkPart: () => Option.some(partId),
       }),
       commands: [FocusTalkBox()],
     }),
 
     ClickedShowChanges: ({ question, stepId }) =>
-      withSnapshot(model, snapshot => ({
-        model: modifyFields(openQuestion(model, snapshot, question), {
-          diffShown: Record.set(stepId, true),
-          whyOpen: Record.set(stepId, true),
-          currentPart: current =>
-            Option.getOrElse(partOf(snapshot, question), () => current),
-        }),
-        commands: [ScrollToQuestion({ question })],
-      })),
+      withSnapshot(model, snapshot => {
+        const next = modifyFields(
+          goTo(
+            openQuestion(model, snapshot, question),
+            snapshot.grill,
+            pageForQuestion(model, snapshot, question),
+          ),
+          {
+            diffShown: Record.set(stepId, true),
+            whyOpen: Record.set(stepId, true),
+          },
+        )
+        return {
+          model: next,
+          commands: [
+            ...pushIfMoved(model, next, snapshot.grill),
+            ScrollToQuestion({ question }),
+          ],
+        }
+      }),
 
     HoveredMapNode: ({ question }) => ({
       model: modifyFields(model, { maybeHover: () => Option.some(question) }),
@@ -606,13 +746,20 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedMapNode: ({ question }) =>
-      withSnapshot(model, snapshot => ({
-        model: modifyFields(openQuestion(model, snapshot, question), {
-          currentPart: current =>
-            Option.getOrElse(partOf(snapshot, question), () => current),
-        }),
-        commands: [ScrollToQuestion({ question })],
-      })),
+      withSnapshot(model, snapshot => {
+        const next = goTo(
+          openQuestion(model, snapshot, question),
+          snapshot.grill,
+          pageForQuestion(model, snapshot, question),
+        )
+        return {
+          model: next,
+          commands: [
+            ...pushIfMoved(model, next, snapshot.grill),
+            ScrollToQuestion({ question }),
+          ],
+        }
+      }),
 
     ClickedMapConcept: ({ partId }) => ({
       model: modifyFields(model, { currentPart: () => partId }),
@@ -621,7 +768,7 @@ export const update = (model: Model, message: Message) =>
 
     CompletedScroll: () => ({ model }),
 
-    ScrolledAwayFromAnswered: ({ question, maybeBottomAbove }) =>
+    LeftAnswered: ({ question, maybeBottomAbove }) =>
       Option.exists(model.maybeJustAnswered, id => id === question)
         ? {
             model: modifyFields(model, {
@@ -662,17 +809,184 @@ const settleWrite = (model: Model, result: SnapshotResult): UpdateReturn =>
       }
 
 // The first concept that still has something open, so a fresh page starts where work is left.
-const startingPart = (snapshot: Snapshot): string =>
-  Option.getOrElse(
-    pipe(
-      Array.findFirst(
-        snapshot.grill.steps,
-        step => !Record.has(snapshot.answers, step.question.id),
-      ),
-      Option.map(step => step.part),
-    ),
-    () => OVERVIEW,
+// NAVIGATION
+
+/** The lists a grill's sidebar offers, the first one shown until the reader picks. */
+export const modesOf = (grill: Grill): ReadonlyArray<SidebarMode> =>
+  grill.kind === 'squad'
+    ? [
+        ...(Array.isReadonlyArrayEmpty(cardsOf(grill))
+          ? []
+          : ['Cards' as const]),
+        'Concepts',
+        ...(usesUrgency(grill) ? ['Urgency' as const] : []),
+      ]
+    : [
+        'Concepts',
+        ...(Array.isReadonlyArrayEmpty(issuesOf(grill))
+          ? []
+          : ['Issues' as const]),
+      ]
+
+export const sidebarModeOf = (model: Model, grill: Grill): SidebarMode => {
+  const modes = modesOf(grill)
+  return Option.getOrElse(
+    Option.filter(model.sidebar, mode => modes.includes(mode)),
+    () => modes[0] ?? 'Concepts',
   )
+}
+
+/** The list a page belongs to, so going there shows it highlighted in the sidebar. */
+const modeOfPage = (grill: Grill, page: string): Option.Option<SidebarMode> =>
+  page.startsWith(CARD_PAGE)
+    ? Option.some('Cards')
+    : page.startsWith(ISSUE_PAGE)
+      ? Option.some('Issues')
+      : page.startsWith(URGENCY_PAGE)
+        ? Option.some('Urgency')
+        : grill.parts.some(part => part.id === page)
+          ? Option.some('Concepts')
+          : Option.none()
+
+/** The questions a card, issue or urgency page lists; none on any other page. */
+export const pageQuestions = (
+  grill: Grill,
+  page: string,
+): ReadonlyArray<Step> =>
+  page.startsWith(CARD_PAGE)
+    ? grill.steps.filter(step =>
+        Option.exists(
+          cardOf(step.question),
+          card => card === page.slice(CARD_PAGE.length),
+        ),
+      )
+    : page.startsWith(ISSUE_PAGE)
+      ? grill.steps.filter(
+          step => step.question.issue === page.slice(ISSUE_PAGE.length),
+        )
+      : page.startsWith(URGENCY_PAGE)
+        ? grill.steps.filter(
+            step => `${URGENCY_PAGE}${urgencyOf(step.question)}` === page,
+          )
+        : []
+
+/** Moves to a page, remembering where the reader was and showing the page's list. */
+const goTo = (model: Model, grill: Grill, page: string): Model =>
+  page === model.currentPart
+    ? model
+    : modifyFields(model, {
+        currentPart: () => page,
+        maybePrevious: () =>
+          model.currentPart === ''
+            ? Option.none()
+            : Option.some(model.currentPart),
+        sidebar: current =>
+          Option.match(modeOfPage(grill, page), {
+            onNone: () => current,
+            onSome: mode =>
+              modesOf(grill).includes(mode) ? Option.some(mode) : current,
+          }),
+        peeks: () => [],
+      })
+
+/** Where a question opens: the page already listing it, else its concept. */
+const pageForQuestion = (
+  model: Model,
+  snapshot: Snapshot,
+  question: string,
+): string =>
+  pageQuestions(snapshot.grill, model.currentPart).some(
+    step => step.question.id === question,
+  )
+    ? model.currentPart
+    : Option.getOrElse(partOf(snapshot, question), () => model.currentPart)
+
+// Each page has its own address under /g/<grill id>, so the browser's back and forward walk the
+// pages read; the server serves the page for every such path.
+const PAGE_PATHS: ReadonlyArray<readonly [string, string]> = [
+  [CARD_PAGE, 'card/'],
+  [ISSUE_PAGE, 'issue/'],
+  [URGENCY_PAGE, 'urgency/'],
+]
+
+export const pathOfPage = (grillId: string, page: string): string => {
+  const base = `/g/${encodeURIComponent(grillId)}`
+  if (page === '' || page === OVERVIEW || page === PLAN || page === DECIDED) {
+    return page === '' ? base : `${base}/${page}`
+  }
+  return Option.match(
+    Array.findFirst(PAGE_PATHS, ([prefix]) => page.startsWith(prefix)),
+    {
+      onSome: ([prefix, path]) =>
+        `${base}/${path}${encodeURIComponent(page.slice(prefix.length))}`,
+      onNone: () => `${base}/concept/${encodeURIComponent(page)}`,
+    },
+  )
+}
+
+/** The page a path names, or '' when it names none (the grill's own starting page then). */
+export const pageOfPath = (pathname: string): string => {
+  const [, , kind, value] = pathname.split('/').filter(part => part !== '')
+  const decoded = value === undefined ? '' : decodeURIComponent(value)
+  return kind === OVERVIEW || kind === PLAN || kind === DECIDED
+    ? kind
+    : kind === 'concept'
+      ? decoded
+      : Option.getOrElse(
+          Option.map(
+            Array.findFirst(PAGE_PATHS, ([, path]) => path === `${kind}/`),
+            ([prefix]) => (decoded === '' ? '' : `${prefix}${decoded}`),
+          ),
+          () => '',
+        )
+}
+
+export const PushPage = Command.define('PushPage', {
+  args: { url: Schema.String },
+  messages: [Message.CompletedNavigate],
+  execute: ({ url }) =>
+    Navigation.pushUrl(url).pipe(Effect.map(() => Message.CompletedNavigate())),
+})
+
+export const ReplacePage = Command.define('ReplacePage', {
+  args: { url: Schema.String },
+  messages: [Message.CompletedNavigate],
+  execute: ({ url }) =>
+    Navigation.replaceUrl(url).pipe(
+      Effect.map(() => Message.CompletedNavigate()),
+    ),
+})
+
+export const LoadUrl = Command.define('LoadUrl', {
+  args: { href: Schema.String },
+  messages: [Message.CompletedNavigate],
+  execute: ({ href }) =>
+    Navigation.load(href).pipe(Effect.map(() => Message.CompletedNavigate())),
+})
+
+/** The address command for moving from one model's page to the next's. */
+const pushIfMoved = (
+  before: Model,
+  after: Model,
+  grill: Grill,
+): ReadonlyArray<ReturnType<typeof PushPage>> =>
+  after.currentPart === before.currentPart
+    ? []
+    : [PushPage({ url: pathOfPage(grill.id, after.currentPart) })]
+
+const startingPart = (snapshot: Snapshot): string =>
+  snapshot.grill.plan !== undefined
+    ? PLAN
+    : Option.getOrElse(
+        pipe(
+          Array.findFirst(
+            snapshot.grill.steps,
+            step => !Record.has(snapshot.answers, step.question.id),
+          ),
+          Option.map(step => step.part),
+        ),
+        () => OVERVIEW,
+      )
 
 const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   if (result._tag === 'Failure') {
@@ -688,22 +1002,26 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   if (AsyncData.hasData(model.page)) {
     return { model: refreshPage(model, snapshot) }
   }
+  const first = model.currentPart === ''
+  const next = modifyFields(refreshPage(model, snapshot), {
+    answers: () => snapshot.answers,
+    notes: restored => ({ ...snapshot.notes, ...restored }),
+    own: restored => ({ ...snapshot.own, ...restored }),
+    send: () => latestSendState(snapshot),
+    sendDetail: () => latestSendDetail(snapshot),
+    currentPart: current => (first ? startingPart(snapshot) : current),
+  })
   return {
-    model: modifyFields(refreshPage(model, snapshot), {
-      answers: () => snapshot.answers,
-      notes: restored => ({ ...snapshot.notes, ...restored }),
-      own: restored => ({ ...snapshot.own, ...restored }),
-      send: () => latestSendState(snapshot),
-      sendDetail: () => latestSendDetail(snapshot),
-      currentPart: current =>
-        current === '' ? startingPart(snapshot) : current,
-    }),
+    model: next,
+    commands: first
+      ? [ReplacePage({ url: pathOfPage(snapshot.grill.id, next.currentPart) })]
+      : [],
   }
 }
 
 // INIT
 
-export const init: Runtime.ApplicationInit<Model, Message> = () => ({
+export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
   model: {
     page: PageData.Loading(),
     answers: {},
@@ -721,13 +1039,17 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => ({
     copy: 'Idle',
     maybeSaveError: Option.none(),
     maybeBuild: Option.none(),
-    currentPart: '',
+    currentPart: pageOfPath(url.pathname),
     side: 'Talk',
-    sidebar: 'Concepts',
+    sidebar: Option.none(),
+    maybePrevious: Option.none(),
+    planView: 'List',
+    now: 0,
     skipped: [],
     expanded: {},
     peeks: [],
     maybeHover: Option.none(),
+    maybeTalkPart: Option.none(),
     maybeJustAnswered: Option.none(),
   },
   commands: [LoadGrill(), CheckBuild(), RestoreDrafts()],
@@ -1014,6 +1336,30 @@ const outOfView = (question: string): Option.Option<Option.Option<number>> => {
 }
 
 /**
+ * Some once the pointer is over something outside the question, carrying its bottom when its top
+ * is under the bar, so folding it can keep what's below in place.
+ */
+const pointerLeft = (
+  question: string,
+  target: EventTarget | null,
+): Option.Option<Option.Option<number>> => {
+  const element = document.getElementById(`q-${question}`)
+  if (
+    element === null ||
+    !(target instanceof Node) ||
+    element.contains(target)
+  ) {
+    return Option.none()
+  }
+  const box = element.getBoundingClientRect()
+  const barBottom =
+    document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0
+  return Option.some(
+    box.top < barBottom ? Option.some(box.bottom) : Option.none(),
+  )
+}
+
+/**
  * What the reader is on: the concept while its title shows, else the question under a reading
  * line a third of the way down the view, or the nearest one to it.
  */
@@ -1049,36 +1395,54 @@ const onScreenAbout = (): Option.Option<string> => {
 
 const isConceptPage = (page: string): boolean =>
   page !== OVERVIEW &&
+  page !== PLAN &&
   page !== DECIDED &&
   !page.startsWith(URGENCY_PAGE) &&
-  !page.startsWith(ISSUE_PAGE)
+  !page.startsWith(ISSUE_PAGE) &&
+  !page.startsWith(CARD_PAGE)
+
+/** Pages that list questions from several concepts. */
+const isMixedPage = (page: string): boolean =>
+  page.startsWith(URGENCY_PAGE) ||
+  page.startsWith(ISSUE_PAGE) ||
+  page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
-  // While Talk is open on a concept, its About follows what the reader scrolls to.
+  // While Talk is open, its About follows what the reader scrolls to; on an urgency or issue page
+  // the concept Talk shows follows too.
   followQuestion: entry(
-    { partId: Schema.String },
+    { page: Schema.String },
     {
       modelToDependencies: model => ({
-        partId:
-          model.side === 'Talk' && isConceptPage(model.currentPart)
+        page:
+          model.side === 'Talk' &&
+          (isConceptPage(model.currentPart) || isMixedPage(model.currentPart))
             ? model.currentPart
             : '',
       }),
-      dependenciesToStream: ({ partId }) =>
+      dependenciesToStream: ({ page }) =>
         Stream.when(
           Dom.streamFromEventFilterMap({
             target: window,
             type: 'scroll',
-            filterMapEvent: () => onScreenAbout(),
+            filterMapEvent: () =>
+              isMixedPage(page)
+                ? Option.filter(onScreenAbout(), about => about !== 'concept')
+                : onScreenAbout(),
           }).pipe(
             Stream.changes,
-            Stream.map(about => Message.ScrolledToAbout({ partId, about })),
+            Stream.map(about =>
+              isMixedPage(page)
+                ? Message.ScrolledToQuestion({ question: about })
+                : Message.ScrolledToAbout({ partId: page, about }),
+            ),
           ),
-          Effect.sync(() => partId !== ''),
+          Effect.sync(() => page !== ''),
         ),
     },
   ),
-  // The question just answered stays open until it scrolls out of view, then folds to its row.
+  // The question just answered stays open until the pointer leaves it or it scrolls out of view,
+  // then folds to its row.
   collapseAnswered: entry(
     { justAnswered: Schema.String },
     {
@@ -1087,18 +1451,46 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
       }),
       dependenciesToStream: ({ justAnswered }) =>
         Stream.when(
-          Dom.streamFromEventFilterMap({
-            target: window,
-            type: 'scroll',
-            filterMapEvent: () =>
-              Option.map(outOfView(justAnswered), maybeBottomAbove =>
-                Message.ScrolledAwayFromAnswered({
-                  question: justAnswered,
-                  maybeBottomAbove,
-                }),
-              ),
-          }),
+          Stream.merge(
+            Dom.streamFromEventFilterMap({
+              target: window,
+              type: 'scroll',
+              filterMapEvent: () => outOfView(justAnswered),
+            }),
+            Dom.streamFromEventFilterMap({
+              target: document,
+              type: 'mouseover',
+              filterMapEvent: event => pointerLeft(justAnswered, event.target),
+            }),
+          ).pipe(
+            Stream.map(maybeBottomAbove =>
+              Message.LeftAnswered({
+                question: justAnswered,
+                maybeBottomAbove,
+              }),
+            ),
+          ),
           Effect.sync(() => justAnswered !== ''),
+        ),
+    },
+  ),
+  // Only a grill with a plan shows a countdown, so only it keeps the clock.
+  clock: entry(
+    { hasPlan: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        hasPlan: Option.exists(
+          AsyncData.getData(model.page),
+          snapshot => snapshot.grill.plan !== undefined,
+        ),
+      }),
+      dependenciesToStream: ({ hasPlan }) =>
+        Stream.when(
+          Stream.tick(Duration.minutes(1)).pipe(
+            Stream.mapEffect(() => Clock.currentTimeMillis),
+            Stream.map(now => Message.TickedClock({ now })),
+          ),
+          Effect.sync(() => hasPlan),
         ),
     },
   ),

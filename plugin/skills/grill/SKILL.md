@@ -109,7 +109,9 @@ well:
 - `steps` run in the order a person thinks the problem through. Each `prose`
   says what is decided, why, and why now, in short paragraphs. Every list is
   bullets, one `- ` line per item after an optional lead line. Backticks mark
-  code.
+  code. To compare options as a diagram or timeline, draw it in a fenced
+  ```` ``` ```` block: it shows in monospace with its spacing and blank lines
+  kept. Rewrites and Talk replies take the same blocks.
 - Every question has a `scope`: one line on when or where it applies. `ask`
   is worded so yes takes the recommendation. Each option's `effect` is one
   line on what that choice changes later; mark one `recommended`.
@@ -139,7 +141,27 @@ A squad lead's grill, gathering questions from several agents, also sets
   squad grill lists by urgency, most urgent first, and a question without one
   ranks right after `blocking`.
 - `from` and `row` on each question: who asked (a `sources` key) and its id in
-  the asker's rows, with `sources` giving each name as `{text, link}`.
+  the asker's rows, with `sources` giving each name as `{text, link}`. Write
+  `row` as `<card>/<item>` (`cos-hardening-3/B2`): the sidebar's Cards list
+  groups the questions by the part before the slash.
+- `version: 2` and a `plan`, so the page gets a Plan page ranking what waits
+  on the user. Rewrite the plan at every load, from the run's own state:
+  - `plan.issues`: every issue in the run, and the user's own ones that
+    follow it, as `{id, title, phase, follows, start, review, optional, card,
+    agent, note}`. `phase` is `building`, `review`, `merged`, `gated` (its
+    gate passed, its builder waits on answers), `stuck` (an agent is blocked),
+    `later` (not started) or `outside` (not the run's to build). `follows`
+    lists the issues it waits to merge; `start`, `review` and `optional` list
+    the page's question ids it needs before its builder starts, before its
+    first review, or not at all. `card` is the card its questions came from;
+    `agent` says who holds it now, such as `builder, review round 1`.
+  - `plan.deadline` (ISO time), `plan.slots` (agents live at once) and
+    `plan.critical` (the chain of issue ids that decides the finish, first to
+    last), each when the run has one.
+
+  A grill without `version` is version 1 and shows as before. A newer
+  `version` than the checkout reads still loads: the page shows what it knows
+  and says so.
 
 ## Finishing
 

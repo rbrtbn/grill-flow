@@ -1,4 +1,4 @@
-import { Array, Option, Record, Schema, pipe } from 'effect'
+import { Array, Option, Order, Record, Schema, pipe } from 'effect'
 
 // GRILL
 
@@ -121,7 +121,47 @@ export const Term = Schema.Struct({
 })
 export type Term = typeof Term.Type
 
+/**
+ * One issue in a squad run's plan. `phase` is the run's own word for it (`building`, `gated`,
+ * `stuck`, `review`, `merged`, `later`, `outside`); a phase this page doesn't know reads as
+ * `later`, so a newer orchestrator can add phases without breaking an older page.
+ */
+export const PlanIssue = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  phase: Schema.String,
+  // Issues whose merge this one waits for.
+  follows: Schema.optionalKey(Schema.Array(Schema.String)),
+  // Questions its builder needs before it starts, before its first review, or not at all.
+  start: Schema.optionalKey(Schema.Array(Schema.String)),
+  review: Schema.optionalKey(Schema.Array(Schema.String)),
+  optional: Schema.optionalKey(Schema.Array(Schema.String)),
+  card: Schema.optionalKey(Schema.String),
+  agent: Schema.optionalKey(Schema.String),
+  note: Schema.optionalKey(Schema.String),
+})
+export type PlanIssue = typeof PlanIssue.Type
+
+export const Plan = Schema.Struct({
+  issues: Schema.Array(PlanIssue),
+  // ISO time the run must finish by.
+  deadline: Schema.optionalKey(Schema.String),
+  // How many agents the run may have live at once.
+  slots: Schema.optionalKey(Schema.Number),
+  // The chain of issues that decides when the run can finish, first to last.
+  critical: Schema.optionalKey(Schema.Array(Schema.String)),
+})
+export type Plan = typeof Plan.Type
+
+/**
+ * The grill format this page reads. A grill without `version` is version 1. Version 2 adds
+ * `plan`. Fields from a newer version are dropped on decode, so an older page still shows the
+ * rest (docs/adr/0001-version-the-grill-format.md).
+ */
+export const FORMAT_VERSION = 2
+
 export const Grill = Schema.Struct({
+  version: Schema.optionalKey(Schema.Number),
   id: Schema.String,
   title: Schema.String,
   entities: Schema.Array(Entity),
@@ -139,8 +179,114 @@ export const Grill = Schema.Struct({
   refsAt: Schema.optionalKey(Schema.String),
   sources: Schema.optionalKey(Schema.Record(Schema.String, Source)),
   decided: Schema.optionalKey(Schema.Array(Decision)),
+  plan: Schema.optionalKey(Plan),
 })
 export type Grill = typeof Grill.Type
+
+// PLAN
+
+export type PlanPhase =
+  | 'building'
+  | 'review'
+  | 'merged'
+  | 'ready'
+  | 'you'
+  | 'stuck'
+  | 'after'
+  | 'outside'
+
+const runPhase = (phase: string): Option.Option<PlanPhase> =>
+  phase === 'building' ||
+  phase === 'review' ||
+  phase === 'merged' ||
+  phase === 'outside'
+    ? Option.some(phase)
+    : Option.none()
+
+/**
+ * Where an issue stands given the answers: what the run says while it is busy with it, else
+ * waiting on another issue, waiting on Rob's answers, or ready to start.
+ */
+export const planPhaseOf = (
+  grill: Grill,
+  issue: PlanIssue,
+  answers: Answers,
+): PlanPhase => {
+  const busy = runPhase(issue.phase)
+  if (Option.isSome(busy)) {
+    return busy.value
+  }
+  const issues = grill.plan?.issues ?? []
+  const waitsOnIssue = (issue.follows ?? []).some(id =>
+    issues.some(other => other.id === id && other.phase !== 'merged'),
+  )
+  if (waitsOnIssue) {
+    return 'after'
+  }
+  if (openGatesOf(grill, issue, answers).length > 0) {
+    return issue.phase === 'stuck' ? 'stuck' : 'you'
+  }
+  return 'ready'
+}
+
+/** The start questions still unanswered, in the plan's order. */
+export const openGatesOf = (
+  grill: Grill,
+  issue: PlanIssue,
+  answers: Answers,
+): ReadonlyArray<string> =>
+  Array.filter(
+    issue.start ?? [],
+    id => statusOf(grill, answers, id)._tag !== 'Answered',
+  )
+
+/** Every in-run issue that waits, directly or through others, on this one. */
+export const downstreamOf = (
+  grill: Grill,
+  id: string,
+): ReadonlyArray<string> => {
+  const issues = grill.plan?.issues ?? []
+  const found: Array<string> = []
+  const walk = (from: string): void => {
+    for (const issue of issues) {
+      if (
+        issue.phase !== 'outside' &&
+        (issue.follows ?? []).includes(from) &&
+        !found.includes(issue.id)
+      ) {
+        found.push(issue.id)
+        walk(issue.id)
+      }
+    }
+  }
+  walk(id)
+  return found
+}
+
+/**
+ * The issues waiting on Rob, most urgent first: the more work an issue holds up, the earlier it
+ * comes, the critical chain breaks ties, and then fewer questions left to answer.
+ */
+export const waitingOnYou = (
+  grill: Grill,
+  answers: Answers,
+): ReadonlyArray<PlanIssue> => {
+  const critical = new Set(grill.plan?.critical ?? [])
+  const weight = (issue: PlanIssue): number =>
+    downstreamOf(grill, issue.id).length * 2 +
+    (critical.has(issue.id) ? 3 : 0) -
+    openGatesOf(grill, issue, answers).length * 0.1
+  return pipe(
+    grill.plan?.issues ?? [],
+    Array.filter(issue => {
+      const phase = planPhaseOf(grill, issue, answers)
+      return phase === 'you' || phase === 'stuck'
+    }),
+    Array.sort(
+      Order.mapInput(Order.Number, (issue: PlanIssue) => -weight(issue)),
+    ),
+  )
+}
 
 /** A question's urgency; `unset` only matters on a grill where some question sets one. */
 export type UrgencyLevel = Urgency | 'unset'
@@ -164,6 +310,19 @@ export const issuesOf = (grill: Grill): ReadonlyArray<string> =>
     Array.flatMap(grill.steps, step =>
       step.question.issue === undefined ? [] : [step.question.issue],
     ),
+    (a, b) => a === b,
+  )
+
+/** The run card a squad question came from: its `row` up to the slash. */
+export const cardOf = (question: Question): Option.Option<string> =>
+  question.row === undefined
+    ? Option.none()
+    : Option.some(question.row.split('/')[0] ?? question.row)
+
+/** The cards the questions came from, in page order, each once. */
+export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
+  Array.dedupeWith(
+    Array.flatMap(grill.steps, step => Option.toArray(cardOf(step.question))),
     (a, b) => a === b,
   )
 
@@ -212,6 +371,9 @@ export const Snapshot = Schema.Struct({
   asks: Schema.Array(Ask),
   revisions: Schema.Array(Revision),
   sends: Schema.Array(Send),
+  // The reply line each question last went out with, so Send leaves out what the agent has. A
+  // server from before it was kept sends none.
+  sent: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 })
 export type Snapshot = typeof Snapshot.Type
 
@@ -409,19 +571,62 @@ const answerText = (id: string, key: string, own: Notes): string =>
     ? `${id} other: ${Option.getOrElse(Record.get(own, id), () => '').trim() || '(not written yet)'}`
     : `${id} ${key}`
 
+/** Each answered question's line in the reply, as Send writes it. */
+export const answerLines = (
+  grill: Grill,
+  answers: Answers,
+  notes: Notes,
+  own: Notes = {},
+): Readonly<Record<string, string>> =>
+  Record.fromEntries(
+    Array.flatMap(roundSteps(grill), step => {
+      const status = statusOf(grill, answers, step.question.id)
+      return status._tag === 'Answered'
+        ? [
+            [
+              step.question.id,
+              withNote(
+                answerText(step.question.id, status.key, own),
+                notes,
+                step.question.id,
+              ),
+            ] as const,
+          ]
+        : []
+    }),
+  )
+
+/** Whether a question's answer went out, word for word, in an earlier send. */
+export const isSent = (
+  sent: Readonly<Record<string, string>>,
+  lines: Readonly<Record<string, string>>,
+  id: string,
+): boolean => lines[id] !== undefined && sent[id] === lines[id]
+
+/**
+ * The reply Send delivers. With `sent`, answers that already went out unchanged are left out, and
+ * the header says how many are new.
+ */
 export const replyText = (
   grill: Grill,
   answers: Answers,
   notes: Notes,
   own: Notes = {},
+  sent: Readonly<Record<string, string>> = {},
 ): string => {
   const statuses = Array.map(roundSteps(grill), step => ({
     question: step.question,
     status: statusOf(grill, answers, step.question.id),
   }))
+  const lines = answerLines(grill, answers, notes, own)
   const answered = Array.flatMap(statuses, ({ question, status }) =>
     status._tag === 'Answered' ? [{ question, key: status.key }] : [],
   )
+  const fresh = Array.filter(
+    answered,
+    ({ question }) => !isSent(sent, lines, question.id),
+  )
+  const resent = answered.length - fresh.length
   const unanswered = Array.filter(
     statuses,
     ({ status }) => status._tag === 'Open' || status._tag === 'Waiting',
@@ -429,38 +634,46 @@ export const replyText = (
   const skipped = Array.flatMap(statuses, ({ question, status }) =>
     status._tag === 'NotNeeded' ? [`${question.id} (${status.because})`] : [],
   )
-  const anyNotes = Array.some(answered, ({ question }) =>
+  const anyNotes = Array.some(fresh, ({ question }) =>
     pipe(
       Record.get(notes, question.id),
       Option.exists(note => note.trim() !== ''),
     ),
   )
-  const allRecommended = Array.every(answered, ({ question, key }) =>
+  const allRecommended = Array.every(fresh, ({ question, key }) =>
     isRecommended(question, key),
   )
   const skippedLine = Array.isArrayNonEmpty(skipped)
     ? [`Not needed: ${Array.join(skipped, ', ')}`]
     : []
+  const sentNote = resent > 0 ? `; ${resent} sent before, left out` : ''
   if (
     Array.isArrayEmpty(unanswered) &&
     allRecommended &&
     !anyNotes &&
-    Array.isArrayNonEmpty(answered)
+    Array.isArrayNonEmpty(fresh)
   ) {
     const picks = Array.join(
-      Array.map(answered, ({ question, key }) => `${question.id} ${key}`),
+      Array.map(fresh, ({ question, key }) => `${question.id} ${key}`),
       ', ',
     )
     return Array.join(
-      [`Round ${grill.round}: all recommended (${picks})`, ...skippedLine],
+      [
+        `Round ${grill.round}: all recommended (${picks})${sentNote}`,
+        ...skippedLine,
+      ],
       '\n',
     )
   }
-  const header = Array.isArrayEmpty(unanswered)
-    ? `Round ${grill.round}:`
-    : `Round ${grill.round} (${answered.length} of ${answered.length + unanswered.length} answered):`
-  const lines = Array.map(answered, ({ question, key }) =>
-    withNote(answerText(question.id, key, own), notes, question.id),
+  const counts = Array.isArrayEmpty(unanswered)
+    ? sentNote === ''
+      ? ''
+      : ` (${sentNote.slice(2)})`
+    : ` (${answered.length} of ${answered.length + unanswered.length} answered${sentNote})`
+  const header = `Round ${grill.round}${counts}:`
+  const freshLines = Array.map(
+    fresh,
+    ({ question }) => lines[question.id] ?? question.id,
   )
   const openLine = Array.isArrayNonEmpty(unanswered)
     ? [
@@ -472,7 +685,7 @@ export const replyText = (
         )}`,
       ]
     : []
-  return Array.join([header, ...lines, ...openLine, ...skippedLine], '\n')
+  return Array.join([header, ...freshLines, ...openLine, ...skippedLine], '\n')
 }
 
 // PROSE
@@ -482,6 +695,7 @@ export type Segment =
   | Readonly<{ _tag: 'Entity'; text: string; entity: Entity }>
   | Readonly<{ _tag: 'Term'; text: string; term: Term }>
   | Readonly<{ _tag: 'Ref'; text: string; ref: Ref }>
+  | Readonly<{ _tag: 'Question'; text: string }>
 
 const escapeRegExp = (text: string): string =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -597,6 +811,33 @@ export const withRefs = (
   )
 }
 
+/** Marks every mention of one of the grill's question ids in plain text, so it can jump there. */
+export const withQuestions = (
+  parts: ReadonlyArray<Segment>,
+  grill: Grill,
+): ReadonlyArray<Segment> => {
+  const ids = Array.map(grill.steps, step => step.question.id)
+  if (Array.isArrayEmpty(ids)) {
+    return parts
+  }
+  const pattern = new RegExp(
+    `(?<![\\w-])(${Array.join(Array.map(ids, escapeRegExp), '|')})(?![\\w-])`,
+  )
+  return Array.flatMap(parts, (segment): ReadonlyArray<Segment> =>
+    segment._tag !== 'Text'
+      ? [segment]
+      : pipe(
+          segment.text.split(pattern),
+          Array.map((text, index): Segment =>
+            index % 2 === 1
+              ? { _tag: 'Question', text }
+              : { _tag: 'Text', text },
+          ),
+          Array.filter(part => part.text !== ''),
+        ),
+  )
+}
+
 /** Entity marks for diff text, where backticks stay as typed. */
 export const entityParts = (
   text: string,
@@ -612,33 +853,83 @@ export const entityParts = (
   )
 
 const ITEM = /^\s*- /
+const FENCE = /^\s*```/
 
-// A paragraph with `- ` lines keeps its line breaks, so its items stay a list.
+const isFigure = (paragraph: string): boolean => FENCE.test(paragraph)
+
+/** Splits text on blank lines, keeping a ``` block whole, its blank lines and spacing too. */
+export const splitParagraphs = (text: string): ReadonlyArray<string> => {
+  const paragraphs: Array<string> = []
+  let lines: Array<string> = []
+  let inFence = false
+  const close = () => {
+    if (lines.some(line => line.trim() !== '')) {
+      paragraphs.push(lines.join('\n'))
+    }
+    lines = []
+  }
+  for (const line of text.split('\n')) {
+    if (FENCE.test(line)) {
+      if (!inFence) {
+        close()
+      }
+      lines.push(line)
+      if (inFence) {
+        close()
+      }
+      inFence = !inFence
+    } else if (!inFence && line.trim() === '') {
+      close()
+    } else {
+      lines.push(line)
+    }
+  }
+  close()
+  return paragraphs
+}
+
+// A paragraph with `- ` lines keeps its line breaks, so its items stay a list; a ``` block keeps
+// every line as written.
 export const paragraphsOf = (text: string): ReadonlyArray<string> =>
   pipe(
-    text.split(/\n\s*\n/),
+    splitParagraphs(text),
     Array.map(paragraph =>
-      paragraph.split('\n').some(line => ITEM.test(line))
-        ? Array.join(
-            Array.map(paragraph.split('\n'), line => line.trim()),
-            '\n',
-          ).trim()
-        : paragraph.replace(/\s*\n\s*/g, ' ').trim(),
+      isFigure(paragraph)
+        ? paragraph.replace(/^\n+|\s+$/g, '')
+        : paragraph.split('\n').some(line => ITEM.test(line))
+          ? Array.join(
+              Array.map(paragraph.split('\n'), line => line.trim()),
+              '\n',
+            ).trim()
+          : paragraph.replace(/\s*\n\s*/g, ' ').trim(),
     ),
     Array.filter(paragraph => paragraph !== ''),
   )
 
 export type Block =
   | Readonly<{ _tag: 'Paragraph'; text: string }>
+  | Readonly<{ _tag: 'Figure'; text: string }>
   | Readonly<{
       _tag: 'List'
       lead: Option.Option<string>
       items: ReadonlyArray<string>
     }>
 
-/** A paragraph as plain text, or as an optional lead line and its `- ` items. */
+/** A paragraph as plain text, a ``` block (a diagram or timeline), or a lead line and `- ` items. */
 export const blockOf = (paragraph: string): Block => {
   const lines = paragraph.split('\n')
+  if (isFigure(paragraph)) {
+    const body = Array.drop(lines, 1)
+    return {
+      _tag: 'Figure',
+      text: Array.join(
+        Option.exists(Array.last(body), line => FENCE.test(line))
+          ? Array.dropRight(body, 1)
+          : body,
+        '\n',
+      ),
+    }
+  }
   const firstItem = lines.findIndex(line => ITEM.test(line))
   if (firstItem < 0) {
     return { _tag: 'Paragraph', text: paragraph.replace(/\s*\n\s*/g, ' ') }
@@ -676,7 +967,7 @@ export const proseOf = (snapshot: Snapshot, step: Step): ProseVersion => {
   )
   return Array.match(rewrites, {
     onEmpty: () => ({
-      paragraphs: step.prose,
+      paragraphs: Array.flatMap(step.prose, paragraphsOf),
       previous: Option.none(),
       revisedAt: Option.none(),
     }),
@@ -687,7 +978,7 @@ export const proseOf = (snapshot: Snapshot, step: Step): ProseVersion => {
         paragraphs: paragraphsOf(latest.text),
         previous: Option.some(
           Array.match(before, {
-            onEmpty: () => step.prose,
+            onEmpty: () => Array.flatMap(step.prose, paragraphsOf),
             onNonEmpty: earlier =>
               paragraphsOf(Array.lastNonEmpty(earlier).text),
           }),

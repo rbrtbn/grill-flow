@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, normalize } from 'node:path'
 
-import { OWN, replyText } from '../src/domain'
+import { OWN, answerLines, replyText } from '../src/domain'
+import { dashboard } from './dashboard'
 import { askMessage } from './messages'
 import {
   ROOT,
@@ -224,10 +225,21 @@ const handleSend = async (
       ? body.message.trim().slice(0, MESSAGE_LIMIT)
       : ''
   const state = snapshot(db, grill)
-  const reply = replyText(grill, state.answers, state.notes, state.own)
+  const reply = replyText(
+    grill,
+    state.answers,
+    state.notes,
+    state.own,
+    state.sent,
+  )
   const text = `[grill-flow] Answers from the ${grill.title} page:\n${reply}${message === '' ? '' : `\nMessage: ${message}`}`
   const result = await sendToSession(sessionFor(grill.session), text)
-  appendEvent(db, grillId, 'sent', { ...result, what: 'answers', text })
+  appendEvent(db, grillId, 'sent', {
+    ...result,
+    what: 'answers',
+    text,
+    lines: answerLines(grill, state.answers, state.notes, state.own),
+  })
   return json(snapshot(db, grill))
 }
 
@@ -239,12 +251,10 @@ Bun.serve({
     const parts = url.pathname.split('/').filter(Boolean)
     if (request.method === 'GET') {
       if (parts.length === 0) {
-        const latest = listGrills(db)[0]
-        return latest
-          ? Response.redirect(`/g/${latest.id}`, 302)
-          : new Response('No grills loaded yet.')
+        return dashboard(db)
       }
-      if (parts[0] === 'g' && parts.length === 2) {
+      // Every page of a grill has its own path under /g/<id>; the app reads which from the URL.
+      if (parts[0] === 'g' && parts.length >= 2 && parts.length <= 4) {
         return page()
       }
       if (parts[0] === 'api' && parts[1] === 'build' && parts.length === 2) {

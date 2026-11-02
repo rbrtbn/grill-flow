@@ -95,6 +95,14 @@ export const appendEvent = (
   return Number(result.lastInsertRowid)
 }
 
+/** When anything last happened on a grill, its load included. */
+export const lastActivity = (db: Database, grillId: string): number =>
+  db
+    .query<{ at: number | null }, [string]>(
+      'SELECT MAX(at) AS at FROM events WHERE grill_id = ?',
+    )
+    .get(grillId)?.at ?? 0
+
 export const events = (
   db: Database,
   grillId: string,
@@ -106,6 +114,34 @@ export const events = (
     )
     .all(grillId, sinceId)
 
+const REPLY_LINE = /^(Q\d+) (?:other: |[^\s(]+)/
+
+/**
+ * The answer lines a send delivered. Sends record them; older ones only kept the message, so its
+ * `Q<n> …` lines, or the picks in an all-recommended line, stand in.
+ */
+const sentLines = (
+  payload: Record<string, unknown>,
+): Record<string, string> => {
+  if (typeof payload.lines === 'object' && payload.lines !== null) {
+    return Object.fromEntries(
+      Object.entries(payload.lines).map(([id, line]) => [id, String(line)]),
+    )
+  }
+  const text = String(payload.text ?? '')
+  const picks = /all recommended \(([^)]*)\)/.exec(text)?.[1]
+  const lines = [
+    ...text.split('\n'),
+    ...(picks === undefined ? [] : picks.split(', ')),
+  ]
+  return Object.fromEntries(
+    lines.flatMap(line => {
+      const id = REPLY_LINE.exec(line)?.[1]
+      return id === undefined ? [] : [[id, line]]
+    }),
+  )
+}
+
 export const snapshot = (db: Database, grill: Grill): Snapshot => {
   const answers: Record<string, string> = {}
   const notes: Record<string, string> = {}
@@ -113,6 +149,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
   const asks: Array<Snapshot['asks'][number]> = []
   const revisions: Array<Snapshot['revisions'][number]> = []
   const sends: Array<Snapshot['sends'][number]> = []
+  const sent: Record<string, string> = {}
   for (const event of events(db, grill.id)) {
     const p = JSON.parse(event.payload) as Record<string, unknown>
     switch (event.kind) {
@@ -157,6 +194,9 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         if (p.what === 'ask') {
           break
         }
+        if (p.ok === true) {
+          Object.assign(sent, sentLines(p))
+        }
         sends.push({
           at: event.at,
           ok: p.ok === true,
@@ -167,5 +207,5 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         break
     }
   }
-  return { grill, answers, notes, own, asks, revisions, sends }
+  return { grill, answers, notes, own, asks, revisions, sends, sent }
 }

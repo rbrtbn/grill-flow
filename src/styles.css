@@ -161,9 +161,57 @@ button {
   text-underline-offset: 4px;
   cursor: help;
 }
+/* Explanation cards for names, terms and question ids. The card hangs from the word with
+   padding, not margin, so the pointer can cross onto it and click its links. */
+.has-tip {
+  position: relative;
+}
+.tip {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 30;
+  padding-top: 6px;
+  width: max-content;
+  max-width: min(340px, 80vw);
+  white-space: normal;
+  text-align: left;
+  cursor: auto;
+}
+.has-tip:hover > .tip {
+  display: block;
+}
+.tip-card {
+  display: block;
+  font: 400 0.9rem/1.45 var(--read);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.15);
+}
+.tip-card > b {
+  font: 700 0.86rem var(--label);
+}
+.tip-card .entity {
+  white-space: normal;
+}
 .prose {
   display: grid;
   gap: 14px;
+}
+/* A ``` block: a diagram or timeline drawn in text, kept to its columns and scrolled when wide. */
+.figure {
+  margin: 0;
+  padding: 10px 12px;
+  font: 400 0.84rem/1.45 var(--code);
+  color: var(--ink);
+  background: var(--panel);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
 }
 .list-block {
   display: grid;
@@ -261,7 +309,6 @@ button {
   padding: 8px max(20px, env(safe-area-inset-right, 0px)) 8px
     max(20px, env(safe-area-inset-left, 0px));
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px 20px;
 }
@@ -275,29 +322,39 @@ button {
 .topbar-title {
   font: 700 1rem var(--read);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+  color: inherit;
+  text-decoration: none;
 }
-.where-part {
+.topbar-title:hover {
+  color: var(--link);
+}
+.where-part,
+.topbar-status {
   font: 500 0.92rem var(--label);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.topbar-status.is-failed {
+  color: var(--u-blocking);
 }
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex: none;
 }
 .topbar-count {
   font: 500 0.92rem var(--label);
   font-variant-numeric: tabular-nums;
   margin-right: 4px;
-}
-.topbar-status {
-  padding: 0 20px 8px;
-  font: 500 0.85rem var(--label);
-  color: var(--muted);
 }
 .preview {
   position: relative;
@@ -466,8 +523,9 @@ button {
   padding: 8px 10px;
   overflow: visible;
 }
+/* A small concept would blow up at full width: it keeps its size and only shrinks to fit. */
 .map.is-focused .map-svg {
-  width: 100%;
+  max-width: 100%;
   height: auto;
 }
 .map-svg {
@@ -662,6 +720,20 @@ button {
 }
 .row-state b {
   color: var(--link);
+}
+/* Sent before and unchanged: the agent has it, so it steps back and Send leaves it out. */
+.question.is-sent > .row {
+  opacity: 0.55;
+}
+.sent-tag {
+  margin-left: 0.5em;
+  font: 600 0.72rem var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0 6px;
 }
 .question.is-answered .row-state {
   color: var(--ink);
@@ -1096,6 +1168,9 @@ textarea::placeholder {
   vertical-align: 0.05em;
   flex: none;
 }
+.urgency.is-trailing {
+  margin: 0 0 0 0.45em;
+}
 .u-blocking {
   background: var(--u-blocking);
 }
@@ -1111,14 +1186,14 @@ textarea::placeholder {
 .u-unset {
   border: 1.5px dashed var(--muted);
 }
-.u-none {
-  visibility: hidden;
-}
+/* An issue or PR is an outlined tag in ink, apart from the blue question chips that jump within
+   the page: form tells them apart, and the link ink stays one colour (DESIGN.md). */
 .ref-link,
 .ref-label {
   font: 700 0.86em var(--label);
-  color: var(--link);
-  background: var(--link-wash);
+  color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--rule);
   border-radius: 3px;
   padding: 0 0.35em;
   margin-right: 0.3em;
@@ -1297,4 +1372,238 @@ a.ref-link:hover {
 }
 .send-actions .hint {
   margin-right: auto;
+}
+
+/* Plan: a squad run's issues, what waits on Rob first. Phase pills use form as well as colour:
+   filled while an agent works, outlined while it waits. */
+.plan-page {
+  max-width: none;
+}
+.plan-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.plan-deadline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 20px;
+  align-items: baseline;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-radius: 8px;
+}
+.plan-when {
+  font: 600 0.95rem var(--label);
+  white-space: nowrap;
+  color: var(--u-blocking);
+}
+.plan-when b {
+  font-size: 1.1rem;
+}
+.plan-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.plan-slot {
+  font: 600 0.8rem var(--label);
+  border: 1.5px solid var(--teal);
+  color: var(--teal);
+  border-radius: 4px;
+  padding: 1px 8px;
+}
+.plan-slot.is-stuck {
+  border-style: dashed;
+  border-color: var(--scope);
+  color: var(--scope);
+}
+.plan-slot.is-idle {
+  border: 1.5px dotted var(--rule);
+  color: var(--muted);
+}
+.plan-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(240px, 300px));
+  gap: 24px;
+  align-items: start;
+}
+.plan-board {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.plan-col,
+.plan-rest {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.plan-rest {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 14px 16px;
+  gap: 16px;
+}
+.plan-col h2,
+.plan-group h2 {
+  font: 700 0.98rem var(--label);
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--rule);
+}
+.plan-group h2 {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.plan-group {
+  display: grid;
+  gap: 4px;
+}
+.plan-issue {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.plan-issue.is-first {
+  border-color: var(--u-blocking);
+  box-shadow: 0 0 0 1px var(--u-blocking);
+}
+.plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.plan-rank {
+  font: 700 0.78rem var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--u-blocking);
+}
+.plan-title {
+  font: 600 1.02rem/1.35 var(--read);
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  flex: 1 1 240px;
+}
+button.plan-title {
+  cursor: pointer;
+}
+button.plan-title:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+.plan-crit {
+  font: 700 0.7rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--u-soon);
+}
+.plan-qs {
+  display: grid;
+  gap: 2px;
+}
+.plan-q {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.94rem;
+}
+.plan-q.is-done {
+  opacity: 0.5;
+}
+.plan-also,
+.plan-detail,
+.plan-then {
+  font: 500 0.84rem var(--label);
+  color: var(--muted);
+}
+.plan-line {
+  display: grid;
+  gap: 2px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+}
+.plan-line .plan-title {
+  font-size: 0.92rem;
+}
+.plan-card {
+  padding: 4px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.plan-card .plan-line {
+  border-top: 0;
+}
+.plan-card.is-crit {
+  border-color: var(--u-soon);
+}
+.pill {
+  font: 600 0.74rem var(--label);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.ph-building,
+.ph-review {
+  color: var(--paper);
+  background: var(--teal);
+}
+.ph-ready {
+  color: var(--link);
+  box-shadow: inset 0 0 0 1.5px var(--link);
+}
+.ph-you {
+  color: var(--paper);
+  background: var(--u-blocking);
+}
+.ph-stuck {
+  color: var(--scope);
+  box-shadow: inset 0 0 0 1.5px var(--scope);
+}
+.ph-after,
+.ph-merged,
+.ph-outside {
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+@media (max-width: 1180px) {
+  .plan-list,
+  .plan-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Sidebar sections: the grill's own pages, then the question lists, then what's decided. */
+.nav-section {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.back-link {
+  justify-self: start;
+  font: 600 0.88rem var(--label);
+  color: var(--link);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0 0 10px;
+  cursor: pointer;
+}
+.back-link:hover {
+  text-decoration: underline;
 }

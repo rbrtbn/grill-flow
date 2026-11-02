@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { replyText } from '../src/domain'
+import { replyText, FORMAT_VERSION } from '../src/domain'
 import { askMessage } from './messages'
 import {
   ROOT,
@@ -98,6 +98,11 @@ switch (command) {
     console.log(
       `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id}`,
     )
+    if ((grill.version ?? 1) > FORMAT_VERSION) {
+      console.warn(
+        `grill format ${grill.version} is newer than this checkout's ${FORMAT_VERSION}: the page shows what it knows; pull grill-flow for the rest`,
+      )
+    }
     break
   }
   case 'state': {

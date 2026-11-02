@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "id": "squad-sample",
   "title": "Widgets squad, round 3",
   "round": 3,
@@ -303,5 +304,63 @@
       "text": "SQD-107 stays in triage until Q5 is answered (round 2)."
     }
   ],
-  "kind": "squad"
+  "kind": "squad",
+  "plan": {
+    "deadline": "2026-11-06T17:00:00Z",
+    "slots": 3,
+    "critical": [
+      "SQD-104",
+      "SQD-110"
+    ],
+    "issues": [
+      {
+        "id": "SQD-101",
+        "title": "Retry webhook deliveries with backoff",
+        "phase": "building",
+        "agent": "builder, review round 1",
+        "start": [
+          "Q1"
+        ],
+        "review": [
+          "Q2"
+        ]
+      },
+      {
+        "id": "SQD-104",
+        "title": "Split the export job per tenant",
+        "phase": "gated",
+        "start": [
+          "Q3"
+        ],
+        "review": [
+          "Q4"
+        ]
+      },
+      {
+        "id": "SQD-110",
+        "title": "Per-tenant export dashboard",
+        "phase": "later",
+        "follows": [
+          "SQD-104"
+        ]
+      },
+      {
+        "id": "SQD-107",
+        "title": "Drop the legacy CSV importer",
+        "phase": "gated",
+        "start": [
+          "Q5"
+        ]
+      },
+      {
+        "id": "SQD-109",
+        "title": "Rate-limit the public search API",
+        "phase": "gated",
+        "start": [
+          "Q6"
+        ],
+        "note": "Its design gate has not run yet; Q6 is the only open item so far."
+      }
+    ]
+  }
 }
