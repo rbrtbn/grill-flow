@@ -1,7 +1,57 @@
 import type { Database } from 'bun:sqlite'
+import { hostname } from 'node:os'
 
 import { tally } from '../src/domain'
 import { getGrill, lastActivity, listGrills, snapshot } from './store'
+
+const THIS_HOST = hostname().split('.')[0] ?? 'this machine'
+
+type Terminal = Readonly<{ where: string; agent: string; live: boolean }>
+
+let terminals: { at: number; byAddress: ReadonlyMap<string, Terminal> } = {
+  at: 0,
+  byAddress: new Map(),
+}
+
+/** Every hc terminal on every machine, by address, refreshed at most every 15 s. */
+const terminalsByAddress = async (): Promise<ReadonlyMap<string, Terminal>> => {
+  if (Date.now() - terminals.at < 15_000) {
+    return terminals.byAddress
+  }
+  try {
+    const child = Bun.spawn(['hc', 'ls', '--all'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    })
+    const listing = JSON.parse(await new Response(child.stdout).text()) as {
+      terminals?: ReadonlyArray<Record<string, unknown>>
+    }
+    terminals = {
+      at: Date.now(),
+      byAddress: new Map(
+        (listing.terminals ?? []).map(terminal => [
+          String(terminal.address),
+          {
+            // `where` is "<space> / <tab>"; the space names the agent's workspace.
+            where: String(terminal.where ?? '').split(' / ')[0] ?? '',
+            agent: String(terminal.agent ?? ''),
+            live: terminal.state === 'live',
+          },
+        ]),
+      ),
+    }
+  } catch {
+    terminals = { at: Date.now(), byAddress: new Map() }
+  }
+  return terminals.byAddress
+}
+
+const remoteHost = (db: Database, id: string): string | undefined =>
+  db
+    .query<{ machine: string }, [string]>(
+      'SELECT machine FROM grill_remotes WHERE grill_id = ?',
+    )
+    .get(id)?.machine
 
 const escape = (text: string): string =>
   text
@@ -23,6 +73,9 @@ const ago = (at: number, now: number): string => {
 }
 
 type Row = Readonly<{
+  host: string
+  // Who asks: the agent's workspace and terminal, or that it collects answers itself.
+  who: string
   id: string
   title: string
   kind: string
@@ -33,7 +86,28 @@ type Row = Readonly<{
   at: number
 }>
 
-const rows = (db: Database): ReadonlyArray<Row> =>
+const whoOf = (
+  session: string,
+  byAddress: ReadonlyMap<string, Terminal>,
+): string => {
+  if (session === '') {
+    return 'no terminal; the agent collects answers itself'
+  }
+  const terminal = byAddress.get(session)
+  if (terminal === undefined) {
+    return `terminal ${session}`
+  }
+  return [
+    terminal.where || `terminal ${session}`,
+    `${terminal.agent || 'terminal'} ${session.split('/').at(-1)}`,
+    ...(terminal.live ? [] : ['ended']),
+  ].join(' · ')
+}
+
+const rows = (
+  db: Database,
+  byAddress: ReadonlyMap<string, Terminal>,
+): ReadonlyArray<Row> =>
   listGrills(db)
     .flatMap(({ id }) => {
       const grill = getGrill(db, id)
@@ -43,6 +117,8 @@ const rows = (db: Database): ReadonlyArray<Row> =>
       const counts = tally(grill, state.answers)
       return [
         {
+          host: remoteHost(db, id) ?? THIS_HOST,
+          who: whoOf(grill.session, byAddress),
           id,
           title: grill.title,
           kind: grill.kind ?? 'decision',
@@ -65,20 +141,35 @@ const rowHtml = (row: Row, now: number): string => {
   return `<li>
   <a href="/g/${encodeURIComponent(row.id)}">
     <span class="title">${escape(row.title)}</span>
-    <span class="meta">${row.kind} · round ${row.round}${asks} · ${ago(row.at, now)}</span>
+    <span class="who">${escape(row.who)}</span>
+    <span class="meta">${row.kind === 'squad' ? 'squad' : 'decision'} · round ${row.round}${asks} · ${ago(row.at, now)}</span>
     <span class="count${done ? ' done' : ''}">${row.answered}/${row.needed}</span>
   </a>
 </li>`
 }
 
 // The tokens and fonts mirror src/styles.css; this page is served without the app bundle.
-export const dashboard = (db: Database): Response => {
+export const dashboard = async (db: Database): Promise<Response> => {
   const now = Date.now()
-  const list = rows(db)
+  const list = rows(db, await terminalsByAddress())
+  // This machine first, then each other host, each most recently active first.
+  const hosts = [...new Set([THIS_HOST, ...list.map(row => row.host)])].filter(
+    host => list.some(row => row.host === host),
+  )
   const body =
     list.length === 0
       ? '<p class="empty">No grills loaded yet. Load one with <code>bun run gf load &lt;file&gt;</code>.</p>'
-      : `<ul>${list.map(row => rowHtml(row, now)).join('\n')}</ul>`
+      : hosts
+          .map(
+            host => `<section>
+<h2>${escape(host)}${host === THIS_HOST ? ' <span class="here">this machine</span>' : ' <span class="here">pulled over hc</span>'}</h2>
+<ul>${list
+              .filter(row => row.host === host)
+              .map(row => rowHtml(row, now))
+              .join('\n')}</ul>
+</section>`,
+          )
+          .join('\n')
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -118,9 +209,13 @@ a {
 a:hover, a:focus-visible { background: var(--panel); }
 a:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 .title { font-weight: 700; color: var(--link); overflow-wrap: anywhere; }
-.meta { grid-row: 2; font: 500 0.88rem var(--label); color: var(--muted); }
+.who { grid-row: 2; font: 600 0.88rem var(--label); color: var(--ink); }
+.meta { grid-row: 3; font: 500 0.88rem var(--label); color: var(--muted); }
+section { display: grid; gap: 8px; margin-bottom: 28px; }
+h2 { font: 700 1.05rem var(--label); margin: 0; }
+.here { font: 500 0.85rem var(--label); color: var(--muted); margin-left: 6px; }
 .count {
-  grid-row: 1 / 3; grid-column: 2; align-self: center;
+  grid-row: 1 / 4; grid-column: 2; align-self: center;
   font: 600 0.95rem var(--label); color: var(--muted);
   border: 1.5px solid var(--rule); border-radius: 999px; padding: 2px 10px;
 }
@@ -132,7 +227,7 @@ code { font-size: 0.9em; }
 <body>
 <main>
 <h1>Grills</h1>
-<p class="sub">${list.length} on this server · most recently active first</p>
+<p class="sub">${list.length} on this server · by host, most recently active first</p>
 ${body}
 </main>
 </body>

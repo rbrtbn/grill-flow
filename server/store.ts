@@ -43,6 +43,18 @@ export const open = (): Database => {
     payload TEXT NOT NULL
   )`)
   db.exec('CREATE INDEX IF NOT EXISTS events_grill ON events (grill_id, id)')
+  // A grill an agent on another machine writes into its outbox, and the files already taken in.
+  db.exec(`CREATE TABLE IF NOT EXISTS grill_remotes (
+    grill_id TEXT PRIMARY KEY,
+    machine TEXT NOT NULL,
+    dir TEXT NOT NULL
+  )`)
+  db.exec(`CREATE TABLE IF NOT EXISTS remote_files (
+    machine TEXT NOT NULL,
+    path TEXT NOT NULL,
+    stamp TEXT NOT NULL,
+    PRIMARY KEY (machine, path)
+  )`)
   return db
 }
 
@@ -81,6 +93,63 @@ export const listGrills = (
       title: (JSON.parse(row.json) as { title: string }).title,
       loadedAt: row.loaded_at,
     }))
+
+export type Revision = Readonly<{
+  stepId: string
+  askId: number | null
+  kind: 'rewrite' | 'comment'
+  text: string
+}>
+
+/** Checks a reply against the grill and records it; the reason when it doesn't fit. */
+export const reviseGrill = (
+  db: Database,
+  grill: Grill,
+  revision: Revision,
+): { ok: true; id: number } | { ok: false; reason: string } => {
+  const isConcept = revision.stepId.startsWith('part:')
+  if (
+    isConcept
+      ? !grill.parts.some(part => `part:${part.id}` === revision.stepId)
+      : !grill.steps.some(step => step.id === revision.stepId)
+  ) {
+    return {
+      ok: false,
+      reason: `no step or concept ${revision.stepId} in ${grill.id}`,
+    }
+  }
+  if (isConcept && revision.kind === 'rewrite') {
+    return {
+      ok: false,
+      reason: 'a concept takes a comment; rewrite a step by its own id',
+    }
+  }
+  if (
+    revision.askId !== null &&
+    !snapshot(db, grill).asks.some(
+      ask => ask.id === revision.askId && ask.stepId === revision.stepId,
+    )
+  ) {
+    return {
+      ok: false,
+      reason: `no ask ${revision.askId} on ${revision.stepId}`,
+    }
+  }
+  return {
+    ok: true,
+    id: appendEvent(db, grill.id, 'revised', {
+      ...revision,
+      text: revision.text.trim(),
+    }),
+  }
+}
+
+export const lastEventId = (db: Database, grillId: string): number =>
+  db
+    .query<{ id: number | null }, [string]>(
+      'SELECT MAX(id) AS id FROM events WHERE grill_id = ?',
+    )
+    .get(grillId)?.id ?? 0
 
 export const appendEvent = (
   db: Database,

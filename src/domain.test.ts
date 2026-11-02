@@ -457,3 +457,21 @@ describe('plan', () => {
     expect(waitingOnYou(planned, {}).map(found => found.id)).toEqual(['B', 'D'])
   })
 })
+
+describe('page addresses', () => {
+  it('round-trips every kind of page through its path', async () => {
+    const { pathOfPage, pageOfPath } = await import('./main')
+    for (const page of [
+      'plan',
+      'overview',
+      'decided',
+      'card:cos-hardening-2',
+      'issue:LAB-1103',
+      'urgency:soon',
+      'sandbox',
+    ]) {
+      expect(pageOfPath(pathOfPage('a grill', page))).toBe(page)
+    }
+    expect(pageOfPath('/g/a%20grill')).toBe('')
+  })
+})

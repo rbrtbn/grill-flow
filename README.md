@@ -78,7 +78,10 @@ bun run gf load examples/decision-sample.json
 ```
 
 Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill, or `http://127.0.0.1:4317/`
-for every grill the server holds; a grill page's title links back there. `GF_PORT` and `GF_DB`
+for every grill the server holds, grouped by the machine it came from; a grill page's title links
+back there. An agent on another machine can keep its grills there and still have them served here:
+it sets `GF_OUTBOX` and this server pulls that folder over hc (`gf remote add <machine> <outbox>`;
+docs/adr/0002). `GF_PORT` and `GF_DB`
 move the server and its database elsewhere, say for a second copy.
 
 Install the skill from your checkout, so your edits take effect without a release:

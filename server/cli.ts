@@ -2,14 +2,15 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { replyText, FORMAT_VERSION } from '../src/domain'
-import { askMessage } from './messages'
+import { newsSince, runOutbox } from './outbox'
+import { readRemotes, writeRemotes } from './remote'
 import {
   ROOT,
-  appendEvent,
   events,
   getGrill,
   loadGrill,
   open,
+  reviseGrill,
   snapshot,
 } from './store'
 
@@ -24,7 +25,12 @@ const usage = `gf: grill-flow's agent-side commands
                                        rewrite a step's prose (paragraphs split by blank lines),
                                        or reply with a comment; a concept takes comments only
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
-  gf wait <grill-id> [--since <id>]    wait for new asks or a sent reply, print them, exit`
+  gf wait <grill-id> [--since <id>]    wait for new asks or a sent reply, print them, exit
+  gf remote add <machine> <outbox>     pull grills an agent on that machine writes to its outbox
+  gf remote ls | rm <machine>          list or drop the outboxes this server pulls
+
+  With GF_OUTBOX=<folder>, load, revise, state, events and wait work on that folder instead,
+  for an agent on a machine whose grills a server elsewhere pulls (gf remote add there).`
 
 const flag = (
   args: ReadonlyArray<string>,
@@ -39,8 +45,15 @@ const fail = (message: string): never => {
   process.exit(2)
 }
 
-const db = open()
 const [command, ...args] = process.argv.slice(2)
+
+const outbox = process.env.GF_OUTBOX
+if (outbox !== undefined && outbox !== '') {
+  await runOutbox(outbox, command, args, usage)
+  process.exit(0)
+}
+
+const db = open()
 
 const requireGrill = (id: string | undefined) =>
   getGrill(db, id ?? '') ?? fail(`no grill ${id}`)
@@ -121,43 +134,47 @@ switch (command) {
   case 'revise': {
     const grill = requireGrill(args[0])
     const stepId = args[1] ?? fail(usage)
-    const isConcept = stepId.startsWith('part:')
-    if (
-      isConcept
-        ? !grill.parts.some(part => `part:${part.id}` === stepId)
-        : !grill.steps.some(step => step.id === stepId)
-    ) {
-      fail(`no step or concept ${stepId} in ${grill.id}`)
-    }
-    const kind = flag(args, '--kind') ?? (isConcept ? 'comment' : 'rewrite')
+    const kind =
+      flag(args, '--kind') ??
+      (stepId.startsWith('part:') ? 'comment' : 'rewrite')
     if (kind !== 'rewrite' && kind !== 'comment') {
       fail('--kind is rewrite or comment')
     }
-    if (isConcept && kind === 'rewrite') {
-      fail('a concept takes a comment; rewrite a step by its own id')
-    }
     const askFlag = flag(args, '--ask')
-    if (
-      askFlag &&
-      !snapshot(db, grill).asks.some(
-        ask => ask.id === Number(askFlag) && ask.stepId === stepId,
-      )
-    ) {
-      fail(`no ask ${askFlag} on ${stepId}`)
-    }
-    const text = readFileSync(
-      flag(args, '--file') ?? fail(usage),
-      'utf8',
-    ).trim()
-    const id = appendEvent(db, grill.id, 'revised', {
+    const result = reviseGrill(db, grill, {
       stepId,
       askId: askFlag ? Number(askFlag) : null,
-      kind,
-      text,
+      kind: kind === 'rewrite' ? 'rewrite' : 'comment',
+      text: readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
     })
-    console.log(
-      `revision ${id} on ${stepId} (${kind}); the open page picks it up within a few seconds`,
-    )
+    if (!result.ok) {
+      fail(result.reason)
+    } else {
+      console.log(
+        `revision ${result.id} on ${stepId} (${kind}); the open page picks it up within a few seconds`,
+      )
+    }
+    break
+  }
+  case 'remote': {
+    const [action, machine, dir] = args
+    const remotes = readRemotes()
+    if (action === 'add' && machine && dir) {
+      writeRemotes([
+        ...remotes.filter(remote => remote.machine !== machine),
+        { machine, dir },
+      ])
+      console.log(
+        `pulling ${machine}:${dir}; the server picks it up on its next pass, within a few seconds`,
+      )
+    } else if (action === 'rm' && machine) {
+      writeRemotes(remotes.filter(remote => remote.machine !== machine))
+      console.log(`stopped pulling ${machine}`)
+    } else if (action === 'ls' || action === undefined) {
+      remotes.forEach(remote => console.log(`${remote.machine}  ${remote.dir}`))
+    } else {
+      fail(usage)
+    }
     break
   }
   case 'events': {
@@ -182,27 +199,19 @@ switch (command) {
           .asks.filter(ask => ask.answered)
           .map(ask => ask.id),
       )
-      const news = fresh.flatMap(event => {
-        const payload = JSON.parse(event.payload) as Record<string, unknown>
-        if (event.kind === 'asked' && !answered.has(event.id)) {
-          return [
-            askMessage(
-              grill.id,
-              String(payload.stepId),
-              event.id,
-              String(payload.text),
-            ),
-          ]
-        }
-        if (event.kind === 'sent' && payload.what === 'answers') {
-          return [String(payload.text)]
-        }
-        return []
-      })
-      if (news.length > 0) {
-        console.log(news.join('\n\n'))
+      const news = newsSince(
+        grill.id,
+        fresh.map(event => ({
+          id: event.id,
+          kind: event.kind,
+          payload: JSON.parse(event.payload) as Record<string, unknown>,
+        })),
+        answered,
+      )
+      if (news.lines.length > 0) {
+        console.log(news.lines.join('\n\n'))
         console.log(
-          `\nnext: bun run --cwd ${ROOT} gf wait ${grill.id} --since ${fresh.at(-1)?.id ?? since}`,
+          `\nnext: bun run --cwd ${ROOT} gf wait ${grill.id} --since ${news.lastId}`,
         )
         break
       }

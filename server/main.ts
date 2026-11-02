@@ -5,6 +5,7 @@ import { join, normalize } from 'node:path'
 import { OWN, answerLines, replyText } from '../src/domain'
 import { dashboard } from './dashboard'
 import { askMessage } from './messages'
+import { startRemotes } from './remote'
 import {
   ROOT,
   appendEvent,
@@ -18,6 +19,7 @@ const PORT = Number(process.env.GF_PORT ?? 4317)
 const HOST = '127.0.0.1'
 const DIST = join(ROOT, 'dist')
 const db = open()
+startRemotes(db)
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
@@ -251,7 +253,7 @@ Bun.serve({
     const parts = url.pathname.split('/').filter(Boolean)
     if (request.method === 'GET') {
       if (parts.length === 0) {
-        return dashboard(db)
+        return await dashboard(db)
       }
       // Every page of a grill has its own path under /g/<id>; the app reads which from the URL.
       if (parts[0] === 'g' && parts.length >= 2 && parts.length <= 4) {
