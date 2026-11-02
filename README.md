@@ -26,7 +26,11 @@ The everyday kind: one decision, thought through in order. Start here.
   page, and a key under the introduction says what each one is.
 - **A glossary.** Words the reasoning leans on (`terms`) are underlined and explained on hover.
 - **Questions that wait.** `dependsOn` greys a question until its inputs are answered; `when`
-  marks it not needed after an answer that rules it out.
+  marks it not needed after an answer that rules it out. An answered question folds to a line
+  with your pick, and the next one opens.
+
+![A concept's questions: Q4 answered and folded, Q5 open with its options, the map beside](docs/screenshots/decision-questions.png)
+
 - **Talk per concept.** Ask about a question or the whole concept from the sidebar. The agent
   answers there, or rewrites the reasoning and you see the diff.
 
