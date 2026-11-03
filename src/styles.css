@@ -802,20 +802,40 @@ button {
 .why-message {
   scroll-margin: 16px;
 }
-.why-toggle {
-  justify-self: start;
-  display: inline-flex;
+/* .message pads its body; this card pads its parts instead, so the header spans it. */
+.message.why-card {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+button.why-card {
+  cursor: pointer;
+}
+button.why-card:hover .why-head,
+.why-head:hover {
+  background: color-mix(in srgb, var(--rule) 85%, var(--panel));
+}
+.why-head {
+  display: flex;
   align-items: center;
   gap: 8px;
-  background: none;
+  width: 100%;
+  padding: 7px 14px;
+  background: color-mix(in srgb, var(--rule) 45%, var(--panel));
   border: 0;
-  padding: 0;
+  border-bottom: 1px solid var(--rule);
   font: 600 0.78rem var(--label);
   color: var(--muted);
-  cursor: pointer;
   text-align: left;
+  cursor: pointer;
 }
-.why-toggle::before {
+.why-head::before {
   content: '';
   width: 0.4em;
   height: 0.4em;
@@ -824,13 +844,19 @@ button {
   transform: rotate(-45deg);
   transition: transform 120ms;
 }
-.why-message.is-open .why-toggle::before {
+.why-message.is-open .why-head::before {
   transform: rotate(45deg);
 }
+.why-body,
 .why-folded {
+  padding: 10px 14px;
+}
+.why-folded {
+  display: block;
   color: var(--muted);
   font-size: 0.92rem;
 }
+
 /* A question's conversation hangs under its reasoning; the page's general one comes last. */
 .thread {
   display: grid;

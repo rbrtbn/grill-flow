@@ -2625,32 +2625,48 @@ const whyMessage = (
       h.Class(`thread why-message${open ? ' is-open' : ''}`),
     ],
     [
-      h.div(
-        [h.Class('message from-agent')],
-        [
-          h.button(
+      // Folded, the whole card opens it; open, its header folds it.
+      open
+        ? h.div(
+            [h.Class('message from-agent why-card')],
             [
-              h.Class('why-toggle'),
-              h.AriaExpanded(open),
+              h.button(
+                [
+                  h.Class('why-head why-toggle'),
+                  h.AriaExpanded(true),
+                  h.OnClick(
+                    Message.ClickedToggleWhy({ stepId: step.id, open: false }),
+                  ),
+                ],
+                [`Agent · why we're asking ${step.question.id}`],
+              ),
+              h.div(
+                [h.Class('message-body why-body')],
+                [reasoningView(model, snapshot, step, h)],
+              ),
+            ],
+          )
+        : h.button(
+            [
+              h.Class('message from-agent why-card'),
+              h.AriaExpanded(false),
               h.OnClick(
-                Message.ClickedToggleWhy({ stepId: step.id, open: !open }),
+                Message.ClickedToggleWhy({ stepId: step.id, open: true }),
               ),
             ],
             [
-              `Agent · why we're asking ${step.question.id}`,
-              open || Array.isReadonlyArrayEmpty(said)
-                ? ''
-                : ` · ${messageCount(said)}`,
+              h.span(
+                [h.Class('why-head why-toggle')],
+                [
+                  `Agent · why we're asking ${step.question.id}`,
+                  Array.isReadonlyArrayEmpty(said)
+                    ? ''
+                    : ` · ${messageCount(said)}`,
+                ],
+              ),
+              h.span([h.Class('why-folded')], [step.question.title]),
             ],
           ),
-          open
-            ? h.div(
-                [h.Class('message-body')],
-                [reasoningView(model, snapshot, step, h)],
-              )
-            : h.p([h.Class('why-folded')], [step.question.title]),
-        ],
-      ),
       open
         ? h.div(
             [h.Class('replies')],
