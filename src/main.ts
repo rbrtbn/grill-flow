@@ -46,6 +46,8 @@ export const LONG_CONCEPT = 6
 export const OVERVIEW = 'overview'
 // A squad grill with a plan gets a page of which builds wait on what.
 export const PLAN = 'plan'
+// Every issue of the run under where it stands, beside the Plan's board.
+export const STATUS = 'status'
 // Pages the urgency sidebar adds beside the concepts: one per urgency, and the decided list.
 export const URGENCY_PAGE = 'urgency:'
 export const ISSUE_PAGE = 'issue:'
@@ -77,10 +79,6 @@ export const SidebarMode = Schema.Literals([
 ])
 export type SidebarMode = typeof SidebarMode.Type
 
-/** How the Plan page lays out the run: a ranked list, or a board of columns by phase. */
-export const PlanView = Schema.Literals(['List', 'Board'])
-export type PlanView = typeof PlanView.Type
-
 export const Model = Schema.Struct({
   page: PageData.schema,
   answers: Schema.Record(Schema.String, Schema.String),
@@ -105,7 +103,6 @@ export const Model = Schema.Struct({
   side: Side,
   // The page the reader came from, for the back link.
   maybePrevious: Schema.Option(Schema.String),
-  planView: PlanView,
   // The clock a plan's deadline counts down against, read by the clock subscription.
   now: Schema.Number,
   skipped: Schema.Array(Schema.String),
@@ -167,7 +164,6 @@ export const Message = defineMessageUnion({
   ClickedSide: { side: Side },
   ClickedToggleConceptMap: {},
   ClickedToggleShape: {},
-  ClickedPlanView: { view: PlanView },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
@@ -718,10 +714,6 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedPlanView: ({ view }) => ({
-      model: modifyFields(model, { planView: () => view }),
-    }),
-
     TickedClock: ({ now }) => ({
       model: modifyFields(model, { now: () => now }),
     }),
@@ -984,7 +976,13 @@ const PAGE_PATHS: ReadonlyArray<readonly [string, string]> = [
 
 export const pathOfPage = (grillId: string, page: string): string => {
   const base = `/g/${encodeURIComponent(grillId)}`
-  if (page === '' || page === OVERVIEW || page === PLAN || page === DECIDED) {
+  if (
+    page === '' ||
+    page === OVERVIEW ||
+    page === PLAN ||
+    page === STATUS ||
+    page === DECIDED
+  ) {
     return page === '' ? base : `${base}/${page}`
   }
   return Option.match(
@@ -1001,7 +999,10 @@ export const pathOfPage = (grillId: string, page: string): string => {
 export const pageOfPath = (pathname: string): string => {
   const [, , kind, value] = pathname.split('/').filter(part => part !== '')
   const decoded = value === undefined ? '' : decodeURIComponent(value)
-  return kind === OVERVIEW || kind === PLAN || kind === DECIDED
+  return kind === OVERVIEW ||
+    kind === PLAN ||
+    kind === STATUS ||
+    kind === DECIDED
     ? kind
     : kind === 'concept'
       ? decoded
@@ -1117,7 +1118,6 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     currentPart: pageOfPath(url.pathname),
     side: 'Talk',
     maybePrevious: Option.none(),
-    planView: 'List',
     now: 0,
     skipped: [],
     expanded: {},
@@ -1507,6 +1507,7 @@ const onScreenAbout = (): Option.Option<string> => {
 const isConceptPage = (page: string): boolean =>
   page !== OVERVIEW &&
   page !== PLAN &&
+  page !== STATUS &&
   page !== DECIDED &&
   !page.startsWith(URGENCY_PAGE) &&
   !page.startsWith(ISSUE_PAGE) &&

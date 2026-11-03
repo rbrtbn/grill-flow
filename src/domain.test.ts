@@ -480,6 +480,7 @@ describe('page addresses', () => {
     const { pathOfPage, pageOfPath } = await import('./main')
     for (const page of [
       'plan',
+      'status',
       'overview',
       'decided',
       'card:cos-hardening-2',

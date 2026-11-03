@@ -1486,13 +1486,6 @@ a.ref-link:hover {
 .plan-page {
   max-width: none;
 }
-.plan-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
 .plan-deadline {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -48,12 +48,7 @@ import {
   withRefs,
   withTerms,
 } from './domain'
-import type {
-  Message as MessageType,
-  Model,
-  PlanView,
-  SidebarMode,
-} from './main'
+import type { Message as MessageType, Model, SidebarMode } from './main'
 import {
   CARD_PAGE,
   DECIDED,
@@ -63,6 +58,7 @@ import {
   Message,
   OVERVIEW,
   PLAN,
+  STATUS,
   URGENCY_PAGE,
   generalTargetOf,
   isCardPage,
@@ -540,29 +536,34 @@ const pageTitle = (model: Model, grill: Grill, page: string): string =>
     ? 'Overview'
     : page === PLAN
       ? 'Plan'
-      : page === DECIDED
-        ? 'Decided so far'
-        : page.startsWith(CARD_PAGE)
-          ? cardName(grill, page.slice(CARD_PAGE.length))
-          : page.startsWith(ISSUE_PAGE)
-            ? page.slice(ISSUE_PAGE.length)
-            : Option.match(
-                Array.findFirst(
-                  URGENCY_ORDER,
-                  level => `${URGENCY_PAGE}${level}` === page,
-                ),
-                {
-                  onSome: level => URGENCY_WORDS[level],
-                  onNone: () =>
-                    Option.getOrElse(
-                      Option.map(
-                        Array.findFirst(grill.parts, part => part.id === page),
-                        part => part.title,
+      : page === STATUS
+        ? 'Run status'
+        : page === DECIDED
+          ? 'Decided so far'
+          : page.startsWith(CARD_PAGE)
+            ? cardName(grill, page.slice(CARD_PAGE.length))
+            : page.startsWith(ISSUE_PAGE)
+              ? page.slice(ISSUE_PAGE.length)
+              : Option.match(
+                  Array.findFirst(
+                    URGENCY_ORDER,
+                    level => `${URGENCY_PAGE}${level}` === page,
+                  ),
+                  {
+                    onSome: level => URGENCY_WORDS[level],
+                    onNone: () =>
+                      Option.getOrElse(
+                        Option.map(
+                          Array.findFirst(
+                            grill.parts,
+                            part => part.id === page,
+                          ),
+                          part => part.title,
+                        ),
+                        () => 'Overview',
                       ),
-                      () => 'Overview',
-                    ),
-                },
-              )
+                  },
+                )
 
 /** Back to the page the reader came from, named, on every page but the starting ones. */
 const backView = (model: Model, grill: Grill, h: H): Html =>
@@ -572,6 +573,7 @@ const backView = (model: Model, grill: Grill, h: H): Html =>
       page =>
         page !== model.currentPart &&
         model.currentPart !== PLAN &&
+        model.currentPart !== STATUS &&
         model.currentPart !== OVERVIEW,
     ),
     {
@@ -675,26 +677,28 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   model.currentPart === DECIDED
                     ? decidedPageView(model, snapshot, h)
                     : model.currentPart === PLAN && grill.plan !== undefined
-                      ? planPageView(model, grill, grill.plan, h)
-                      : model.currentPart.startsWith(ISSUE_PAGE)
-                        ? issuePageView(
-                            model,
-                            snapshot,
-                            model.currentPart.slice(ISSUE_PAGE.length),
-                            h,
-                          )
-                        : model.currentPart.startsWith(CARD_PAGE)
-                          ? cardPageView(
+                      ? planPageView(model, grill, grill.plan, 'Board', h)
+                      : model.currentPart === STATUS && grill.plan !== undefined
+                        ? planPageView(model, grill, grill.plan, 'Status', h)
+                        : model.currentPart.startsWith(ISSUE_PAGE)
+                          ? issuePageView(
                               model,
                               snapshot,
-                              model.currentPart.slice(CARD_PAGE.length),
+                              model.currentPart.slice(ISSUE_PAGE.length),
                               h,
                             )
-                          : Option.match(urgencyPageOf(model), {
-                              onNone: () => overviewView(model, snapshot, h),
-                              onSome: level =>
-                                urgencyPageView(model, snapshot, level, h),
-                            }),
+                          : model.currentPart.startsWith(CARD_PAGE)
+                            ? cardPageView(
+                                model,
+                                snapshot,
+                                model.currentPart.slice(CARD_PAGE.length),
+                                h,
+                              )
+                            : Option.match(urgencyPageOf(model), {
+                                onNone: () => overviewView(model, snapshot, h),
+                                onSome: level =>
+                                  urgencyPageView(model, snapshot, level, h),
+                              }),
                 onSome: part => conceptView(model, snapshot, part, h),
               }),
             ],
@@ -1144,6 +1148,15 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
             h.span([h.Class('concept-name')], ['Plan']),
             h.span([h.Class('concept-count')], [planSummary(grill, model)]),
           ]),
+      grill.plan === undefined
+        ? h.empty
+        : item(STATUS, [
+            h.span([h.Class('concept-name')], ['Run status']),
+            h.span(
+              [h.Class('concept-count')],
+              [statusSummary(grill, grill.plan, model)],
+            ),
+          ]),
       ...Array.flatMap(modes, mode => [
         h.p([h.Class('nav-section label')], [labels[mode]]),
         ...(mode === 'Urgency'
@@ -1205,6 +1218,19 @@ const planSummary = (grill: Grill, model: Model): string => {
     ...(deadline === undefined || model.now === 0
       ? []
       : [timeLeft(deadline, model.now)]),
+  ].join(' · ')
+}
+
+/** The sidebar line under Run status: how many issues are building, ready and merged. */
+const statusSummary = (grill: Grill, plan: Plan, model: Model): string => {
+  const count = (phases: ReadonlyArray<PlanPhase>): number =>
+    Array.filter(plan.issues, issue =>
+      phases.includes(planPhaseOf(grill, issue, model.answers)),
+    ).length
+  return [
+    `${count(['building', 'review'])} building`,
+    `${count(['ready'])} ready`,
+    `${count(['merged'])} merged`,
   ].join(' · ')
 }
 
@@ -1477,7 +1503,17 @@ const agentsView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
 }
 
 /** The run's plan: what waits on Rob first, ranked, then everything else, as a list or a board. */
-const planPageView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
+/**
+ * The run, two ways: the Plan's board (what waits on you, then columns by phase) or its status
+ * (every issue under where it stands, merged and outside the run included).
+ */
+const planPageView = (
+  model: Model,
+  grill: Grill,
+  plan: Plan,
+  layout: 'Board' | 'Status',
+  h: H,
+): Html => {
   const waiting = waitingOnYou(grill, model.answers)
   const inPhase = (phases: ReadonlyArray<PlanPhase>) =>
     Array.filter(plan.issues, issue =>
@@ -1510,15 +1546,6 @@ const planPageView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
           )),
     ],
   )
-  const viewChoice = (view: PlanView) =>
-    h.button(
-      [
-        h.Class(`side-choice${model.planView === view ? ' is-active' : ''}`),
-        h.AriaPressed(String(model.planView === view)),
-        h.OnClick(Message.ClickedPlanView({ view })),
-      ],
-      [view],
-    )
   const group = (
     title: string,
     issues: ReadonlyArray<PlanIssue>,
@@ -1544,24 +1571,11 @@ const planPageView = (model: Model, grill: Grill, plan: Plan, h: H): Html => {
             )),
       ],
     )
-  const isBoard = model.planView === 'Board'
+  const isBoard = layout === 'Board'
   return h.div(
     [h.Class(`concept-page plan-page${isBoard ? ' is-board' : ''}`)],
     [
-      h.div(
-        [h.Class('plan-top')],
-        [
-          h.h1([h.Class('concept-title')], ['Plan']),
-          h.div(
-            [
-              h.Class('side-switch'),
-              h.Role('group'),
-              h.AriaLabel('Plan layout'),
-            ],
-            [viewChoice('List'), viewChoice('Board')],
-          ),
-        ],
-      ),
+      h.h1([h.Class('concept-title')], [isBoard ? 'Plan' : 'Run status']),
       deadlineView(model, grill, plan, h),
       agentsView(model, grill, plan, h),
       h.div(
