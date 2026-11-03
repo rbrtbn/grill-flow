@@ -278,14 +278,41 @@ const urgencyDot = (level: UrgencyLevel, h: H, trailing = false): Html =>
     h.AriaLabel(URGENCY_WORDS[level]),
   ])
 
-/** Who asked, linking to their session when the grill gives a link. */
-const fromView = (grill: Grill, step: Step, h: H): Html => {
+/**
+ * Who asked, linking to their session when the grill gives a link, and the card it came from,
+ * linking to that card's page.
+ */
+const fromView = (model: Model, grill: Grill, step: Step, h: H): Html => {
   const from = step.question.from
   if (from === undefined) {
     return h.empty
   }
   const source = grill.sources?.[from]
-  const row = step.question.row === undefined ? '' : ` · ${step.question.row}`
+  const row = step.question.row
+  const cardLink = Option.match(cardOf(step.question), {
+    onNone: () => row ?? '',
+    onSome: card => {
+      const rest = (row ?? card).slice(card.length)
+      return model.currentPart === `${CARD_PAGE}${card}`
+        ? `${card}${rest}`
+        : h.span(
+            [],
+            [
+              h.button(
+                [
+                  h.Class('from-card'),
+                  h.Title(`Go to card ${card}`),
+                  h.OnClick(
+                    Message.ClickedConcept({ partId: `${CARD_PAGE}${card}` }),
+                  ),
+                ],
+                [card],
+              ),
+              rest,
+            ],
+          )
+    },
+  })
   return h.span(
     [h.Class('from'), h.Title(source?.text ?? from)],
     [
@@ -296,7 +323,8 @@ const fromView = (grill: Grill, step: Step, h: H): Html => {
             [h.Href(source.link), h.Target('_blank'), h.Rel('noreferrer')],
             [from],
           ),
-      row,
+      row === undefined ? '' : ' · ',
+      cardLink,
     ],
   )
 }
@@ -1990,7 +2018,7 @@ const questionView = (
               h.span(
                 [h.Class('row-title')],
                 [
-                  showIssue && step.question.issue !== undefined
+                  showIssue && !open && step.question.issue !== undefined
                     ? refLabel(grill, step.question.issue, h)
                     : h.empty,
                   step.heading,
@@ -2041,53 +2069,43 @@ const questionBodyView = (
   const inactive = status._tag === 'Waiting' || status._tag === 'NotNeeded'
   const selected = Record.get(model.answers, id)
   const note = Option.getOrElse(Record.get(model.notes, id), () => '')
-  const isSquad =
-    question.urgency !== undefined ||
-    question.issue !== undefined ||
-    question.from !== undefined
+  const hasListedPick = Option.exists(selected, key =>
+    Array.some(question.options, option => option.key === key),
+  )
   return h.div(
     [h.Class('question-body')],
     [
-      isSquad
-        ? h.p(
-            [h.Class('squad-line')],
-            [
-              question.issue === undefined
-                ? h.empty
-                : refOrKey(grill, question.issue, h),
-              fromView(grill, step, h),
-              usesUrgency(grill)
-                ? h.span(
-                    [h.Class('squad-urgency')],
-                    [
-                      urgencyDot(urgencyOf(question), h),
-                      URGENCY_WORDS[urgencyOf(question)],
-                    ],
-                  )
-                : h.empty,
-            ],
-          )
-        : h.empty,
-      outsideView(model, snapshot, step, h),
-      whyLink(step, h),
       statusLine(model, grill, step, status, h),
       h.div(
-        [h.Class('ask-block')],
+        [h.Class('question-links')],
         [
-          question.scope === ''
+          question.issue === undefined
             ? h.empty
-            : h.p(
-                [h.Class('applies')],
-                [h.span([h.Class('label')], ['Applies']), question.scope],
-              ),
-          h.p(
-            [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
-            [
-              h.span([h.Class('question-id')], [`${id} `]),
-              ...inline(question.ask, grill, h),
-            ],
-          ),
+            : refOrKey(grill, question.issue, h),
+          whyLink(step, h),
+          status._tag === 'Open' && !Array.contains(model.skipped, id)
+            ? h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(Message.ClickedSkip({ question: id })),
+                ],
+                ['Skip for now'],
+              )
+            : h.empty,
+          Option.isSome(selected)
+            ? h.button(
+                [
+                  h.Class('text-button'),
+                  h.OnClick(Message.ClickedClearAnswer({ question: id })),
+                ],
+                ['Clear my answer'],
+              )
+            : h.empty,
         ],
+      ),
+      h.p(
+        [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
+        inline(question.ask, grill, h),
       ),
       h.div(
         [
@@ -2101,112 +2119,82 @@ const questionBodyView = (
               selected,
               key => key === option.key,
             )
-            return h.keyed('button')(
+            return h.keyed('div')(
               option.key,
+              [h.Class(`option${isSelected ? ' is-selected' : ''}`)],
               [
-                h.Type('button'),
-                h.Role('radio'),
-                h.AriaChecked(isSelected),
-                h.Disabled(inactive),
-                h.Class(`option${isSelected ? ' is-selected' : ''}`),
-                h.OnClick(
-                  Message.SelectedOption({ question: id, key: option.key }),
-                ),
-              ],
-              [
-                h.span([h.Class('option-key')], [option.key]),
-                h.span(
-                  [h.Class('option-body')],
+                h.button(
                   [
-                    h.span(
-                      [h.Class('option-label')],
-                      [
-                        ...plain(option.label, grill, h),
-                        option.recommended
-                          ? h.span([h.Class('recommended')], ['Recommended'])
-                          : h.empty,
-                      ],
+                    h.Type('button'),
+                    h.Role('radio'),
+                    h.AriaChecked(isSelected),
+                    h.Disabled(inactive),
+                    h.Class('option-pick'),
+                    h.OnClick(
+                      Message.SelectedOption({ question: id, key: option.key }),
                     ),
+                  ],
+                  [
+                    h.span([h.Class('option-key')], [option.key]),
                     h.span(
-                      [h.Class('option-effect')],
-                      plain(option.effect, grill, h),
+                      [h.Class('option-body')],
+                      [
+                        h.span(
+                          [h.Class('option-label')],
+                          [
+                            ...plain(option.label, grill, h),
+                            option.recommended
+                              ? h.span(
+                                  [h.Class('recommended')],
+                                  ['Recommended'],
+                                )
+                              : h.empty,
+                          ],
+                        ),
+                        h.span(
+                          [h.Class('option-effect')],
+                          plain(option.effect, grill, h),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                isSelected ? noteBox(id, note, inactive, h) : h.empty,
               ],
             )
           }),
           ownOptionView(model, id, inactive, h),
         ],
       ),
-      h.div(
-        [h.Class('question-foot')],
-        [
-          h.label(
-            [h.For(`note-${id}`), h.Class('label')],
-            ['Note for the agent'],
-          ),
-          h.textarea([
-            h.Id(`note-${id}`),
-            h.Rows(2),
-            h.Value(note),
-            h.Disabled(inactive),
-            h.Placeholder('Optional: a condition or a doubt'),
-            h.OnInput(value => Message.UpdatedNote({ question: id, value })),
-            h.OnBlur(Message.BlurredNote({ question: id })),
-          ]),
-          h.div(
-            [h.Class('question-links')],
+      // A note left without a listed pick stays editable rather than hidden.
+      note !== '' && !hasListedPick ? noteBox(id, note, inactive, h) : h.empty,
+      question.from === undefined && !hasOutside(snapshot, step)
+        ? h.empty
+        : h.div(
+            [h.Class('question-meta')],
             [
-              status._tag === 'Open' && !Array.contains(model.skipped, id)
-                ? h.button(
-                    [
-                      h.Class('text-button'),
-                      h.OnClick(Message.ClickedSkip({ question: id })),
-                    ],
-                    ['Skip for now'],
-                  )
-                : h.empty,
-              Option.isSome(selected)
-                ? h.button(
-                    [
-                      h.Class('text-button'),
-                      h.OnClick(Message.ClickedClearAnswer({ question: id })),
-                    ],
-                    ['Clear my answer'],
-                  )
-                : h.empty,
-              h.button(
-                [
-                  h.Class('text-button'),
-                  h.OnClick(
-                    Message.ClickedAskAbout({
-                      partId: step.part,
-                      question: id,
-                    }),
-                  ),
-                ],
-                [`Ask about ${id}`],
-              ),
-              h.button(
-                [
-                  h.Class('text-button'),
-                  h.OnClick(
-                    Message.ClickedToggleQuestion({
-                      question: id,
-                      open: false,
-                    }),
-                  ),
-                ],
-                ['Close'],
-              ),
+              outsideView(model, snapshot, step, h),
+              fromView(model, grill, step, h),
             ],
           ),
-        ],
-      ),
     ],
   )
 }
+
+const outsideOf = (snapshot: Snapshot, step: Step): ReadonlyArray<string> =>
+  Array.filter(
+    Array.dedupe(
+      Array.appendAll(upstreamOf(step.question), mentionsOf(snapshot, step)),
+    ),
+    other =>
+      Option.exists(
+        stepOf(snapshot.grill, other),
+        found => found.part !== step.part,
+      ),
+  )
+
+const hasOutside = (snapshot: Snapshot, step: Step): boolean =>
+  !Array.isReadonlyArrayEmpty(outsideOf(snapshot, step))
 
 /** Questions from other concepts this one builds on or names, as chips that open a card in place. */
 const outsideView = (
@@ -2217,13 +2205,7 @@ const outsideView = (
 ): Html => {
   const grill = snapshot.grill
   const id = step.question.id
-  const linked = Array.dedupe(
-    Array.appendAll(upstreamOf(step.question), mentionsOf(snapshot, step)),
-  )
-  const outside = Array.filter(linked, other =>
-    Option.exists(stepOf(grill, other), found => found.part !== step.part),
-  )
-  return Array.match(outside, {
+  return Array.match(outsideOf(snapshot, step), {
     onEmpty: () => h.empty,
     onNonEmpty: ids =>
       h.div(
@@ -2379,6 +2361,19 @@ const statusLine = (
   })
 }
 
+const noteBox = (id: string, note: string, inactive: boolean, h: H): Html =>
+  h.textarea([
+    h.Id(`note-${id}`),
+    h.Class('note-box'),
+    h.Rows(2),
+    h.Value(note),
+    h.Disabled(inactive),
+    h.AriaLabel(`Note for the agent on ${id}`),
+    h.Placeholder('Note for the agent: a condition or a doubt (optional)'),
+    h.OnInput(value => Message.UpdatedNote({ question: id, value })),
+    h.OnBlur(Message.BlurredNote({ question: id })),
+  ])
+
 const ownOptionView = (
   model: Model,
   id: string,
@@ -2400,7 +2395,7 @@ const ownOptionView = (
           h.Role('radio'),
           h.AriaChecked(isSelected),
           h.Disabled(inactive),
-          h.Class('own-pick'),
+          h.Class('option-pick'),
           h.OnClick(Message.SelectedOwnAnswer({ question: id })),
         ],
         [
@@ -2408,10 +2403,9 @@ const ownOptionView = (
           h.span(
             [h.Class('option-body')],
             [
-              h.span([h.Class('option-label')], ['My own answer']),
               h.span(
-                [h.Class('option-effect')],
-                ['None of these fits. Write what you want instead.'],
+                [h.Class('option-label'), h.Title('None of these fits')],
+                ['My own answer'],
               ),
             ],
           ),

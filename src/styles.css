@@ -740,8 +740,8 @@ button {
 }
 .question-body {
   display: grid;
-  gap: 16px;
-  padding: 2px 4px 26px 3.95rem;
+  gap: 12px;
+  padding: 2px 4px 22px 3.95rem;
 }
 .outside {
   display: grid;
@@ -792,7 +792,7 @@ button {
   background: none;
   border: 0;
   padding: 0;
-  font: 600 0.92rem var(--label);
+  font: 600 0.9rem var(--label);
   color: var(--link);
   cursor: pointer;
 }
@@ -864,43 +864,61 @@ button {
   font: 700 1rem var(--label);
   color: var(--link);
 }
+/* One bordered list, a row per option, so the choices read as one block. */
 .options {
   display: grid;
-  gap: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
 }
 .option {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--paper);
+}
+.option-pick {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
   text-align: left;
   width: 100%;
-  padding: 11px 14px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
-.option:hover:not(:disabled) {
-  border-color: var(--link);
+
+.option + .option {
+  border-top: 1px solid var(--rule);
 }
-.option:disabled {
+.option:first-child {
+  border-radius: 4px 4px 0 0;
+}
+.option:last-child {
+  border-radius: 0 0 4px 4px;
+}
+.option:has(.option-pick:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--link-wash) 50%, var(--paper));
+}
+.option-pick:disabled {
   cursor: default;
   opacity: 0.55;
 }
 .option.is-selected {
-  border-color: var(--link);
   background: var(--link-wash);
-  box-shadow: inset 0 0 0 1px var(--link);
+  box-shadow: inset 3px 0 0 var(--link);
 }
 .option-key {
   display: grid;
   place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.4rem;
+  height: 1.4rem;
   border: 1px solid var(--ink);
   border-radius: 50%;
-  font: 700 0.95rem var(--label);
+  font: 700 0.82rem var(--label);
 }
 .option.is-selected .option-key {
   background: var(--link);
@@ -908,17 +926,17 @@ button {
   color: var(--paper);
 }
 .option-body {
-  display: grid;
-  gap: 3px;
+  line-height: 1.45;
 }
 .option-label {
   font-weight: 600;
-  line-height: 1.4;
 }
 .option-effect {
   font-size: 0.93rem;
   color: var(--muted);
-  line-height: 1.45;
+}
+.option-effect::before {
+  content: ' \2014  ';
 }
 .recommended {
   margin-left: 8px;
@@ -927,22 +945,6 @@ button {
   text-transform: uppercase;
   color: var(--link);
   white-space: nowrap;
-}
-.option.own {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  cursor: default;
-}
-.own-pick {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  text-align: left;
-  padding: 0;
-  background: none;
-  border: 0;
-  cursor: pointer;
 }
 .option.own .option-key {
   border-style: dashed;
@@ -967,18 +969,32 @@ textarea:focus {
 textarea::placeholder {
   color: var(--muted);
 }
+/* Under the answer's label, past its key. */
+.option .note-box,
 .own-text {
-  margin-left: 2.75rem;
-  width: calc(100% - 2.75rem);
-}
-.question-foot {
-  display: grid;
-  gap: 6px;
+  box-sizing: border-box;
+  margin-left: calc(1.6rem + 10px);
+  width: calc(100% - 1.6rem - 10px);
 }
 .question-links {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 6px 18px;
+}
+.question-links .text-button {
+  text-decoration: none;
+}
+.question-links .text-button:hover {
+  text-decoration: underline;
+}
+.question-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  font: 500 0.84rem var(--label);
+  color: var(--muted);
 }
 
 /* Conversation */
@@ -1256,6 +1272,17 @@ a.ref-link:hover {
 }
 .from a {
   color: inherit;
+}
+.from-card {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--link);
+  cursor: pointer;
+}
+.from-card:hover {
+  text-decoration: underline;
 }
 .squad-line {
   display: flex;
@@ -1622,4 +1649,8 @@ button.plan-title:hover {
 }
 .back-link:hover {
   text-decoration: underline;
+}
+.question-meta .from {
+  font-size: 0.88rem;
+  padding: 1px 9px;
 }
