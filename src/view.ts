@@ -69,7 +69,6 @@ import {
   isWhyOpen,
   modesOf,
   pageQuestions,
-  sidebarModeOf,
   talkKeyOf,
   threadDraftKey,
 } from './main'
@@ -1003,10 +1002,7 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
   const hasUrgency = usesUrgency(grill)
   const issues = issuesOf(grill)
   const cards = cardsOf(grill)
-  // A squad's questions already carry their issue on every row; which run card raised them says
-  // more, so a squad grill lists by card first and has no issue list (modesOf in main.ts).
   const modes = modesOf(grill)
-  const mode = sidebarModeOf(model, grill)
   const item = (pageId: string, content: ReadonlyArray<Html>): Html =>
     h.keyed('button')(
       pageId,
@@ -1016,15 +1012,6 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
         h.OnClick(Message.ClickedConcept({ partId: pageId })),
       ],
       content,
-    )
-  const modeChoice = (choice: SidebarMode, label: string) =>
-    h.button(
-      [
-        h.Class(`side-choice${mode === choice ? ' is-active' : ''}`),
-        h.AriaPressed(String(mode === choice)),
-        h.OnClick(Message.ClickedSidebarMode({ mode: choice })),
-      ],
-      [label],
     )
   const answeredCount = grill.steps.filter(
     step => statusIn(model, grill, step.question.id)._tag === 'Answered',
@@ -1046,22 +1033,11 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
         ids,
         id => statusIn(model, grill, id)._tag === 'Answered',
       ).length
-      const state =
-        part.issue === undefined ? undefined : grill.refs?.[part.issue]?.state
       return item(part.id, [
-        h.span(
-          [h.Class('concept-name')],
-          [
-            part.issue === undefined ? h.empty : refLabel(grill, part.issue, h),
-            part.title,
-            navUrgency(steps),
-          ],
-        ),
+        h.span([h.Class('concept-name')], [part.title, navUrgency(steps)]),
         h.span(
           [h.Class('concept-count')],
-          [
-            `${state === undefined ? '' : `${state} · `}${decided} of ${ids.length} decided`,
-          ],
+          [`${decided} of ${ids.length} decided`],
         ),
         h.span(
           [h.Class('dots'), h.AriaHidden(true)],
@@ -1153,8 +1129,8 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
     Cards: 'Cards',
     Urgency: 'Urgency',
   }
-  // The whole grill's pages first, then the questions in the list the reader picked, then what
-  // is already decided.
+  // The whole grill's pages first, then every list of the questions one under another, then
+  // what is already decided.
   return h.nav(
     [h.Class('concepts'), h.AriaLabel('Pages')],
     [
@@ -1168,29 +1144,16 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
             h.span([h.Class('concept-name')], ['Plan']),
             h.span([h.Class('concept-count')], [planSummary(grill, model)]),
           ]),
-      h.div(
-        [h.Class('nav-section')],
-        [
-          h.span([h.Class('label')], ['Questions by']),
-          modes.length > 1
-            ? h.div(
-                [
-                  h.Class('side-switch nav-mode'),
-                  h.Role('group'),
-                  h.AriaLabel('List questions by'),
-                ],
-                Array.map(modes, choice => modeChoice(choice, labels[choice])),
-              )
-            : h.span([h.Class('label')], [labels[mode]]),
-        ],
-      ),
-      ...(mode === 'Urgency'
-        ? urgencyItems()
-        : mode === 'Issues'
-          ? issueItems()
-          : mode === 'Cards'
-            ? cardItems()
-            : conceptItems()),
+      ...Array.flatMap(modes, mode => [
+        h.p([h.Class('nav-section label')], [labels[mode]]),
+        ...(mode === 'Urgency'
+          ? urgencyItems()
+          : mode === 'Issues'
+            ? issueItems()
+            : mode === 'Cards'
+              ? cardItems()
+              : conceptItems()),
+      ]),
       hasUrgency || grill.decided !== undefined
         ? item(DECIDED, [
             h.span([h.Class('concept-name')], ['Decided so far']),

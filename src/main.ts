@@ -68,7 +68,7 @@ export type CopyState = typeof CopyState.Type
 export const Side = Schema.Literals(['Talk', 'Map', 'None'])
 export type Side = typeof Side.Type
 
-/** How the left sidebar lists the questions: by concept (an issue, on a squad grill) or by urgency. */
+/** The lists the left sidebar stacks the questions in. */
 export const SidebarMode = Schema.Literals([
   'Concepts',
   'Issues',
@@ -103,8 +103,6 @@ export const Model = Schema.Struct({
   maybeBuild: Schema.Option(Schema.String),
   currentPart: Schema.String,
   side: Side,
-  // The list the reader picked; none until they pick, so the grill's first list shows.
-  sidebar: Schema.Option(SidebarMode),
   // The page the reader came from, for the back link.
   maybePrevious: Schema.Option(Schema.String),
   planView: PlanView,
@@ -169,9 +167,6 @@ export const Message = defineMessageUnion({
   ClickedSide: { side: Side },
   ClickedToggleConceptMap: {},
   ClickedToggleShape: {},
-  ClickedSidebarMode: { mode: SidebarMode },
-  CompletedSaveSidebar: {},
-  RestoredSidebar: { maybeMode: Schema.Option(SidebarMode) },
   ClickedPlanView: { view: PlanView },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
@@ -723,26 +718,6 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedSidebarMode: ({ mode }) => ({
-      model: modifyFields(model, { sidebar: () => Option.some(mode) }),
-      commands: Option.match(grillIdOf(model), {
-        onNone: () => [],
-        onSome: grillId => [
-          SaveSidebar({ grillId, page: model.currentPart, mode }),
-        ],
-      }),
-    }),
-
-    CompletedSaveSidebar: () => ({ model }),
-
-    RestoredSidebar: ({ maybeMode }) => ({
-      model: Option.match(maybeMode, {
-        onNone: () => model,
-        onSome: mode =>
-          modifyFields(model, { sidebar: () => Option.some(mode) }),
-      }),
-    }),
-
     ClickedPlanView: ({ view }) => ({
       model: modifyFields(model, { planView: () => view }),
     }),
@@ -931,15 +906,19 @@ const settleWrite = (model: Model, result: SnapshotResult): UpdateReturn =>
 // The first concept that still has something open, so a fresh page starts where work is left.
 // NAVIGATION
 
-/** The lists a grill's sidebar offers, the first one shown until the reader picks. */
+/**
+ * The lists the left sidebar stacks, top to bottom. A squad's questions carry their issue on
+ * every row, so it lists by urgency, concept and the run card that raised them, with no issue
+ * list; any other grill lists by concept, and by issue when its questions name issues.
+ */
 export const modesOf = (grill: Grill): ReadonlyArray<SidebarMode> =>
   grill.kind === 'squad'
     ? [
+        ...(usesUrgency(grill) ? ['Urgency' as const] : []),
+        'Concepts',
         ...(Array.isReadonlyArrayEmpty(cardsOf(grill))
           ? []
           : ['Cards' as const]),
-        'Concepts',
-        ...(usesUrgency(grill) ? ['Urgency' as const] : []),
       ]
     : [
         'Concepts',
@@ -947,26 +926,6 @@ export const modesOf = (grill: Grill): ReadonlyArray<SidebarMode> =>
           ? []
           : ['Issues' as const]),
       ]
-
-export const sidebarModeOf = (model: Model, grill: Grill): SidebarMode => {
-  const modes = modesOf(grill)
-  return Option.getOrElse(
-    Option.filter(model.sidebar, mode => modes.includes(mode)),
-    () => modes[0] ?? 'Concepts',
-  )
-}
-
-/** The list a page belongs to, so going there shows it highlighted in the sidebar. */
-const modeOfPage = (grill: Grill, page: string): Option.Option<SidebarMode> =>
-  page.startsWith(CARD_PAGE)
-    ? Option.some('Cards')
-    : page.startsWith(ISSUE_PAGE)
-      ? Option.some('Issues')
-      : page.startsWith(URGENCY_PAGE)
-        ? Option.some('Urgency')
-        : grill.parts.some(part => part.id === page)
-          ? Option.some('Concepts')
-          : Option.none()
 
 /** The questions a card, issue or urgency page lists; none on any other page. */
 export const pageQuestions = (
@@ -990,7 +949,7 @@ export const pageQuestions = (
           )
         : []
 
-/** Moves to a page, remembering where the reader was and showing the page's list. */
+/** Moves to a page, remembering where the reader was. */
 const goTo = (model: Model, grill: Grill, page: string): Model =>
   page === model.currentPart
     ? model
@@ -1000,12 +959,6 @@ const goTo = (model: Model, grill: Grill, page: string): Model =>
           model.currentPart === ''
             ? Option.none()
             : Option.some(model.currentPart),
-        sidebar: current =>
-          Option.match(modeOfPage(grill, page), {
-            onNone: () => current,
-            onSome: mode =>
-              modesOf(grill).includes(mode) ? Option.some(mode) : current,
-          }),
         peeks: () => [],
       })
 
@@ -1123,10 +1076,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
     return { model: refreshPage(model, snapshot) }
   }
   const first = model.currentPart === ''
-  const page = first ? startingPart(snapshot) : model.currentPart
-  const pageMode = modeOfPage(snapshot.grill, page)
   const next = modifyFields(refreshPage(model, snapshot), {
-    sidebar: current => Option.orElse(pageMode, () => current),
     answers: () => snapshot.answers,
     notes: restored => ({ ...snapshot.notes, ...restored }),
     own: restored => ({ ...snapshot.own, ...restored }),
@@ -1136,20 +1086,9 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   })
   return {
     model: next,
-    commands: [
-      ...(first
-        ? [
-            ReplacePage({
-              url: pathOfPage(snapshot.grill.id, next.currentPart),
-            }),
-          ]
-        : []),
-      RestoreSidebar({
-        grillId: snapshot.grill.id,
-        page,
-        hasPageMode: Option.isSome(pageMode),
-      }),
-    ],
+    commands: first
+      ? [ReplacePage({ url: pathOfPage(snapshot.grill.id, next.currentPart) })]
+      : [],
   }
 }
 
@@ -1177,7 +1116,6 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeBuild: Option.none(),
     currentPart: pageOfPath(url.pathname),
     side: 'Talk',
-    sidebar: Option.none(),
     maybePrevious: Option.none(),
     planView: 'List',
     now: 0,
@@ -1483,64 +1421,6 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
     ),
     Effect.map(drafts => Message.CompletedRestoreDrafts(drafts)),
   ),
-})
-
-// The sidebar list the reader picked survives a reload: the pick, and the page it was made on.
-const sidebarKey = (grillId: string): string => `grill-flow:sidebar:${grillId}`
-
-const SavedSidebar = Schema.Struct({ page: Schema.String, mode: SidebarMode })
-
-export const SaveSidebar = Command.define('SaveSidebar', {
-  args: { grillId: Schema.String, page: Schema.String, mode: SidebarMode },
-  messages: [Message.CompletedSaveSidebar],
-  execute: ({ grillId, page, mode }) =>
-    Effect.sync(() => {
-      try {
-        window.localStorage.setItem(
-          sidebarKey(grillId),
-          JSON.stringify({ page, mode }),
-        )
-      } catch {
-        // Storage can be off; the pick then lasts until the reload.
-      }
-      return Message.CompletedSaveSidebar()
-    }),
-})
-
-/**
- * The saved pick applies on the page it was made on, or on a page that implies no list (the
- * Plan, Overview, Decided); elsewhere the page's own list wins, as navigating there would show.
- */
-export const RestoreSidebar = Command.define('RestoreSidebar', {
-  args: {
-    grillId: Schema.String,
-    page: Schema.String,
-    hasPageMode: Schema.Boolean,
-  },
-  messages: [Message.RestoredSidebar],
-  execute: ({ grillId, page, hasPageMode }) =>
-    pipe(
-      Effect.sync(() => {
-        try {
-          return window.localStorage.getItem(sidebarKey(grillId)) ?? 'null'
-        } catch {
-          return 'null'
-        }
-      }),
-      Effect.flatMap(raw =>
-        Effect.try(() => JSON.parse(raw) satisfies unknown),
-      ),
-      Effect.flatMap(parsed =>
-        Schema.decodeUnknownEffect(SavedSidebar)(parsed),
-      ),
-      Effect.map(saved =>
-        saved.page === page || !hasPageMode
-          ? Option.some(saved.mode)
-          : Option.none(),
-      ),
-      Effect.catch(() => Effect.succeed(Option.none<SidebarMode>())),
-      Effect.map(maybeMode => Message.RestoredSidebar({ maybeMode })),
-    ),
 })
 
 // SUBSCRIPTION

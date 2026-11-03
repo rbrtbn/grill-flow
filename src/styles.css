@@ -1373,13 +1373,6 @@ a.ref-link:hover {
   color: var(--muted);
   margin: 0 0 4px;
 }
-.nav-mode {
-  display: flex;
-  margin: 0 8px 10px;
-}
-.nav-mode .side-choice {
-  flex: 1;
-}
 .decided {
   list-style: none;
   padding: 0;
@@ -1701,11 +1694,10 @@ button.plan-title:hover {
 }
 
 /* Sidebar sections: the grill's own pages, then the question lists, then what's decided. */
+/* Each list's heading in the left sidebar, which stacks them all. */
 .nav-section {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 12px;
+  margin: 12px 0 2px;
+  padding: 14px 12px 4px;
   border-top: 1px solid var(--rule);
 }
 .back-link {
