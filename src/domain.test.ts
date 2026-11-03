@@ -530,3 +530,48 @@ describe('ask targets', () => {
     expect(generalTargetOf('timing')).toBe('part:timing')
   })
 })
+
+describe('agent messages', () => {
+  it('lists Send replies and ask answers by time, and counts only new, unread ones', async () => {
+    const { agentMessagesOf, unreadOf, previewOf } = await import('./domain')
+    const grill = Schema.decodeUnknownSync(Grill)(
+      JSON.parse(readFileSync('examples/squad-sample.json', 'utf8')),
+    )
+    const snapshot = {
+      grill,
+      answers: {},
+      notes: {},
+      own: {},
+      asks: [],
+      sends: [],
+      revisions: [
+        {
+          id: 7,
+          stepId: 's',
+          askId: 3,
+          kind: 'comment' as const,
+          text: 'Yes.',
+          at: 20,
+        },
+        {
+          id: 8,
+          stepId: 's',
+          askId: null,
+          kind: 'rewrite' as const,
+          text: 'x',
+          at: 25,
+        },
+      ],
+      replies: [{ id: 9, text: '**Round 3** received', at: 30 }],
+    }
+    const messages = agentMessagesOf(snapshot)
+    expect(messages.map(message => message.id)).toEqual(['answer-7', 'reply-9'])
+    expect(unreadOf(messages, 20, []).map(message => message.id)).toEqual([
+      'reply-9',
+    ])
+    expect(
+      unreadOf(messages, 0, ['reply-9']).map(message => message.id),
+    ).toEqual(['answer-7'])
+    expect(previewOf('\n- **Q7** b: kept\nmore')).toBe('Q7 b: kept')
+  })
+})

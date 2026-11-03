@@ -22,6 +22,7 @@ export type EventKind =
   | 'asked'
   | 'revised'
   | 'sent'
+  | 'replied'
 
 type EventRow = Readonly<{
   id: number
@@ -108,6 +109,19 @@ export type Revision = Readonly<{
 }>
 
 /** Checks a reply against the grill and records it; the reason when it doesn't fit. */
+/** The agent's word back after a Send, shown on the page as a reply to it. */
+export const replyToGrill = (
+  db: Database,
+  grill: Grill,
+  text: string,
+): { ok: true; id: number } | { ok: false; reason: string } =>
+  text.trim() === ''
+    ? { ok: false, reason: 'the reply is empty' }
+    : {
+        ok: true,
+        id: appendEvent(db, grill.id, 'replied', { text: text.trim() }),
+      }
+
 export const reviseGrill = (
   db: Database,
   grill: Grill,
@@ -231,6 +245,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
   const revisions: Array<Snapshot['revisions'][number]> = []
   const sends: Array<Snapshot['sends'][number]> = []
   const sent: Record<string, string> = {}
+  const replies: Array<NonNullable<Snapshot['replies']>[number]> = []
   for (const event of events(db, grill.id)) {
     const p = JSON.parse(event.payload) as Record<string, unknown>
     switch (event.kind) {
@@ -284,9 +299,12 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
           detail: String(p.detail ?? ''),
         })
         break
+      case 'replied':
+        replies.push({ id: event.id, text: String(p.text), at: event.at })
+        break
       case 'loaded':
         break
     }
   }
-  return { grill, answers, notes, own, asks, revisions, sends, sent }
+  return { grill, answers, notes, own, asks, revisions, sends, sent, replies }
 }

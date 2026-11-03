@@ -29,11 +29,13 @@ import {
   OWN,
   Snapshot,
   type Step,
+  agentMessagesOf,
   cardOf,
   cardsOf,
   issuesOf,
   replyText,
   statusOf,
+  unreadOf,
   urgencyOf,
   usesUrgency,
 } from './domain'
@@ -66,8 +68,11 @@ export type SendState = typeof SendState.Type
 export const CopyState = Schema.Literals(['Idle', 'Copied', 'Failed'])
 export type CopyState = typeof CopyState.Type
 
-/** What fills the right sidebar: the concept's conversation, the map of every question, or nothing. */
-export const Side = Schema.Literals(['Talk', 'Map', 'None'])
+/**
+ * What fills the right sidebar: the concept's conversation, the map of every question, every
+ * message from the agent, or nothing.
+ */
+export const Side = Schema.Literals(['Talk', 'Map', 'Replies', 'None'])
 export type Side = typeof Side.Type
 
 /** The lists the left sidebar stacks the questions in. */
@@ -115,6 +120,10 @@ export const Model = Schema.Struct({
   isShapeOpen: Schema.Boolean,
   // Left sidebar lists the reader folded; kept in the browser, the same for every grill.
   navFolded: Schema.Array(SidebarMode),
+  // What the reader has seen of the agent's messages: everything up to `readSince` (none until
+  // the browser's record is read), and each later one in `readIds`. Kept per grill in the browser.
+  readSince: Schema.Option(Schema.Number),
+  readIds: Schema.Array(Schema.String),
   maybeJustAnswered: Schema.Option(Schema.String),
   // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
   maybeTalkPart: Schema.Option(Schema.String),
@@ -169,6 +178,15 @@ export const Message = defineMessageUnion({
   ClickedToggleNavSection: { mode: SidebarMode },
   RestoredNavFolded: { folded: Schema.Array(SidebarMode) },
   CompletedSaveNavFolded: {},
+  RestoredRead: {
+    maybeSince: Schema.Option(Schema.Number),
+    ids: Schema.Array(Schema.String),
+  },
+  CompletedSaveRead: {},
+  // `inReplies` opens the message in the Replies panel; otherwise where it was said.
+  ClickedAgentMessage: { id: Schema.String, inReplies: Schema.Boolean },
+  DismissedAgentMessage: { id: Schema.String },
+  SawAgentMessages: { ids: Schema.Array(Schema.String) },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
@@ -271,6 +289,58 @@ const forgetAbout = (model: Model, questions: ReadonlyArray<string>): Model =>
   modifyFields(model, {
     talkAbout: Record.filter(about => !Array.contains(questions, about)),
   })
+
+const markRead = (model: Model, ids: ReadonlyArray<string>): UpdateReturn => {
+  const readIds = Array.dedupe(Array.appendAll(model.readIds, ids))
+  return {
+    model: modifyFields(model, { readIds: () => readIds }),
+    commands: Option.match(
+      Option.all({ grillId: grillIdOf(model), since: model.readSince }),
+      {
+        onNone: () => [],
+        onSome: ({ grillId, since }) => [
+          SaveRead({ grillId, since, ids: readIds }),
+        ],
+      },
+    ),
+  }
+}
+
+/** Opens Talk where an ask was answered: its question unfolded, or the page's own thread. */
+const openAnswer = (
+  model: Model,
+  snapshot: Snapshot,
+  stepId: string,
+): Model => {
+  const grill = snapshot.grill
+  if (stepId.startsWith('part:') || isCardPage(stepId)) {
+    const page = stepId.startsWith('part:') ? stepId.slice(5) : stepId
+    return modifyFields(goTo(model, grill, page), {
+      side: () => 'Talk',
+      talkAbout: Record.set(page, 'concept'),
+      ...(stepId.startsWith('part:')
+        ? { maybeTalkPart: () => Option.some(page) }
+        : {}),
+    })
+  }
+  return Option.match(
+    Array.findFirst(grill.steps, step => step.id === stepId),
+    {
+      onNone: () => modifyFields(model, { side: () => 'Talk' }),
+      onSome: step => {
+        const question = step.question.id
+        const page = pageForQuestion(model, snapshot, question)
+        const moved = goTo(openQuestion(model, snapshot, question), grill, page)
+        return modifyFields(moved, {
+          side: () => 'Talk',
+          whyOpen: Record.set(step.id, true),
+          maybeTalkPart: () => Option.some(step.part),
+          talkAbout: Record.set(talkKeyOf(page, step.part), question),
+        })
+      },
+    },
+  )
+}
 
 /** Open one question; in a long concept, close the others so one is open at a time. */
 const openQuestion = (
@@ -743,6 +813,62 @@ export const update = (model: Model, message: Message) =>
 
     CompletedSaveNavFolded: () => ({ model }),
 
+    RestoredRead: ({ maybeSince, ids }) =>
+      withSnapshot(model, snapshot => {
+        // A first visit counts everything already said as read, so old answers don't pop up.
+        const since = Option.getOrElse(maybeSince, () =>
+          Array.reduce(agentMessagesOf(snapshot), 0, (latest, message) =>
+            Math.max(latest, message.at),
+          ),
+        )
+        return {
+          model: modifyFields(model, {
+            readSince: () => Option.some(since),
+            readIds: () => ids,
+          }),
+          commands: Option.isNone(maybeSince)
+            ? [SaveRead({ grillId: snapshot.grill.id, since, ids })]
+            : [],
+        }
+      }),
+
+    CompletedSaveRead: () => ({ model }),
+
+    DismissedAgentMessage: ({ id }) => markRead(model, [id]),
+
+    SawAgentMessages: ({ ids }) => markRead(model, ids),
+
+    ClickedAgentMessage: ({ id, inReplies }) =>
+      withSnapshot(model, snapshot => {
+        const read = markRead(model, [id])
+        const maybeMessage = Array.findFirst(
+          agentMessagesOf(snapshot),
+          message => message.id === id,
+        )
+        if (
+          inReplies ||
+          Option.isNone(maybeMessage) ||
+          maybeMessage.value.kind === 'reply'
+        ) {
+          return {
+            model: modifyFields(read.model, { side: () => 'Replies' }),
+            commands: [
+              ...(read.commands ?? []),
+              ScrollToAgent({ selector: `#agent-${id}` }),
+            ],
+          }
+        }
+        const next = openAnswer(read.model, snapshot, maybeMessage.value.stepId)
+        return {
+          model: next,
+          commands: [
+            ...(read.commands ?? []),
+            ...pushIfMoved(model, next, snapshot.grill),
+            ScrollToAgent({ selector: `#talk-agent-${id}` }),
+          ],
+        }
+      }),
+
     ClickedToggleShape: () => ({
       model: modifyFields(model, { isShapeOpen: open => !open }),
     }),
@@ -1108,9 +1234,16 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   })
   return {
     model: next,
-    commands: first
-      ? [ReplacePage({ url: pathOfPage(snapshot.grill.id, next.currentPart) })]
-      : [],
+    commands: [
+      ...(first
+        ? [
+            ReplacePage({
+              url: pathOfPage(snapshot.grill.id, next.currentPart),
+            }),
+          ]
+        : []),
+      RestoreRead({ grillId: snapshot.grill.id }),
+    ],
   }
 }
 
@@ -1129,6 +1262,8 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     isConceptMapOpen: false,
     isShapeOpen: false,
     navFolded: [],
+    readSince: Option.none(),
+    readIds: [],
     send: 'Idle',
     isSendOpen: false,
     sendMessage: '',
@@ -1445,6 +1580,87 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
   ),
 })
 
+const readKey = (grillId: string): string => `grill-flow:read:${grillId}`
+
+const SavedRead = Schema.Struct({
+  since: Schema.Number,
+  ids: Schema.Array(Schema.String),
+})
+
+export const SaveRead = Command.define('SaveRead', {
+  args: {
+    grillId: Schema.String,
+    since: Schema.Number,
+    ids: Schema.Array(Schema.String),
+  },
+  messages: [Message.CompletedSaveRead],
+  execute: ({ grillId, since, ids }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(
+          readKey(grillId),
+          JSON.stringify({ since, ids }),
+        )
+      } catch {
+        // Storage can be off; what was read then resets on the reload.
+      }
+      return Message.CompletedSaveRead()
+    }),
+})
+
+export const RestoreRead = Command.define('RestoreRead', {
+  args: { grillId: Schema.String },
+  messages: [Message.RestoredRead],
+  execute: ({ grillId }) =>
+    pipe(
+      Effect.sync(() => {
+        try {
+          return window.localStorage.getItem(readKey(grillId)) ?? 'null'
+        } catch {
+          return 'null'
+        }
+      }),
+      Effect.flatMap(raw => Effect.try((): unknown => JSON.parse(raw))),
+      Effect.flatMap(parsed => Schema.decodeUnknownEffect(SavedRead)(parsed)),
+      Effect.map(saved =>
+        Message.RestoredRead({
+          maybeSince: Option.some(saved.since),
+          ids: saved.ids,
+        }),
+      ),
+      Effect.catch(() =>
+        Effect.succeed(
+          Message.RestoredRead({ maybeSince: Option.none(), ids: [] }),
+        ),
+      ),
+    ),
+})
+
+export const ScrollToAgent = Command.define('ScrollToAgent', {
+  args: { selector: Schema.String },
+  messages: [Message.CompletedScroll],
+  execute: ({ selector }) =>
+    pipe(
+      Dom.scrollIntoViewAfterPaint(selector),
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedScroll()),
+    ),
+})
+
+/** The agent's messages the reader hasn't seen yet; none until the browser's record is read. */
+export const unreadMessagesOf = (model: Model) =>
+  Option.match(
+    Option.all({
+      snapshot: AsyncData.getData(model.page),
+      since: model.readSince,
+    }),
+    {
+      onNone: () => [],
+      onSome: ({ snapshot, since }) =>
+        unreadOf(agentMessagesOf(snapshot), since, model.readIds),
+    },
+  )
+
 const NAV_FOLDED_KEY = 'grill-flow:nav-folded'
 
 export const SaveNavFolded = Command.define('SaveNavFolded', {
@@ -1561,6 +1777,24 @@ const onScreenAbout = (): Option.Option<string> => {
   )
 }
 
+/** Which of these agent messages are on screen, in Talk or in Replies, inside their panel. */
+const onScreenAgent = (ids: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Array.filter(ids, id =>
+    Array.some([`talk-agent-${id}`, `agent-${id}`], elementId => {
+      const element = document.getElementById(elementId)
+      if (element === null) {
+        return false
+      }
+      const box = element.getBoundingClientRect()
+      const frame = (
+        element.closest('.messages, .replies-list') ?? document.body
+      ).getBoundingClientRect()
+      const top = Math.max(box.top, frame.top, 0)
+      const bottom = Math.min(box.bottom, frame.bottom, window.innerHeight)
+      return bottom - top >= Math.min(40, box.height)
+    }),
+  )
+
 const isConceptPage = (page: string): boolean =>
   page !== OVERVIEW &&
   page !== PLAN &&
@@ -1640,6 +1874,32 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
             ),
           ),
           Effect.sync(() => justAnswered !== ''),
+        ),
+    },
+  ),
+  // An unread message on screen at two checks in a row, a second apart, counts as seen.
+  seeAgent: entry(
+    { unread: Schema.String },
+    {
+      modelToDependencies: model => ({
+        unread: Array.join(
+          Array.map(unreadMessagesOf(model), message => message.id),
+          ',',
+        ),
+      }),
+      dependenciesToStream: ({ unread }) =>
+        Stream.when(
+          Stream.tick(Duration.seconds(1)).pipe(
+            Stream.map(() => onScreenAgent(unread.split(','))),
+            Stream.mapAccum(
+              (): ReadonlyArray<string> => [],
+              (before: ReadonlyArray<string>, now: ReadonlyArray<string>) =>
+                [now, [Array.filter(now, id => before.includes(id))]] as const,
+            ),
+            Stream.filter(ids => !Array.isReadonlyArrayEmpty(ids)),
+            Stream.map(ids => Message.SawAgentMessages({ ids })),
+          ),
+          Effect.sync(() => unread !== ''),
         ),
     },
   ),

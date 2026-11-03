@@ -86,6 +86,12 @@ Open: Q10, Q11 (note left on an open question)
 Either form can end with a `Message:` line: what the user added in the send
 dialog about the round as a whole. Weigh it before the next round.
 
+Once you've taken the reply in, tell the user on the page what you decided
+and what comes next: write it to a file and run `gf reply <id> --file <path>`.
+Say per question what you took from it, then the next step, such as the next
+round or the work it starts. The page shows it in the top bar and as a toast,
+and keeps it under Replies.
+
 `Open:` questions stay on the frontier with the same id, as is or reworded.
 A note on an open question is not an answer: weigh it, for example a reason
 to wait or a fact to look up, before asking again. `gf state <id>` prints the

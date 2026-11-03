@@ -8,6 +8,7 @@ import {
   getGrill,
   lastEventId,
   loadGrill,
+  replyToGrill,
   reviseGrill,
   snapshot,
 } from './store'
@@ -192,6 +193,13 @@ const takeRevision = async (
     | Record<string, unknown>
     | undefined
   if (grill === undefined || raw === undefined) {
+    return
+  }
+  if (raw.kind === 'reply') {
+    const replied = replyToGrill(db, grill, String(raw.text ?? ''))
+    if (!replied.ok) {
+      console.error(`remote ${remote.machine}:${path}: ${replied.reason}`)
+    }
     return
   }
   const result = reviseGrill(db, grill, {

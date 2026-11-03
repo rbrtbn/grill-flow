@@ -386,6 +386,14 @@ export const Revision = Schema.Struct({
 })
 export type Revision = typeof Revision.Type
 
+/** What the agent wrote back after a Send: what it took in, decided, and does next. */
+export const AgentReply = Schema.Struct({
+  id: Schema.Number,
+  text: Schema.String,
+  at: Schema.Number,
+})
+export type AgentReply = typeof AgentReply.Type
+
 export const Send = Schema.Struct({
   at: Schema.Number,
   ok: Schema.Boolean,
@@ -404,8 +412,78 @@ export const Snapshot = Schema.Struct({
   // The reply line each question last went out with, so Send leaves out what the agent has. A
   // server from before it was kept sends none.
   sent: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+  // Missing from a server that predates `gf reply`.
+  replies: Schema.optionalKey(Schema.Array(AgentReply)),
 })
 export type Snapshot = typeof Snapshot.Type
+
+/**
+ * Everything the agent has said to the user, oldest first: its replies to a Send, and its
+ * answers to asks (a comment, or a rewrite of a step's reasoning). Ids are unique across both.
+ */
+export type AgentMessage = Readonly<{
+  id: string
+  at: number
+  kind: 'reply' | 'answer'
+  // The answered ask's target: a step, `part:<id>` or `card:<card>`; empty for a reply.
+  stepId: string
+  text: string
+}>
+
+export const agentMessagesOf = (
+  snapshot: Snapshot,
+): ReadonlyArray<AgentMessage> => {
+  const replies: ReadonlyArray<AgentMessage> = Array.map(
+    snapshot.replies ?? [],
+    (reply): AgentMessage => ({
+      id: `reply-${reply.id}`,
+      at: reply.at,
+      kind: 'reply',
+      stepId: '',
+      text: reply.text,
+    }),
+  )
+  const answers: ReadonlyArray<AgentMessage> = Array.flatMap(
+    snapshot.revisions,
+    (revision): ReadonlyArray<AgentMessage> =>
+      revision.askId === null
+        ? []
+        : [
+            {
+              id: `answer-${revision.id}`,
+              at: revision.at,
+              kind: 'answer',
+              stepId: revision.stepId,
+              text:
+                revision.kind === 'rewrite'
+                  ? 'I rewrote the reasoning on your ask.'
+                  : revision.text,
+            },
+          ],
+  )
+  return Array.sort(
+    [...replies, ...answers],
+    Order.mapInput(Order.Number, (message: AgentMessage) => message.at),
+  )
+}
+
+/** What the reader hasn't seen: newer than where their reading started, and not yet read. */
+export const unreadOf = (
+  messages: ReadonlyArray<AgentMessage>,
+  since: number,
+  read: ReadonlyArray<string>,
+): ReadonlyArray<AgentMessage> =>
+  Array.filter(
+    messages,
+    message => message.at > since && !read.includes(message.id),
+  )
+
+/** A message's first line as plain text, for a one-line preview. */
+export const previewOf = (text: string): string =>
+  (text.split('\n').find(line => line.trim() !== '') ?? '')
+    .replace(/[*_`#>]/g, '')
+    .replace(/^\s*-\s+/, '')
+    .trim()
 
 export type Answers = Readonly<Record<string, string>>
 

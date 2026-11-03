@@ -10,6 +10,7 @@ import {
   getGrill,
   loadGrill,
   open,
+  replyToGrill,
   reviseGrill,
   snapshot,
 } from './store'
@@ -24,12 +25,14 @@ const usage = `gf: grill-flow's agent-side commands
   gf revise <grill-id> <step-id | part:<part-id> | card:<card>> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
                                        or reply with a comment; a concept takes comments only
+  gf reply <grill-id> --file <path>    after a Send arrives: tell the user what you decided and
+                                       what comes next; the page shows it as your reply
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
   gf wait <grill-id> [--since <id>]    wait for new asks or a sent reply, print them, exit
   gf remote add <machine> <outbox>     pull grills an agent on that machine writes to its outbox
   gf remote ls | rm <machine>          list or drop the outboxes this server pulls
 
-  With GF_OUTBOX=<folder>, load, revise, state, events and wait work on that folder instead,
+  With GF_OUTBOX=<folder>, load, revise, reply, state, events and wait work on that folder instead,
   for an agent on a machine whose grills a server elsewhere pulls (gf remote add there).`
 
 const flag = (
@@ -127,6 +130,22 @@ switch (command) {
       console.log('\nAsks waiting for an answer:')
       waiting.forEach(ask =>
         console.log(`  ask ${ask.id} on ${ask.stepId}: ${ask.text}`),
+      )
+    }
+    break
+  }
+  case 'reply': {
+    const grill = requireGrill(args[0])
+    const result = replyToGrill(
+      db,
+      grill,
+      readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
+    )
+    if (!result.ok) {
+      fail(result.reason)
+    } else {
+      console.log(
+        `reply ${result.id} on ${grill.id}; the open page shows it within a few seconds`,
       )
     }
     break

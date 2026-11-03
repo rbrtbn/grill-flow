@@ -147,6 +147,27 @@ export const runOutbox = async (
       )
       break
     }
+    case 'reply': {
+      const grill = grillOf(args[0])
+      const text = readFileSync(
+        flag(args, '--file') ?? fail(usage),
+        'utf8',
+      ).trim()
+      if (text === '') {
+        fail('the reply is empty')
+      }
+      // A reply rides with the revisions; the server tells them apart by kind (server/remote.ts).
+      const name = `${Date.now()}-${process.pid}.json`
+      mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
+      writeAtomic(
+        join(folder(grill.id), 'revisions', name),
+        `${JSON.stringify({ kind: 'reply', text })}\n`,
+      )
+      console.log(
+        `wrote your reply as revisions/${name}; the open page shows it within a few seconds`,
+      )
+      break
+    }
     case 'state': {
       const grill = grillOf(args[0])
       const state = stateOf(args[0])

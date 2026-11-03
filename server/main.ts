@@ -239,7 +239,14 @@ const handleSend = async (
     state.own,
     state.sent,
   )
-  const text = `[grill-flow] Answers from the ${grill.title} page:\n${reply}${message === '' ? '' : `\nMessage: ${message}`}`
+  const gf = gfFor(grillId) ?? `bun run --cwd ${ROOT} gf`
+  const text = [
+    `[grill-flow] Answers from the ${grill.title} page:`,
+    reply,
+    ...(message === '' ? [] : [`Message: ${message}`]),
+    `Once you've taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run`,
+    `${gf} reply ${grill.id} --file <path>`,
+  ].join('\n')
   const result = await sendToSession(sessionFor(grill.session), text)
   appendEvent(db, grillId, 'sent', {
     ...result,

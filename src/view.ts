@@ -24,8 +24,11 @@ import {
   type Step,
   type UrgencyLevel,
   URGENCY_ORDER,
+  type AgentMessage,
+  agentMessagesOf,
   blockOf,
   diffBlocks,
+  previewOf,
   mentionsOf,
   proseOf,
   relationsOf,
@@ -67,6 +70,7 @@ import {
   pageQuestions,
   talkKeyOf,
   threadDraftKey,
+  unreadMessagesOf,
 } from './main'
 
 type H = HtmlBuilder<MessageType>
@@ -659,10 +663,13 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
         ? Option.map(talkPartOf(model, grill), part =>
             talkView(model, snapshot, part, h),
           )
-        : Option.none()
+        : model.side === 'Replies'
+          ? Option.some(repliesView(model, snapshot, h))
+          : Option.none()
   return h.div(
     [h.Class('app')],
     [
+      toastsView(model, snapshot, h),
       topbarView(model, snapshot, maybePart, talkPartOf(model, grill), h),
       h.div(
         [h.Class(`frame${Option.isSome(side) ? ' with-side' : ''}`)],
@@ -844,11 +851,13 @@ const sideSwitchView = (
   maybeTalkPart: Option.Option<Part>,
   h: H,
 ): Html => {
+  const unread = unreadMessagesOf(model).length
   const choice = (
-    side: 'Talk' | 'Map',
+    side: 'Talk' | 'Map' | 'Replies',
     label: string,
     isAvailable: boolean,
     title: string,
+    badge: Html = h.empty,
   ) =>
     h.button(
       [
@@ -860,7 +869,7 @@ const sideSwitchView = (
         h.Title(title),
         h.OnClick(Message.ClickedSide({ side })),
       ],
-      [label],
+      [label, badge],
     )
   return h.div(
     [h.Class('side-switch'), h.Role('group'), h.AriaLabel('Right sidebar')],
@@ -878,6 +887,18 @@ const sideSwitchView = (
         'Map',
         true,
         'Show the map of all questions in the sidebar',
+      ),
+      choice(
+        'Replies',
+        'Replies',
+        true,
+        'Everything the agent has said to you',
+        unread === 0
+          ? h.empty
+          : h.span(
+              [h.Class('unread-count'), h.AriaLabel(`${unread} unread`)],
+              [String(unread)],
+            ),
       ),
     ],
   )
@@ -929,6 +950,7 @@ const topbarView = (
                 ],
                 [Option.getOrElse(status, () => '')],
               ),
+              agentLineView(model, snapshot, h),
             ],
           ),
           h.div(
@@ -1919,43 +1941,6 @@ const conceptView = (
           ),
       h.h1([h.Class('concept-title')], [part.title]),
       h.p([h.Class('concept-def')], inline(part.summary, grill, h)),
-      h.section(
-        [
-          h.Class(
-            `concept-map${model.isConceptMapOpen ? ' is-open' : ' is-folded'}`,
-          ),
-        ],
-        [
-          h.button(
-            [
-              h.Class('fold-toggle'),
-              h.AriaExpanded(model.isConceptMapOpen),
-              h.OnClick(Message.ClickedToggleConceptMap()),
-            ],
-            ['This concept on the map'],
-          ),
-          ...(model.isConceptMapOpen
-            ? [
-                h.p(
-                  [h.Class('hint')],
-                  [
-                    'What it builds on and what it feeds. Hover a question to see its links.',
-                  ],
-                ),
-                mapView(
-                  model,
-                  snapshot,
-                  {
-                    orientation: 'Rows',
-                    maybeFocus: Option.some(part.id),
-                    maybeCurrent: Option.none(),
-                  },
-                  h,
-                ),
-              ]
-            : []),
-        ],
-      ),
       h.div(
         [h.Class(`shape${model.isShapeOpen ? ' is-open' : ''}`)],
         [
@@ -2000,6 +1985,43 @@ const conceptView = (
                 ),
               )
             : h.empty,
+          h.section(
+            [
+              h.Class(
+                `concept-map${model.isConceptMapOpen ? ' is-open' : ' is-folded'}`,
+              ),
+            ],
+            [
+              h.button(
+                [
+                  h.Class('fold-toggle'),
+                  h.AriaExpanded(model.isConceptMapOpen),
+                  h.OnClick(Message.ClickedToggleConceptMap()),
+                ],
+                ['This concept on the map'],
+              ),
+              ...(model.isConceptMapOpen
+                ? [
+                    h.p(
+                      [h.Class('hint')],
+                      [
+                        'What it builds on and what it feeds. Hover a question to see its links.',
+                      ],
+                    ),
+                    mapView(
+                      model,
+                      snapshot,
+                      {
+                        orientation: 'Rows',
+                        maybeFocus: Option.some(part.id),
+                        maybeCurrent: Option.none(),
+                      },
+                      h,
+                    ),
+                  ]
+                : []),
+            ],
+          ),
         ],
       ),
       h.div(
@@ -2546,12 +2568,245 @@ const diffBlockView = (block: DiffBlock, grill: Grill, h: H): Html =>
         ],
       )
 
+// FROM THE AGENT
+
+/** Where an agent message was said, as a short label: a Send reply, or the ask it answers. */
+const agentWhere = (grill: Grill, message: AgentMessage): string =>
+  message.kind === 'reply'
+    ? 'Reply to your answers'
+    : message.stepId.startsWith('part:')
+      ? `Talk · ${Option.getOrElse(
+          Option.map(
+            Array.findFirst(
+              grill.parts,
+              part => `part:${part.id}` === message.stepId,
+            ),
+            part => part.title,
+          ),
+          () => 'the whole concept',
+        )}`
+      : message.stepId.startsWith(CARD_PAGE)
+        ? `Talk · ${cardName(grill, message.stepId.slice(CARD_PAGE.length))}`
+        : `Talk · ${Option.getOrElse(
+            Option.map(
+              Array.findFirst(grill.steps, step => step.id === message.stepId),
+              step => step.question.id,
+            ),
+            () => message.stepId,
+          )}`
+
+// Toasts stay until clicked, dismissed, or their message is seen where it was said.
+const TOASTS_SHOWN = 3
+
+const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const unread = unreadMessagesOf(model)
+  const shown = Array.reverse(Array.takeRight(unread, TOASTS_SHOWN))
+  return Array.isReadonlyArrayEmpty(shown)
+    ? h.empty
+    : h.div(
+        [h.Class('toasts'), h.AriaLive('polite')],
+        [
+          ...Array.map(shown, message =>
+            h.keyed('div')(
+              message.id,
+              [h.Class(`toast is-${message.kind}`)],
+              [
+                h.button(
+                  [
+                    h.Class('toast-open'),
+                    h.OnClick(
+                      Message.ClickedAgentMessage({
+                        id: message.id,
+                        inReplies: false,
+                      }),
+                    ),
+                  ],
+                  [
+                    h.span(
+                      [h.Class('toast-who')],
+                      [agentWhere(snapshot.grill, message)],
+                    ),
+                    h.span([h.Class('toast-text')], [previewOf(message.text)]),
+                    h.span(
+                      [h.Class('toast-go')],
+                      [
+                        message.kind === 'reply'
+                          ? 'Read what it decided'
+                          : 'Go to the answer',
+                      ],
+                    ),
+                  ],
+                ),
+                h.button(
+                  [
+                    h.Class('toast-close'),
+                    h.AriaLabel('Dismiss'),
+                    h.OnClick(
+                      Message.DismissedAgentMessage({ id: message.id }),
+                    ),
+                  ],
+                  ['×'],
+                ),
+              ],
+            ),
+          ),
+          unread.length > TOASTS_SHOWN
+            ? h.button(
+                [
+                  h.Class('toast-more'),
+                  h.OnClick(Message.ClickedSide({ side: 'Replies' })),
+                ],
+                [`${unread.length - TOASTS_SHOWN} more in Replies`],
+              )
+            : h.empty,
+        ],
+      )
+}
+
+/** The agent's newest message as one line in the top bar; it opens in Replies. */
+const agentLineView = (model: Model, snapshot: Snapshot, h: H): Html =>
+  Option.match(Array.last(agentMessagesOf(snapshot)), {
+    onNone: () => h.empty,
+    onSome: latest => {
+      const isUnread = unreadMessagesOf(model).some(
+        message => message.id === latest.id,
+      )
+      return h.button(
+        [
+          h.Class(`agent-line${isUnread ? ' is-unread' : ''}`),
+          h.Title(`${agentWhere(snapshot.grill, latest)}: open in Replies`),
+          h.OnClick(
+            Message.ClickedAgentMessage({ id: latest.id, inReplies: true }),
+          ),
+        ],
+        [
+          h.span([h.Class('agent-line-dot'), h.AriaHidden(true)]),
+          h.span(
+            [h.Class('agent-line-text')],
+            [
+              h.b(
+                [],
+                [
+                  snapshot.grill.session === ''
+                    ? 'Agent'
+                    : snapshot.grill.session,
+                ],
+              ),
+              `: ${previewOf(latest.text)}`,
+            ],
+          ),
+        ],
+      )
+    },
+  })
+
+/** Every message from the agent, newest first, each opening where it was said. */
+const repliesView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const grill = snapshot.grill
+  const unread = new Set(
+    Array.map(unreadMessagesOf(model), message => message.id),
+  )
+  const messages = Array.reverse(agentMessagesOf(snapshot))
+  return h.aside(
+    [h.Class('side replies'), h.AriaLabel('Messages from the agent')],
+    [
+      h.header(
+        [h.Class('side-head')],
+        [
+          h.div(
+            [],
+            [
+              h.p(
+                [h.Class('label')],
+                [
+                  grill.session === ''
+                    ? 'From the agent'
+                    : `From the agent in ${grill.session}`,
+                ],
+              ),
+              h.h2([], ['Replies']),
+            ],
+          ),
+          h.button(
+            [
+              h.Class('text-button'),
+              h.OnClick(Message.ClickedSide({ side: 'None' })),
+            ],
+            ['Close'],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('replies-list')],
+        Array.match(messages, {
+          onEmpty: () => [
+            h.p(
+              [h.Class('hint')],
+              [
+                'Nothing from the agent yet. Its reply to your answers and its answers in Talk land here.',
+              ],
+            ),
+          ],
+          onNonEmpty: all =>
+            Array.map(all, message =>
+              h.keyed('article')(
+                message.id,
+                [
+                  h.Id(`agent-${message.id}`),
+                  h.Class(
+                    `reply-entry is-${message.kind}${unread.has(message.id) ? ' is-unread' : ''}`,
+                  ),
+                ],
+                [
+                  h.p(
+                    [h.Class('reply-where')],
+                    [
+                      agentWhere(grill, message),
+                      ' · ',
+                      new Date(message.at).toLocaleString('en-GB', {
+                        weekday: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                    ],
+                  ),
+                  h.div(
+                    [h.Class('message-body')],
+                    Array.map(splitParagraphs(message.text), paragraph =>
+                      paragraphView(paragraph, grill, h),
+                    ),
+                  ),
+                  message.kind === 'answer'
+                    ? h.button(
+                        [
+                          h.Class('text-button'),
+                          h.OnClick(
+                            Message.ClickedAgentMessage({
+                              id: message.id,
+                              inReplies: false,
+                            }),
+                          ),
+                        ],
+                        ['Go to it in Talk'],
+                      )
+                    : h.empty,
+                ],
+              ),
+            ),
+        }),
+      ),
+    ],
+  )
+}
+
 // CONVERSATION
 
 type Said = Readonly<{
   at: number
   who: 'you' | 'agent'
   body: ReadonlyArray<Html | string>
+  // An agent answer's element id, which toasts and the seen check find it by; '' otherwise.
+  id: string
 }>
 
 const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
@@ -2570,6 +2825,7 @@ const saidOn = (
     const mine: Said = {
       at: ask.at,
       who: 'you',
+      id: '',
       body: [h.p([], inline(ask.text, grill, h))],
     }
     const replies = Array.filter(
@@ -2582,6 +2838,7 @@ const saidOn = (
         {
           at: ask.at + 1,
           who: 'agent',
+          id: '',
           body: [h.p([], [h.em([], ['Working on it…'])])],
         },
       ]
@@ -2591,6 +2848,7 @@ const saidOn = (
       ...Array.map(replies, (reply): Said => ({
         at: reply.at,
         who: 'agent',
+        id: `talk-agent-answer-${reply.id}`,
         body:
           reply.kind === 'rewrite'
             ? [
@@ -2624,7 +2882,10 @@ const saidOn = (
 
 const saidView = (message: Said, h: H): Html =>
   h.div(
-    [h.Class(`message from-${message.who}`)],
+    [
+      h.Class(`message from-${message.who}`),
+      ...(message.id === '' ? [] : [h.Id(message.id)]),
+    ],
     [
       h.p([h.Class('message-who')], [message.who === 'you' ? 'You' : 'Agent']),
       h.div([h.Class('message-body')], message.body),
