@@ -71,6 +71,7 @@ import {
   pageQuestions,
   sidebarModeOf,
   talkKeyOf,
+  threadDraftKey,
 } from './main'
 
 type H = HtmlBuilder<MessageType>
@@ -2650,15 +2651,55 @@ const whyMessage = (
             : h.p([h.Class('why-folded')], [step.question.title]),
         ],
       ),
-      open && !Array.isReadonlyArrayEmpty(said)
+      open
         ? h.div(
             [h.Class('replies')],
-            Array.map(said, message => saidView(message, h)),
+            [
+              ...Array.map(said, message => saidView(message, h)),
+              threadBox(model, step, h),
+            ],
           )
         : h.empty,
     ],
   )
 }
+
+/** A small box under a question's reasoning, for asking about that question in place. */
+const threadBox = (model: Model, step: Step, h: H): Html =>
+  h.form(
+    [
+      h.Class('thread-box'),
+      h.OnSubmit(Message.SubmittedThread({ stepId: step.id })),
+    ],
+    [
+      h.keyed('textarea')(`thread-${step.id}-${model.talkGeneration}`, [
+        h.Id(`thread-box-${step.id}`),
+        h.Rows(1),
+        h.OnMount(
+          FillBox({
+            text: Option.getOrElse(
+              Record.get(model.talkDrafts, threadDraftKey(step.id)),
+              () => '',
+            ),
+          }),
+        ),
+        h.AriaLabel(`Message to the agent about ${step.question.id}`),
+        h.Placeholder(`Ask about ${step.question.id}`),
+        h.OnInput(value =>
+          Message.UpdatedTalkDraft({
+            partId: threadDraftKey(step.id),
+            value,
+          }),
+        ),
+        h.OnKeyDownPreventDefault((pressed, { shiftKey }) =>
+          pressed === 'Enter' && !shiftKey
+            ? Option.some(Message.SubmittedThread({ stepId: step.id }))
+            : Option.none(),
+        ),
+      ]),
+      h.button([h.Type('submit'), h.Class('quiet-button')], ['Send']),
+    ],
+  )
 
 const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
   const grill = snapshot.grill

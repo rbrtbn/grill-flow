@@ -175,6 +175,8 @@ export const Message = defineMessageUnion({
     about: Schema.String,
     text: Schema.String,
   },
+  SubmittedThread: { stepId: Schema.String },
+  ReadThreadBox: { stepId: Schema.String, text: Schema.String },
   ReadSendBox: { text: Schema.String },
   ScrolledToAbout: { partId: Schema.String, about: Schema.String },
   ScrolledToQuestion: { question: Schema.String },
@@ -541,9 +543,31 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedToggleWhy: ({ stepId, open }) => ({
-      model: modifyFields(model, { whyOpen: Record.set(stepId, open) }),
-    }),
+    // Unfolding a question's reasoning in Talk also brings that question up on the page.
+    ClickedToggleWhy: ({ stepId, open }) =>
+      withSnapshot(model, snapshot => {
+        const folded = modifyFields(model, {
+          whyOpen: Record.set(stepId, open),
+        })
+        const maybeStep = Array.findFirst(
+          snapshot.grill.steps,
+          step => step.id === stepId,
+        )
+        if (!open || Option.isNone(maybeStep)) {
+          return { model: folded }
+        }
+        const step = maybeStep.value
+        const question = step.question.id
+        return {
+          model: modifyFields(openQuestion(folded, snapshot, question), {
+            talkAbout: Record.set(
+              talkKeyOf(model.currentPart, step.part),
+              question,
+            ),
+          }),
+          commands: [ScrollToQuestion({ question })],
+        }
+      }),
 
     ClickedWhy: ({ partId, question }) =>
       withSnapshot(model, snapshot => {
@@ -716,6 +740,24 @@ export const update = (model: Model, message: Message) =>
         maybeTalkPart: () => Option.some(partId),
       }),
     }),
+
+    SubmittedThread: ({ stepId }) => ({
+      model,
+      commands: [ReadThreadBox({ stepId })],
+    }),
+
+    ReadThreadBox: ({ stepId, text: boxText }) => {
+      const text = boxText.trim()
+      return text === ''
+        ? { model }
+        : postEvent(
+            modifyFields(model, {
+              talkDrafts: Record.remove(threadDraftKey(stepId)),
+              talkGeneration: generation => generation + 1,
+            }),
+            { kind: 'asked', stepId, text },
+          )
+    },
 
     UpdatedTalkDraft: ({ partId, value }) => ({
       model: modifyFields(model, { talkDrafts: Record.set(partId, value) }),
@@ -1270,6 +1312,18 @@ const boxText = (id: string): string => {
   const element = document.getElementById(id)
   return element instanceof HTMLTextAreaElement ? element.value : ''
 }
+
+/** Where a question's own reply box keeps its draft, beside the Talk keys. */
+export const threadDraftKey = (stepId: string): string => `ask:${stepId}`
+
+export const ReadThreadBox = Command.define('ReadThreadBox', {
+  args: { stepId: Schema.String },
+  messages: [Message.ReadThreadBox],
+  execute: ({ stepId }) =>
+    Effect.sync(() =>
+      Message.ReadThreadBox({ stepId, text: boxText(`thread-box-${stepId}`) }),
+    ),
+})
 
 export const ReadTalkBoxCommand = Command.define('ReadTalkBox', {
   args: { partId: Schema.String, about: Schema.String },
