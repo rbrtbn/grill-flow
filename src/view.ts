@@ -1157,16 +1157,28 @@ const navView = (model: Model, grill: Grill, h: H): Html => {
               [statusSummary(grill, grill.plan, model)],
             ),
           ]),
-      ...Array.flatMap(modes, mode => [
-        h.p([h.Class('nav-section label')], [labels[mode]]),
-        ...(mode === 'Urgency'
-          ? urgencyItems()
-          : mode === 'Issues'
-            ? issueItems()
-            : mode === 'Cards'
-              ? cardItems()
-              : conceptItems()),
-      ]),
+      ...Array.flatMap(modes, mode => {
+        const isFolded = Array.contains(model.navFolded, mode)
+        return [
+          h.button(
+            [
+              h.Class(`nav-section${isFolded ? '' : ' is-open'}`),
+              h.AriaExpanded(!isFolded),
+              h.OnClick(Message.ClickedToggleNavSection({ mode })),
+            ],
+            [h.span([h.Class('label')], [labels[mode]])],
+          ),
+          ...(isFolded
+            ? []
+            : mode === 'Urgency'
+              ? urgencyItems()
+              : mode === 'Issues'
+                ? issueItems()
+                : mode === 'Cards'
+                  ? cardItems()
+                  : conceptItems()),
+        ]
+      }),
       hasUrgency || grill.decided !== undefined
         ? item(DECIDED, [
             h.span([h.Class('concept-name')], ['Decided so far']),

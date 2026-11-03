@@ -1687,11 +1687,35 @@ button.plan-title:hover {
 }
 
 /* Sidebar sections: the grill's own pages, then the question lists, then what's decided. */
-/* Each list's heading in the left sidebar, which stacks them all. */
+/* Each list's heading in the left sidebar, which stacks them all; it folds its list. */
 .nav-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   margin: 12px 0 2px;
   padding: 14px 12px 4px;
+  background: none;
+  border: 0;
   border-top: 1px solid var(--rule);
+  text-align: left;
+  color: var(--muted);
+  cursor: pointer;
+}
+.nav-section::before {
+  content: '';
+  width: 0.38em;
+  height: 0.38em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms;
+}
+.nav-section.is-open::before {
+  transform: rotate(45deg);
+}
+.nav-section:hover {
+  color: var(--ink);
 }
 .back-link {
   justify-self: start;

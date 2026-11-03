@@ -113,6 +113,8 @@ export const Model = Schema.Struct({
   isConceptMapOpen: Schema.Boolean,
   // A concept page's list of its questions and answers so far; folded the same way.
   isShapeOpen: Schema.Boolean,
+  // Left sidebar lists the reader folded; kept in the browser, the same for every grill.
+  navFolded: Schema.Array(SidebarMode),
   maybeJustAnswered: Schema.Option(Schema.String),
   // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
   maybeTalkPart: Schema.Option(Schema.String),
@@ -164,6 +166,9 @@ export const Message = defineMessageUnion({
   ClickedSide: { side: Side },
   ClickedToggleConceptMap: {},
   ClickedToggleShape: {},
+  ClickedToggleNavSection: { mode: SidebarMode },
+  RestoredNavFolded: { folded: Schema.Array(SidebarMode) },
+  CompletedSaveNavFolded: {},
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
@@ -722,6 +727,22 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { isConceptMapOpen: open => !open }),
     }),
 
+    ClickedToggleNavSection: ({ mode }) => {
+      const folded = Array.contains(model.navFolded, mode)
+        ? Array.filter(model.navFolded, other => other !== mode)
+        : Array.append(model.navFolded, mode)
+      return {
+        model: modifyFields(model, { navFolded: () => folded }),
+        commands: [SaveNavFolded({ folded })],
+      }
+    },
+
+    RestoredNavFolded: ({ folded }) => ({
+      model: modifyFields(model, { navFolded: () => folded }),
+    }),
+
+    CompletedSaveNavFolded: () => ({ model }),
+
     ClickedToggleShape: () => ({
       model: modifyFields(model, { isShapeOpen: open => !open }),
     }),
@@ -1107,6 +1128,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     whyOpen: {},
     isConceptMapOpen: false,
     isShapeOpen: false,
+    navFolded: [],
     send: 'Idle',
     isSendOpen: false,
     sendMessage: '',
@@ -1126,7 +1148,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeTalkPart: Option.none(),
     maybeJustAnswered: Option.none(),
   },
-  commands: [LoadGrill(), CheckBuild(), RestoreDrafts()],
+  commands: [LoadGrill(), CheckBuild(), RestoreDrafts(), RestoreNavFolded()],
 })
 
 // COMMAND
@@ -1420,6 +1442,41 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
       }),
     ),
     Effect.map(drafts => Message.CompletedRestoreDrafts(drafts)),
+  ),
+})
+
+const NAV_FOLDED_KEY = 'grill-flow:nav-folded'
+
+export const SaveNavFolded = Command.define('SaveNavFolded', {
+  args: { folded: Schema.Array(SidebarMode) },
+  messages: [Message.CompletedSaveNavFolded],
+  execute: ({ folded }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(NAV_FOLDED_KEY, JSON.stringify(folded))
+      } catch {
+        // Storage can be off; the folds then last until the reload.
+      }
+      return Message.CompletedSaveNavFolded()
+    }),
+})
+
+export const RestoreNavFolded = Command.define('RestoreNavFolded', {
+  messages: [Message.RestoredNavFolded],
+  execute: pipe(
+    Effect.sync(() => {
+      try {
+        return window.localStorage.getItem(NAV_FOLDED_KEY) ?? '[]'
+      } catch {
+        return '[]'
+      }
+    }),
+    Effect.flatMap(raw => Effect.try((): unknown => JSON.parse(raw))),
+    Effect.flatMap(parsed =>
+      Schema.decodeUnknownEffect(Schema.Array(SidebarMode))(parsed),
+    ),
+    Effect.catch(() => Effect.succeed([])),
+    Effect.map(folded => Message.RestoredNavFolded({ folded })),
   ),
 })
 
