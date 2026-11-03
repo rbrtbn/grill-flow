@@ -149,7 +149,8 @@ export const Message = defineMessageUnion({
   ClickedCopy: {},
   CompletedCopyReply: { copied: Schema.Boolean },
   ClickedToggleDiff: { stepId: Schema.String },
-  ClickedToggleWhy: { stepId: Schema.String },
+  ClickedToggleWhy: { stepId: Schema.String, open: Schema.Boolean },
+  ClickedWhy: { partId: Schema.String, question: Schema.String },
   ClickedConcept: { partId: Schema.String },
   ClickedBack: {},
   ChangedUrl: { url: Url.Url },
@@ -508,14 +509,26 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedToggleWhy: ({ stepId }) => ({
-      model: modifyFields(model, {
-        whyOpen: Record.set(
-          stepId,
-          !Option.getOrElse(Record.get(model.whyOpen, stepId), () => false),
-        ),
-      }),
+    ClickedToggleWhy: ({ stepId, open }) => ({
+      model: modifyFields(model, { whyOpen: Record.set(stepId, open) }),
     }),
+
+    ClickedWhy: ({ partId, question }) =>
+      withSnapshot(model, snapshot => {
+        const stepId = Option.getOrElse(
+          stepIdOf(snapshot, question),
+          () => question,
+        )
+        return {
+          model: modifyFields(model, {
+            side: () => 'Talk',
+            talkAbout: Record.set(partId, question),
+            maybeTalkPart: () => Option.some(partId),
+            whyOpen: Record.set(stepId, true),
+          }),
+          commands: [ScrollToWhy({ stepId })],
+        }
+      }),
 
     ClickedConcept: ({ partId }) =>
       withSnapshot(model, snapshot => {
@@ -724,6 +737,7 @@ export const update = (model: Model, message: Message) =>
             pageForQuestion(model, snapshot, question),
           ),
           {
+            side: () => 'Talk',
             diffShown: Record.set(stepId, true),
             whyOpen: Record.set(stepId, true),
           },
@@ -732,7 +746,7 @@ export const update = (model: Model, message: Message) =>
           model: next,
           commands: [
             ...pushIfMoved(model, next, snapshot.grill),
-            ScrollToQuestion({ question }),
+            ScrollToWhy({ stepId }),
           ],
         }
       }),
@@ -1150,6 +1164,29 @@ export const ScrollToQuestion = Command.define('ScrollToQuestion', {
       Effect.map(() => Message.CompletedScroll()),
     ),
 })
+
+export const ScrollToWhy = Command.define('ScrollToWhy', {
+  args: { stepId: Schema.String },
+  messages: [Message.CompletedScroll],
+  execute: ({ stepId }) =>
+    pipe(
+      Dom.scrollIntoViewAfterPaint(`#why-${stepId}`),
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedScroll()),
+    ),
+})
+
+/**
+ * Whether Talk shows a question's reasoning unfolded: as the reader set it, otherwise when
+ * Talk is about that question or the panel has no other.
+ */
+export const isWhyOpen = (
+  whyOpen: Readonly<Record<string, boolean>>,
+  stepId: string,
+  isAbout: boolean,
+  isOnly: boolean,
+): boolean =>
+  Option.getOrElse(Record.get(whyOpen, stepId), () => isAbout || isOnly)
 
 export const ScrollToTop = Command.define('ScrollToTop', {
   messages: [Message.CompletedScroll],

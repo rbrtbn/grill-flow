@@ -787,9 +787,20 @@ button {
 .peek-answer b {
   color: var(--link);
 }
-.why {
-  display: grid;
-  gap: 12px;
+.why-link {
+  justify-self: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: 600 0.92rem var(--label);
+  color: var(--link);
+  cursor: pointer;
+}
+.why-link::after {
+  content: ' \2192';
+}
+.why-message {
+  scroll-margin: 16px;
 }
 .why-toggle {
   justify-self: start;
@@ -799,9 +810,10 @@ button {
   background: none;
   border: 0;
   padding: 0;
-  font: 600 0.92rem var(--label);
-  color: var(--link);
+  font: 600 0.78rem var(--label);
+  color: var(--muted);
   cursor: pointer;
+  text-align: left;
 }
 .why-toggle::before {
   content: '';
@@ -812,8 +824,12 @@ button {
   transform: rotate(-45deg);
   transition: transform 120ms;
 }
-.why.is-open .why-toggle::before {
+.why-message.is-open .why-toggle::before {
   transform: rotate(45deg);
+}
+.why-folded {
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 .status-line {
   font: 500 0.92rem var(--label);

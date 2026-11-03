@@ -64,6 +64,7 @@ import {
   OVERVIEW,
   PLAN,
   URGENCY_PAGE,
+  isWhyOpen,
   modesOf,
   pageQuestions,
   sidebarModeOf,
@@ -2068,7 +2069,7 @@ const questionBodyView = (
           )
         : h.empty,
       outsideView(model, snapshot, step, h),
-      whyView(model, snapshot, step, h),
+      whyLink(step, h),
       statusLine(model, grill, step, status, h),
       h.div(
         [h.Class('ask-block')],
@@ -2272,31 +2273,17 @@ const outsideView = (
   })
 }
 
-// Controlled, not a native <details>: every redraw sets the element from the Model, so a toggle
-// the Model didn't record would be undone by the next poll.
-const whyView = (model: Model, snapshot: Snapshot, step: Step, h: H): Html => {
-  const open = Option.getOrElse(Record.get(model.whyOpen, step.id), () => false)
-  return h.div(
-    [h.Class(`why${open ? ' is-open' : ''}`)],
+const whyLink = (step: Step, h: H): Html =>
+  h.button(
     [
-      h.button(
-        [
-          h.Class('why-toggle'),
-          h.AriaExpanded(open),
-          h.AriaControls(`why-${step.id}`),
-          h.OnClick(Message.ClickedToggleWhy({ stepId: step.id })),
-        ],
-        ["Why we're asking"],
+      h.Class('why-link'),
+      h.Title('Opens the reasoning in Talk'),
+      h.OnClick(
+        Message.ClickedWhy({ partId: step.part, question: step.question.id }),
       ),
-      open
-        ? h.div(
-            [h.Id(`why-${step.id}`), h.Class('why-body')],
-            [reasoningView(model, snapshot, step, h)],
-          )
-        : h.empty,
     ],
+    ["Why we're asking"],
   )
-}
 
 const peekView = (model: Model, grill: Grill, step: Step, h: H): Html =>
   h.div(
@@ -2549,6 +2536,37 @@ type Said = Readonly<{
 const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
   a.at < b.at ? -1 : a.at > b.at ? 1 : 0
 
+// The thread opens with each question's reasoning, one at a time unfolded (isWhyOpen).
+const whyMessage = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  open: boolean,
+  h: H,
+): Html =>
+  h.div(
+    [
+      h.Id(`why-${step.id}`),
+      h.Class(`message from-agent why-message${open ? ' is-open' : ''}`),
+    ],
+    [
+      h.button(
+        [
+          h.Class('why-toggle'),
+          h.AriaExpanded(open),
+          h.OnClick(Message.ClickedToggleWhy({ stepId: step.id, open: !open })),
+        ],
+        [`Agent · why we're asking ${step.question.id}`],
+      ),
+      open
+        ? h.div(
+            [h.Class('message-body')],
+            [reasoningView(model, snapshot, step, h)],
+          )
+        : h.p([h.Class('why-folded')], [step.question.title]),
+    ],
+  )
+
 const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
   const grill = snapshot.grill
   const steps = stepsIn(grill, part.id)
@@ -2669,31 +2687,47 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
       ),
       h.div(
         [h.Class('messages')],
-        Array.match(said, {
-          onEmpty: () => [
-            h.p(
-              [h.Class('hint')],
-              [
-                `Nothing asked about ${part.title} yet. Ask about the whole concept, or pick one question below.`,
-              ],
+        [
+          ...Array.map(aboutSteps, step =>
+            whyMessage(
+              model,
+              snapshot,
+              step,
+              isWhyOpen(
+                model.whyOpen,
+                step.id,
+                step.part === part.id && about === step.question.id,
+                aboutSteps.length === 1,
+              ),
+              h,
             ),
-          ],
-          onNonEmpty: all =>
-            Array.map(Array.sort(all, bySaidTime), message =>
-              h.div(
-                [h.Class(`message from-${message.who}`)],
+          ),
+          ...Array.match(said, {
+            onEmpty: () => [
+              h.p(
+                [h.Class('hint')],
                 [
-                  h.p(
-                    [h.Class('message-who')],
-                    [
-                      `${message.who === 'you' ? 'You' : 'Agent'} · about ${message.about}`,
-                    ],
-                  ),
-                  h.div([h.Class('message-body')], message.body),
+                  `Nothing asked about ${part.title} yet. Ask about the whole concept, or pick one question below.`,
                 ],
               ),
-            ),
-        }),
+            ],
+            onNonEmpty: all =>
+              Array.map(Array.sort(all, bySaidTime), message =>
+                h.div(
+                  [h.Class(`message from-${message.who}`)],
+                  [
+                    h.p(
+                      [h.Class('message-who')],
+                      [
+                        `${message.who === 'you' ? 'You' : 'Agent'} · about ${message.about}`,
+                      ],
+                    ),
+                    h.div([h.Class('message-body')], message.body),
+                  ],
+                ),
+              ),
+          }),
+        ],
       ),
       h.form(
         [

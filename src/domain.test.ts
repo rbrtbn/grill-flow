@@ -492,3 +492,14 @@ describe('page addresses', () => {
     expect(pageOfPath('/g/a%20grill')).toBe('')
   })
 })
+
+describe('reasoning in Talk', () => {
+  it('unfolds the question Talk is about, or the only one, unless the reader chose', async () => {
+    const { isWhyOpen } = await import('./main')
+    expect(isWhyOpen({}, 's1', true, false)).toBe(true)
+    expect(isWhyOpen({}, 's1', false, false)).toBe(false)
+    expect(isWhyOpen({}, 's1', false, true)).toBe(true)
+    expect(isWhyOpen({ s1: false }, 's1', true, true)).toBe(false)
+    expect(isWhyOpen({ s1: true }, 's1', false, false)).toBe(true)
+  })
+})
