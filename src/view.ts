@@ -64,10 +64,13 @@ import {
   OVERVIEW,
   PLAN,
   URGENCY_PAGE,
+  generalTargetOf,
+  isCardPage,
   isWhyOpen,
   modesOf,
   pageQuestions,
   sidebarModeOf,
+  talkKeyOf,
 } from './main'
 
 type H = HtmlBuilder<MessageType>
@@ -2523,43 +2526,139 @@ const diffBlockView = (block: DiffBlock, grill: Grill, h: H): Html =>
 type Said = Readonly<{
   at: number
   who: 'you' | 'agent'
-  about: string
   body: ReadonlyArray<Html | string>
 }>
 
 const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
   a.at < b.at ? -1 : a.at > b.at ? 1 : 0
 
-// The thread opens with each question's reasoning, one at a time unfolded (isWhyOpen).
+/** The asks on one target and the agent's replies, oldest first. */
+const saidOn = (
+  snapshot: Snapshot,
+  target: string,
+  label: string,
+  h: H,
+): ReadonlyArray<Said> => {
+  const grill = snapshot.grill
+  const asks = Array.filter(snapshot.asks, ask => ask.stepId === target)
+  const said = Array.flatMap(asks, (ask): ReadonlyArray<Said> => {
+    const mine: Said = {
+      at: ask.at,
+      who: 'you',
+      body: [h.p([], inline(ask.text, grill, h))],
+    }
+    const replies = Array.filter(
+      snapshot.revisions,
+      revision => revision.askId === ask.id,
+    )
+    if (Array.isArrayEmpty(replies)) {
+      return [
+        mine,
+        {
+          at: ask.at + 1,
+          who: 'agent',
+          body: [h.p([], [h.em([], ['Working on it…'])])],
+        },
+      ]
+    }
+    return [
+      mine,
+      ...Array.map(replies, (reply): Said => ({
+        at: reply.at,
+        who: 'agent',
+        body:
+          reply.kind === 'rewrite'
+            ? [
+                h.p(
+                  [],
+                  [
+                    `I rewrote the reasoning for ${label}. `,
+                    h.button(
+                      [
+                        h.Class('text-button'),
+                        h.OnClick(
+                          Message.ClickedShowChanges({
+                            question: label,
+                            stepId: reply.stepId,
+                          }),
+                        ),
+                      ],
+                      ['Show the changes'],
+                    ),
+                  ],
+                ),
+              ]
+            : Array.map(splitParagraphs(reply.text), paragraph =>
+                paragraphView(paragraph, grill, h),
+              ),
+      })),
+    ]
+  })
+  return Array.sort(said, bySaidTime)
+}
+
+const saidView = (message: Said, h: H): Html =>
+  h.div(
+    [h.Class(`message from-${message.who}`)],
+    [
+      h.p([h.Class('message-who')], [message.who === 'you' ? 'You' : 'Agent']),
+      h.div([h.Class('message-body')], message.body),
+    ],
+  )
+
+const messageCount = (said: ReadonlyArray<Said>): string =>
+  said.length === 1 ? '1 message' : `${said.length} messages`
+
+// Each question's reasoning opens its own conversation, and folds with it (isWhyOpen).
 const whyMessage = (
   model: Model,
   snapshot: Snapshot,
   step: Step,
   open: boolean,
   h: H,
-): Html =>
-  h.div(
+): Html => {
+  const said = saidOn(snapshot, step.id, step.question.id, h)
+  return h.div(
     [
       h.Id(`why-${step.id}`),
-      h.Class(`message from-agent why-message${open ? ' is-open' : ''}`),
+      h.Class(`thread why-message${open ? ' is-open' : ''}`),
     ],
     [
-      h.button(
+      h.div(
+        [h.Class('message from-agent')],
         [
-          h.Class('why-toggle'),
-          h.AriaExpanded(open),
-          h.OnClick(Message.ClickedToggleWhy({ stepId: step.id, open: !open })),
+          h.button(
+            [
+              h.Class('why-toggle'),
+              h.AriaExpanded(open),
+              h.OnClick(
+                Message.ClickedToggleWhy({ stepId: step.id, open: !open }),
+              ),
+            ],
+            [
+              `Agent · why we're asking ${step.question.id}`,
+              open || Array.isReadonlyArrayEmpty(said)
+                ? ''
+                : ` · ${messageCount(said)}`,
+            ],
+          ),
+          open
+            ? h.div(
+                [h.Class('message-body')],
+                [reasoningView(model, snapshot, step, h)],
+              )
+            : h.p([h.Class('why-folded')], [step.question.title]),
         ],
-        [`Agent · why we're asking ${step.question.id}`],
       ),
-      open
+      open && !Array.isReadonlyArrayEmpty(said)
         ? h.div(
-            [h.Class('message-body')],
-            [reasoningView(model, snapshot, step, h)],
+            [h.Class('replies')],
+            Array.map(said, message => saidView(message, h)),
           )
-        : h.p([h.Class('why-folded')], [step.question.title]),
+        : h.empty,
     ],
   )
+}
 
 const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
   const grill = snapshot.grill
@@ -2567,91 +2666,36 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
   // A mixed page offers every question it lists; picking one from another concept moves Talk there.
   const mixedSteps = mixedPageSteps(model, grill)
   const aboutSteps = Array.isReadonlyArrayEmpty(mixedSteps) ? steps : mixedSteps
-  const stepIds = new Set(Array.map(steps, step => step.id))
-  const target = `part:${part.id}`
-  const aboutLabel = (stepId: string): string =>
-    stepId === target
-      ? 'the whole concept'
-      : Option.getOrElse(
-          Option.map(
-            Array.findFirst(steps, step => step.id === stepId),
-            step => step.question.id,
-          ),
-          () => stepId,
-        )
-  const asks = Array.filter(
-    snapshot.asks,
-    ask => stepIds.has(ask.stepId) || ask.stepId === target,
-  )
-  const said = Array.flatMap(asks, (ask): ReadonlyArray<Said> => {
-    const replies = Array.filter(
-      snapshot.revisions,
-      revision => revision.askId === ask.id,
-    )
-    const mine: Said = {
-      at: ask.at,
-      who: 'you',
-      about: aboutLabel(ask.stepId),
-      body: [h.p([], inline(ask.text, grill, h))],
-    }
-    if (Array.isArrayEmpty(replies)) {
-      return [
-        mine,
-        {
-          at: ask.at + 1,
-          who: 'agent',
-          about: aboutLabel(ask.stepId),
-          body: [h.p([], [h.em([], ['Working on it…'])])],
-        },
-      ]
-    }
-    return [
-      mine,
-      ...Array.map(replies, (reply): Said => {
-        const question = aboutLabel(reply.stepId)
-        return {
-          at: reply.at,
-          who: 'agent',
-          about: question,
-          body:
-            reply.kind === 'rewrite'
-              ? [
-                  h.p(
-                    [],
-                    [
-                      `I rewrote the reasoning for ${question}. `,
-                      h.button(
-                        [
-                          h.Class('text-button'),
-                          h.OnClick(
-                            Message.ClickedShowChanges({
-                              question,
-                              stepId: reply.stepId,
-                            }),
-                          ),
-                        ],
-                        ['Show the changes'],
-                      ),
-                    ],
-                  ),
-                ]
-              : Array.map(splitParagraphs(reply.text), paragraph =>
-                  paragraphView(paragraph, grill, h),
-                ),
-        }
-      }),
-    ]
-  })
+  const onCard = isCardPage(model.currentPart)
+  const key = talkKeyOf(model.currentPart, part.id)
+  const card = model.currentPart.slice(CARD_PAGE.length)
+  const title = onCard ? cardName(grill, card) : part.title
+  const whole = onCard ? 'the whole card' : 'the whole concept'
+  const isHere = (step: Step): boolean => onCard || step.part === part.id
+  // Unpicked, Talk is about the open question on the page, else the page as a whole.
   const about = Option.getOrElse(
-    Record.get(model.talkAbout, part.id),
+    Option.orElse(
+      Option.filter(
+        Record.get(model.talkAbout, key),
+        picked =>
+          picked === 'concept' ||
+          Array.some(aboutSteps, step => step.question.id === picked),
+      ),
+      () =>
+        Option.map(
+          Array.findFirst(
+            aboutSteps,
+            step => isHere(step) && isOpen(model, grill, step),
+          ),
+          step => step.question.id,
+        ),
+    ),
     () => 'concept',
   )
-  const draft = Option.getOrElse(
-    Record.get(model.talkDrafts, part.id),
-    () => '',
-  )
+  const general = saidOn(snapshot, generalTargetOf(key), whole, h)
+  const draft = Option.getOrElse(Record.get(model.talkDrafts, key), () => '')
   return h.aside(
-    [h.Class('side talk'), h.AriaLabel(`Conversation about ${part.title}`)],
+    [h.Class('side talk'), h.AriaLabel(`Conversation about ${title}`)],
     [
       h.header(
         [h.Class('side-head')],
@@ -2667,7 +2711,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                     : `Talking with the agent in ${grill.session}`,
                 ],
               ),
-              h.h2([], [part.title]),
+              h.h2([], [title]),
             ],
           ),
           h.button(
@@ -2690,43 +2734,35 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
               isWhyOpen(
                 model.whyOpen,
                 step.id,
-                step.part === part.id && about === step.question.id,
+                isHere(step) && about === step.question.id,
                 aboutSteps.length === 1,
               ),
               h,
             ),
           ),
-          ...Array.match(said, {
-            onEmpty: () => [
-              h.p(
-                [h.Class('hint')],
-                [
-                  `Nothing asked about ${part.title} yet. Ask about the whole concept, or pick one question below.`,
-                ],
+          h.div(
+            [
+              h.Class(
+                `thread general${about === 'concept' ? ' is-about' : ''}`,
               ),
             ],
-            onNonEmpty: all =>
-              Array.map(Array.sort(all, bySaidTime), message =>
-                h.div(
-                  [h.Class(`message from-${message.who}`)],
-                  [
-                    h.p(
-                      [h.Class('message-who')],
-                      [
-                        `${message.who === 'you' ? 'You' : 'Agent'} · about ${message.about}`,
-                      ],
-                    ),
-                    h.div([h.Class('message-body')], message.body),
-                  ],
-                ),
-              ),
-          }),
+            [
+              h.p([h.Class('thread-label')], [`About ${whole}`]),
+              ...Array.match(general, {
+                onEmpty: () => [
+                  h.p([h.Class('hint')], [`Nothing asked about ${whole} yet.`]),
+                ],
+                onNonEmpty: all =>
+                  Array.map(all, message => saidView(message, h)),
+              }),
+            ],
+          ),
         ],
       ),
       h.form(
         [
           h.Class('composer'),
-          h.OnSubmit(Message.SubmittedTalk({ partId: part.id })),
+          h.OnSubmit(Message.SubmittedTalk({ partId: key, about })),
         ],
         [
           h.div(
@@ -2740,25 +2776,22 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                     `quiet-button${about === 'concept' ? ' is-active' : ''}`,
                   ),
                   h.OnClick(
-                    Message.ClickedTalkAbout({
-                      partId: part.id,
-                      about: 'concept',
-                    }),
+                    Message.ClickedTalkAbout({ partId: key, about: 'concept' }),
                   ),
                 ],
-                ['The whole concept'],
+                [onCard ? 'The whole card' : 'The whole concept'],
               ),
               ...Array.map(aboutSteps, step =>
                 h.button(
                   [
                     h.Type('button'),
                     h.Class(
-                      `quiet-button${step.part === part.id && about === step.question.id ? ' is-active' : ''}`,
+                      `quiet-button${isHere(step) && about === step.question.id ? ' is-active' : ''}${statusIn(model, grill, step.question.id)._tag === 'Answered' ? ' is-answered' : ''}`,
                     ),
                     h.Title(step.question.title),
                     h.OnClick(
                       Message.ClickedTalkAbout({
-                        partId: step.part,
+                        partId: talkKeyOf(model.currentPart, step.part),
                         about: step.question.id,
                       }),
                     ),
@@ -2768,18 +2801,18 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
               ),
             ],
           ),
-          h.keyed('textarea')(`talk-${part.id}-${model.talkGeneration}`, [
+          h.keyed('textarea')(`talk-${key}-${model.talkGeneration}`, [
             h.Id('talk-box'),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
             h.AriaLabel('Message to the agent'),
             h.Placeholder('Ask, push back, or ask for a clearer rewrite'),
             h.OnInput(value =>
-              Message.UpdatedTalkDraft({ partId: part.id, value }),
+              Message.UpdatedTalkDraft({ partId: key, value }),
             ),
-            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
-              key === 'Enter' && !shiftKey
-                ? Option.some(Message.SubmittedTalk({ partId: part.id }))
+            h.OnKeyDownPreventDefault((pressed, { shiftKey }) =>
+              pressed === 'Enter' && !shiftKey
+                ? Option.some(Message.SubmittedTalk({ partId: key, about }))
                 : Option.none(),
             ),
           ]),

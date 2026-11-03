@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 
-import { OWN, answerLines, replyText } from '../src/domain'
+import { OWN, answerLines, hasTarget, replyText } from '../src/domain'
 import { dashboard } from './dashboard'
 import { askMessage } from './messages'
 import { startRemotes } from './remote'
@@ -146,11 +146,6 @@ const handleEvent = async (
   }
   const body = (await request.json()) as Record<string, unknown>
   const questionIds = new Set(grill.steps.map(step => step.question.id))
-  // An ask is about one step, or about a whole concept as `part:<part id>`.
-  const stepIds = new Set([
-    ...grill.steps.map(step => step.id),
-    ...grill.parts.map(part => `part:${part.id}`),
-  ])
   const question = String(body.question ?? '')
   switch (body.kind) {
     case 'answered': {
@@ -195,7 +190,7 @@ const handleEvent = async (
       const text = String(body.text ?? '')
         .trim()
         .slice(0, 4000)
-      if (!stepIds.has(stepId) || text === '') {
+      if (!hasTarget(grill, stepId) || text === '') {
         return json({ error: 'unknown step or empty ask' }, 400)
       }
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })

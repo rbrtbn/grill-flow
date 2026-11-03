@@ -100,8 +100,8 @@ Answer each one while the user is still on the page:
 1. Look the facts up, by subagent when it takes more than a read or two.
 2. Reply: write the answer to a file and run `gf revise <id> <step-id> --ask N
    --kind comment --file <path>`. It shows as your message in the concept's
-   conversation. An ask on a whole concept names `part:<part-id>` and takes
-   only comments.
+   conversation. An ask on a whole concept names `part:<part-id>`, and one on
+   a whole card `card:<card>`; both take only comments.
 3. When the ask shows the reasoning was unclear or wrong, also rewrite the
    step's prose: the same command with `--kind rewrite`, the whole prose,
    paragraphs split by blank lines. The user sees it as a diff.

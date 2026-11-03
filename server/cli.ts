@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { replyText, FORMAT_VERSION } from '../src/domain'
+import { FORMAT_VERSION, isWholeTarget, replyText } from '../src/domain'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import {
@@ -21,7 +21,7 @@ const usage = `gf: grill-flow's agent-side commands
   gf up                                start the server unless it already answers
   gf load <grill.json>                 load or replace a grill
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
-  gf revise <grill-id> <step-id | part:<part-id>> --file <path> [--ask <id>] [--kind rewrite|comment]
+  gf revise <grill-id> <step-id | part:<part-id> | card:<card>> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
                                        or reply with a comment; a concept takes comments only
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
@@ -135,8 +135,7 @@ switch (command) {
     const grill = requireGrill(args[0])
     const stepId = args[1] ?? fail(usage)
     const kind =
-      flag(args, '--kind') ??
-      (stepId.startsWith('part:') ? 'comment' : 'rewrite')
+      flag(args, '--kind') ?? (isWholeTarget(stepId) ? 'comment' : 'rewrite')
     if (kind !== 'rewrite' && kind !== 'comment') {
       fail('--kind is rewrite or comment')
     }

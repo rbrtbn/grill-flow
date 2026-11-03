@@ -87,6 +87,8 @@ export const Model = Schema.Struct({
   notes: Schema.Record(Schema.String, Schema.String),
   own: Schema.Record(Schema.String, Schema.String),
   talkDrafts: Schema.Record(Schema.String, Schema.String),
+  // Talk state is keyed by the page's general conversation: a concept id, or on a card page the
+  // page itself (`card:<card>`). See talkKeyOf.
   talkAbout: Schema.Record(Schema.String, Schema.String),
   diffShown: Schema.Record(Schema.String, Schema.Boolean),
   whyOpen: Schema.Record(Schema.String, Schema.Boolean),
@@ -166,8 +168,13 @@ export const Message = defineMessageUnion({
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
   UpdatedTalkDraft: { partId: Schema.String, value: Schema.String },
-  SubmittedTalk: { partId: Schema.String },
-  ReadTalkBox: { partId: Schema.String, text: Schema.String },
+  // `about` is what the About row shows, which may be the page's default rather than a pick.
+  SubmittedTalk: { partId: Schema.String, about: Schema.String },
+  ReadTalkBox: {
+    partId: Schema.String,
+    about: Schema.String,
+    text: Schema.String,
+  },
   ReadSendBox: { text: Schema.String },
   ScrolledToAbout: { partId: Schema.String, about: Schema.String },
   ScrolledToQuestion: { question: Schema.String },
@@ -243,6 +250,22 @@ const stepIdOf = (
     Option.map(step => step.id),
   )
 
+export const isCardPage = (page: string): boolean => page.startsWith(CARD_PAGE)
+
+/** Where Talk keeps a question's state: under its card on a card page, else its concept. */
+export const talkKeyOf = (page: string, partId: string): string =>
+  isCardPage(page) ? page : partId
+
+/** The conversation a Talk key's general messages go to: the whole card, or the whole concept. */
+export const generalTargetOf = (key: string): string =>
+  isCardPage(key) ? key : `part:${key}`
+
+// Talk follows the open question, so one folded away hands Talk back to the page's default.
+const forgetAbout = (model: Model, questions: ReadonlyArray<string>): Model =>
+  modifyFields(model, {
+    talkAbout: Record.filter(about => !Array.contains(questions, about)),
+  })
+
 /** Open one question; in a long concept, close the others so one is open at a time. */
 const openQuestion = (
   model: Model,
@@ -257,9 +280,15 @@ const openQuestion = (
           Record.set(expanded, id, false),
         )
       : model.expanded
-  return modifyFields(model, {
-    expanded: () => Record.set(closed, question, true),
-  })
+  return modifyFields(
+    siblings.length > LONG_CONCEPT
+      ? forgetAbout(
+          model,
+          Array.filter(siblings, id => id !== question),
+        )
+      : model,
+    { expanded: () => Record.set(closed, question, true) },
+  )
 }
 
 const withSnapshot = (
@@ -455,7 +484,10 @@ export const update = (model: Model, message: Message) =>
           onSome: partId => ({
             model: modifyFields(model, {
               maybeTalkPart: () => Option.some(partId),
-              talkAbout: Record.set(partId, question),
+              talkAbout: Record.set(
+                talkKeyOf(model.currentPart, partId),
+                question,
+              ),
             }),
           }),
         }),
@@ -522,7 +554,10 @@ export const update = (model: Model, message: Message) =>
         return {
           model: modifyFields(model, {
             side: () => 'Talk',
-            talkAbout: Record.set(partId, question),
+            talkAbout: Record.set(
+              talkKeyOf(model.currentPart, partId),
+              question,
+            ),
             maybeTalkPart: () => Option.some(partId),
             whyOpen: Record.set(stepId, true),
           }),
@@ -605,7 +640,9 @@ export const update = (model: Model, message: Message) =>
         model: modifyFields(
           open
             ? openQuestion(model, snapshot, question)
-            : modifyFields(model, { expanded: Record.set(question, false) }),
+            : modifyFields(forgetAbout(model, [question]), {
+                expanded: Record.set(question, false),
+              }),
           { maybeJustAnswered: () => Option.none() },
         ),
       })),
@@ -684,24 +721,19 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { talkDrafts: Record.set(partId, value) }),
     }),
 
-    SubmittedTalk: ({ partId }) => ({
+    SubmittedTalk: ({ partId, about }) => ({
       model,
-      commands: [ReadTalkBoxCommand({ partId })],
+      commands: [ReadTalkBoxCommand({ partId, about })],
     }),
 
-    ReadTalkBox: ({ partId, text: boxText }) =>
+    ReadTalkBox: ({ partId, about, text: boxText }) =>
       withSnapshot(model, snapshot => {
         const text = boxText.trim()
-        const about = Option.getOrElse(
-          Record.get(model.talkAbout, partId),
-          () => 'concept',
-        )
         const target =
           about === 'concept'
-            ? `part:${partId}`
-            : Option.getOrElse(
-                stepIdOf(snapshot, about),
-                () => `part:${partId}`,
+            ? generalTargetOf(partId)
+            : Option.getOrElse(stepIdOf(snapshot, about), () =>
+                generalTargetOf(partId),
               )
         if (text === '') {
           return { model }
@@ -722,7 +754,7 @@ export const update = (model: Model, message: Message) =>
     ClickedAskAbout: ({ partId, question }) => ({
       model: modifyFields(model, {
         side: () => 'Talk',
-        talkAbout: Record.set(partId, question),
+        talkAbout: Record.set(talkKeyOf(model.currentPart, partId), question),
         maybeTalkPart: () => Option.some(partId),
       }),
       commands: [FocusTalkBox()],
@@ -785,7 +817,7 @@ export const update = (model: Model, message: Message) =>
     LeftAnswered: ({ question, maybeBottomAbove }) =>
       Option.exists(model.maybeJustAnswered, id => id === question)
         ? {
-            model: modifyFields(model, {
+            model: modifyFields(forgetAbout(model, [question]), {
               expanded: Record.set(question, false),
               maybeJustAnswered: () => Option.none(),
             }),
@@ -1240,11 +1272,11 @@ const boxText = (id: string): string => {
 }
 
 export const ReadTalkBoxCommand = Command.define('ReadTalkBox', {
-  args: { partId: Schema.String },
+  args: { partId: Schema.String, about: Schema.String },
   messages: [Message.ReadTalkBox],
-  execute: ({ partId }) =>
+  execute: ({ partId, about }) =>
     Effect.sync(() =>
-      Message.ReadTalkBox({ partId, text: boxText('talk-box') }),
+      Message.ReadTalkBox({ partId, about, text: boxText('talk-box') }),
     ),
 })
 
@@ -1416,7 +1448,9 @@ const onScreenAbout = (): Option.Option<string> => {
     Array.head(
       Array.sort(
         Array.map(
-          Array.fromIterable(document.querySelectorAll('.questions .question')),
+          Array.fromIterable(
+            document.querySelectorAll('.questions .question.is-expanded'),
+          ),
           section => ({
             id: section.id.replace(/^q-/, ''),
             distance: distance(section.getBoundingClientRect()),

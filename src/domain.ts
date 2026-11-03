@@ -344,6 +344,18 @@ export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
     (a, b) => a === b,
   )
 
+/** An ask's target that is a whole concept (`part:<id>`) or a whole card (`card:<card>`). */
+export const isWholeTarget = (target: string): boolean =>
+  target.startsWith('part:') || target.startsWith('card:')
+
+/** Whether an ask or reply can be about this target: a step, a concept, or a card. */
+export const hasTarget = (grill: Grill, target: string): boolean =>
+  target.startsWith('part:')
+    ? grill.parts.some(part => `part:${part.id}` === target)
+    : target.startsWith('card:')
+      ? cardsOf(grill).some(card => `card:${card}` === target)
+      : grill.steps.some(step => step.id === target)
+
 export const urgencyOf = (question: Question): UrgencyLevel =>
   question.urgency ?? 'unset'
 

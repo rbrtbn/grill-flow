@@ -503,3 +503,29 @@ describe('reasoning in Talk', () => {
     expect(isWhyOpen({ s1: true }, 's1', false, false)).toBe(true)
   })
 })
+
+describe('ask targets', () => {
+  it('takes a step, a concept or a card the grill has, and nothing else', async () => {
+    const { hasTarget, isWholeTarget } = await import('./domain')
+    const grill = Schema.decodeUnknownSync(Grill)(
+      JSON.parse(readFileSync('examples/squad-sample.json', 'utf8')),
+    )
+    const step = grill.steps[0]!
+    expect(hasTarget(grill, step.id)).toBe(true)
+    expect(hasTarget(grill, `part:${step.part}`)).toBe(true)
+    expect(hasTarget(grill, 'part:nowhere')).toBe(false)
+    expect(hasTarget(grill, 'card:nowhere')).toBe(false)
+    expect(hasTarget(grill, 'card:B3')).toBe(true)
+    expect(isWholeTarget('card:x') && isWholeTarget('part:x')).toBe(true)
+    expect(isWholeTarget(step.id)).toBe(false)
+  })
+
+  it('keys Talk by the card on a card page and by the concept elsewhere', async () => {
+    const { talkKeyOf, generalTargetOf } = await import('./main')
+    expect(talkKeyOf('card:c-2', 'timing')).toBe('card:c-2')
+    expect(talkKeyOf('timing', 'timing')).toBe('timing')
+    expect(talkKeyOf('urgency:soon', 'timing')).toBe('timing')
+    expect(generalTargetOf('card:c-2')).toBe('card:c-2')
+    expect(generalTargetOf('timing')).toBe('part:timing')
+  })
+})

@@ -7,7 +7,13 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-import { type Grill, type Snapshot, replyText } from '../src/domain'
+import {
+  type Grill,
+  type Snapshot,
+  hasTarget,
+  isWholeTarget,
+  replyText,
+} from '../src/domain'
 import { askMessage } from './messages'
 import { ROOT, decodeGrill } from './store'
 
@@ -113,20 +119,16 @@ export const runOutbox = async (
     case 'revise': {
       const grill = grillOf(args[0])
       const stepId = args[1] ?? fail(usage)
-      const isConcept = stepId.startsWith('part:')
-      if (
-        isConcept
-          ? !grill.parts.some(part => `part:${part.id}` === stepId)
-          : !grill.steps.some(step => step.id === stepId)
-      ) {
-        fail(`no step or concept ${stepId} in ${grill.id}`)
+      const isWhole = isWholeTarget(stepId)
+      if (!hasTarget(grill, stepId)) {
+        fail(`no step, concept or card ${stepId} in ${grill.id}`)
       }
-      const kind = flag(args, '--kind') ?? (isConcept ? 'comment' : 'rewrite')
+      const kind = flag(args, '--kind') ?? (isWhole ? 'comment' : 'rewrite')
       if (kind !== 'rewrite' && kind !== 'comment') {
         fail('--kind is rewrite or comment')
       }
-      if (isConcept && kind === 'rewrite') {
-        fail('a concept takes a comment; rewrite a step by its own id')
+      if (isWhole && kind === 'rewrite') {
+        fail('a concept or card takes a comment; rewrite a step by its own id')
       }
       const askFlag = flag(args, '--ask')
       const text = readFileSync(

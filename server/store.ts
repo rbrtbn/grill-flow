@@ -3,7 +3,13 @@ import { Schema } from 'effect'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { Grill, OWN, type Snapshot } from '../src/domain'
+import {
+  Grill,
+  OWN,
+  type Snapshot,
+  hasTarget,
+  isWholeTarget,
+} from '../src/domain'
 
 export const ROOT = join(import.meta.dir, '..')
 const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
@@ -107,21 +113,16 @@ export const reviseGrill = (
   grill: Grill,
   revision: Revision,
 ): { ok: true; id: number } | { ok: false; reason: string } => {
-  const isConcept = revision.stepId.startsWith('part:')
-  if (
-    isConcept
-      ? !grill.parts.some(part => `part:${part.id}` === revision.stepId)
-      : !grill.steps.some(step => step.id === revision.stepId)
-  ) {
+  if (!hasTarget(grill, revision.stepId)) {
     return {
       ok: false,
-      reason: `no step or concept ${revision.stepId} in ${grill.id}`,
+      reason: `no step, concept or card ${revision.stepId} in ${grill.id}`,
     }
   }
-  if (isConcept && revision.kind === 'rewrite') {
+  if (isWholeTarget(revision.stepId) && revision.kind === 'rewrite') {
     return {
       ok: false,
-      reason: 'a concept takes a comment; rewrite a step by its own id',
+      reason: 'a concept or card takes a comment; rewrite a step by its own id',
     }
   }
   if (

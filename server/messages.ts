@@ -1,3 +1,4 @@
+import { isWholeTarget } from '../src/domain'
 import { ROOT } from './store'
 
 /**
@@ -11,9 +12,9 @@ export const askMessage = (
   text: string,
   gf = `bun run --cwd ${ROOT} gf`,
 ): string =>
-  stepId.startsWith('part:')
+  isWholeTarget(stepId)
     ? [
-        `[grill-flow] Ask on ${grillId}, the whole concept ${stepId.slice(5)} (ask ${askId}): ${text}`,
+        `[grill-flow] Ask on ${grillId}, the whole ${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)} (ask ${askId}): ${text}`,
         `Answer it on the page: write your reply to a file, then run`,
         `${gf} revise ${grillId} ${stepId} --ask ${askId} --kind comment --file <path>`,
         `(to rewrite a step's reasoning as well, run the same with that step's id and --kind rewrite).`,
