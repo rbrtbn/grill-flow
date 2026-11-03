@@ -1726,12 +1726,12 @@ button.plan-title:hover {
   padding: 1px 9px;
 }
 
-/* A concept page's map, folded to one line until opened. */
+/* A concept page's map and its shape so far, each folded to one line until opened. */
 .concept-map {
   display: grid;
   gap: 10px;
 }
-.map-toggle {
+.fold-toggle {
   justify-self: start;
   display: inline-flex;
   align-items: center;
@@ -1743,7 +1743,7 @@ button.plan-title:hover {
   color: var(--link);
   cursor: pointer;
 }
-.map-toggle::before {
+.fold-toggle::before {
   content: '';
   width: 0.4em;
   height: 0.4em;
@@ -1752,6 +1752,6 @@ button.plan-title:hover {
   transform: rotate(-45deg);
   transition: transform 120ms;
 }
-.concept-map.is-open .map-toggle::before {
+.concept-map.is-open .fold-toggle::before {
   transform: rotate(45deg);
 }

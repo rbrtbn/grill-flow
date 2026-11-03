@@ -116,6 +116,8 @@ export const Model = Schema.Struct({
   maybeHover: Schema.Option(Schema.String),
   // A concept page's map of what it builds on and feeds; folded until the reader opens it.
   isConceptMapOpen: Schema.Boolean,
+  // A concept page's list of its questions and answers so far; folded the same way.
+  isShapeOpen: Schema.Boolean,
   maybeJustAnswered: Schema.Option(Schema.String),
   // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
   maybeTalkPart: Schema.Option(Schema.String),
@@ -166,6 +168,7 @@ export const Message = defineMessageUnion({
   ClickedUnskip: { question: Schema.String },
   ClickedSide: { side: Side },
   ClickedToggleConceptMap: {},
+  ClickedToggleShape: {},
   ClickedSidebarMode: { mode: SidebarMode },
   CompletedSaveSidebar: {},
   RestoredSidebar: { maybeMode: Schema.Option(SidebarMode) },
@@ -752,6 +755,10 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { isConceptMapOpen: open => !open }),
     }),
 
+    ClickedToggleShape: () => ({
+      model: modifyFields(model, { isShapeOpen: open => !open }),
+    }),
+
     ClickedSide: ({ side }) => ({
       model: modifyFields(model, {
         side: current => (current === side ? 'None' : side),
@@ -1159,6 +1166,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     diffShown: {},
     whyOpen: {},
     isConceptMapOpen: false,
+    isShapeOpen: false,
     send: 'Idle',
     isSendOpen: false,
     sendMessage: '',

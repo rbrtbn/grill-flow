@@ -1939,7 +1939,7 @@ const conceptView = (
         [
           h.button(
             [
-              h.Class('map-toggle'),
+              h.Class('fold-toggle'),
               h.AriaExpanded(model.isConceptMapOpen),
               h.OnClick(Message.ClickedToggleConceptMap()),
             ],
@@ -1968,30 +1968,49 @@ const conceptView = (
         ],
       ),
       h.div(
-        [h.Class('shape')],
+        [h.Class(`shape${model.isShapeOpen ? ' is-open' : ''}`)],
         [
-          h.p([h.Class('label')], ['The shape so far']),
-          h.ul(
-            [],
-            Array.map(steps, step =>
-              h.li(
-                [],
+          h.button(
+            [
+              h.Class('fold-toggle'),
+              h.AriaExpanded(model.isShapeOpen),
+              h.OnClick(Message.ClickedToggleShape()),
+            ],
+            [
+              'The shape so far',
+              h.span(
+                [h.Class('fold-count')],
                 [
-                  h.button(
-                    [
-                      h.Class('ref'),
-                      h.OnClick(
-                        Message.ClickedMapNode({ question: step.question.id }),
-                      ),
-                    ],
-                    [step.question.id],
-                  ),
-                  ` ${step.question.title}: `,
-                  ...answerSummary(model, grill, step, h),
+                  `${Array.filter(steps, step => statusIn(model, grill, step.question.id)._tag === 'Answered').length} of ${steps.length} decided`,
                 ],
               ),
-            ),
+            ],
           ),
+          model.isShapeOpen
+            ? h.ul(
+                [],
+                Array.map(steps, step =>
+                  h.li(
+                    [],
+                    [
+                      h.button(
+                        [
+                          h.Class('ref'),
+                          h.OnClick(
+                            Message.ClickedMapNode({
+                              question: step.question.id,
+                            }),
+                          ),
+                        ],
+                        [step.question.id],
+                      ),
+                      ` ${step.question.title}: `,
+                      ...answerSummary(model, grill, step, h),
+                    ],
+                  ),
+                ),
+              )
+            : h.empty,
         ],
       ),
       h.div(
