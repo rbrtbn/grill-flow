@@ -1725,3 +1725,33 @@ button.plan-title:hover {
   font-size: 0.88rem;
   padding: 1px 9px;
 }
+
+/* A concept page's map, folded to one line until opened. */
+.concept-map {
+  display: grid;
+  gap: 10px;
+}
+.map-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: 600 0.9rem var(--label);
+  color: var(--link);
+  cursor: pointer;
+}
+.map-toggle::before {
+  content: '';
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms;
+}
+.concept-map.is-open .map-toggle::before {
+  transform: rotate(45deg);
+}

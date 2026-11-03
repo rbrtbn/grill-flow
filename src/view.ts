@@ -1931,24 +1931,40 @@ const conceptView = (
       h.h1([h.Class('concept-title')], [part.title]),
       h.p([h.Class('concept-def')], inline(part.summary, grill, h)),
       h.section(
-        [h.Class('concept-map')],
         [
-          h.p(
-            [h.Class('hint')],
+          h.Class(
+            `concept-map${model.isConceptMapOpen ? ' is-open' : ' is-folded'}`,
+          ),
+        ],
+        [
+          h.button(
             [
-              'This concept on the map, with what it builds on and what it feeds. Hover a question to see its links.',
+              h.Class('map-toggle'),
+              h.AriaExpanded(model.isConceptMapOpen),
+              h.OnClick(Message.ClickedToggleConceptMap()),
             ],
+            ['This concept on the map'],
           ),
-          mapView(
-            model,
-            snapshot,
-            {
-              orientation: 'Rows',
-              maybeFocus: Option.some(part.id),
-              maybeCurrent: Option.none(),
-            },
-            h,
-          ),
+          ...(model.isConceptMapOpen
+            ? [
+                h.p(
+                  [h.Class('hint')],
+                  [
+                    'What it builds on and what it feeds. Hover a question to see its links.',
+                  ],
+                ),
+                mapView(
+                  model,
+                  snapshot,
+                  {
+                    orientation: 'Rows',
+                    maybeFocus: Option.some(part.id),
+                    maybeCurrent: Option.none(),
+                  },
+                  h,
+                ),
+              ]
+            : []),
         ],
       ),
       h.div(
