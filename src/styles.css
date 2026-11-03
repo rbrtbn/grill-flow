@@ -456,8 +456,23 @@ button {
 .dot.is-skipped {
   border: 2px dotted var(--link);
 }
+/* Not needed: a cross where the circle would be, so it reads as struck off, not open. */
 .dot.is-moot {
-  opacity: 0.3;
+  border: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(
+      45deg,
+      transparent 43%,
+      var(--muted) 43% 57%,
+      transparent 57%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 43%,
+      var(--muted) 43% 57%,
+      transparent 57%
+    );
 }
 .main {
   min-width: 0;
