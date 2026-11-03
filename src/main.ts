@@ -167,6 +167,8 @@ export const Message = defineMessageUnion({
   ClickedSide: { side: Side },
   ClickedToggleConceptMap: {},
   ClickedSidebarMode: { mode: SidebarMode },
+  CompletedSaveSidebar: {},
+  RestoredSidebar: { maybeMode: Schema.Option(SidebarMode) },
   ClickedPlanView: { view: PlanView },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
@@ -720,6 +722,22 @@ export const update = (model: Model, message: Message) =>
 
     ClickedSidebarMode: ({ mode }) => ({
       model: modifyFields(model, { sidebar: () => Option.some(mode) }),
+      commands: Option.match(grillIdOf(model), {
+        onNone: () => [],
+        onSome: grillId => [
+          SaveSidebar({ grillId, page: model.currentPart, mode }),
+        ],
+      }),
+    }),
+
+    CompletedSaveSidebar: () => ({ model }),
+
+    RestoredSidebar: ({ maybeMode }) => ({
+      model: Option.match(maybeMode, {
+        onNone: () => model,
+        onSome: mode =>
+          modifyFields(model, { sidebar: () => Option.some(mode) }),
+      }),
     }),
 
     ClickedPlanView: ({ view }) => ({
@@ -1098,7 +1116,10 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
     return { model: refreshPage(model, snapshot) }
   }
   const first = model.currentPart === ''
+  const page = first ? startingPart(snapshot) : model.currentPart
+  const pageMode = modeOfPage(snapshot.grill, page)
   const next = modifyFields(refreshPage(model, snapshot), {
+    sidebar: current => Option.orElse(pageMode, () => current),
     answers: () => snapshot.answers,
     notes: restored => ({ ...snapshot.notes, ...restored }),
     own: restored => ({ ...snapshot.own, ...restored }),
@@ -1108,9 +1129,20 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   })
   return {
     model: next,
-    commands: first
-      ? [ReplacePage({ url: pathOfPage(snapshot.grill.id, next.currentPart) })]
-      : [],
+    commands: [
+      ...(first
+        ? [
+            ReplacePage({
+              url: pathOfPage(snapshot.grill.id, next.currentPart),
+            }),
+          ]
+        : []),
+      RestoreSidebar({
+        grillId: snapshot.grill.id,
+        page,
+        hasPageMode: Option.isSome(pageMode),
+      }),
+    ],
   }
 }
 
@@ -1443,6 +1475,64 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
     ),
     Effect.map(drafts => Message.CompletedRestoreDrafts(drafts)),
   ),
+})
+
+// The sidebar list the reader picked survives a reload: the pick, and the page it was made on.
+const sidebarKey = (grillId: string): string => `grill-flow:sidebar:${grillId}`
+
+const SavedSidebar = Schema.Struct({ page: Schema.String, mode: SidebarMode })
+
+export const SaveSidebar = Command.define('SaveSidebar', {
+  args: { grillId: Schema.String, page: Schema.String, mode: SidebarMode },
+  messages: [Message.CompletedSaveSidebar],
+  execute: ({ grillId, page, mode }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(
+          sidebarKey(grillId),
+          JSON.stringify({ page, mode }),
+        )
+      } catch {
+        // Storage can be off; the pick then lasts until the reload.
+      }
+      return Message.CompletedSaveSidebar()
+    }),
+})
+
+/**
+ * The saved pick applies on the page it was made on, or on a page that implies no list (the
+ * Plan, Overview, Decided); elsewhere the page's own list wins, as navigating there would show.
+ */
+export const RestoreSidebar = Command.define('RestoreSidebar', {
+  args: {
+    grillId: Schema.String,
+    page: Schema.String,
+    hasPageMode: Schema.Boolean,
+  },
+  messages: [Message.RestoredSidebar],
+  execute: ({ grillId, page, hasPageMode }) =>
+    pipe(
+      Effect.sync(() => {
+        try {
+          return window.localStorage.getItem(sidebarKey(grillId)) ?? 'null'
+        } catch {
+          return 'null'
+        }
+      }),
+      Effect.flatMap(raw =>
+        Effect.try(() => JSON.parse(raw) satisfies unknown),
+      ),
+      Effect.flatMap(parsed =>
+        Schema.decodeUnknownEffect(SavedSidebar)(parsed),
+      ),
+      Effect.map(saved =>
+        saved.page === page || !hasPageMode
+          ? Option.some(saved.mode)
+          : Option.none(),
+      ),
+      Effect.catch(() => Effect.succeed(Option.none<SidebarMode>())),
+      Effect.map(maybeMode => Message.RestoredSidebar({ maybeMode })),
+    ),
 })
 
 // SUBSCRIPTION
