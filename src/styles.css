@@ -975,7 +975,6 @@ button.why-card:hover .why-head,
 }
 .option.is-selected {
   background: var(--link-wash);
-  box-shadow: inset 3px 0 0 var(--link);
 }
 .option-key {
   display: grid;
@@ -1827,8 +1826,7 @@ button.plan-title:hover {
 .toast {
   position: relative;
   background: var(--paper);
-  border: 1px solid var(--rule);
-  border-left: 4px solid var(--link);
+  border: 1px solid color-mix(in srgb, var(--link) 30%, var(--rule));
   border-radius: 8px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
   animation: toast-in 180ms ease-out;
@@ -1846,10 +1844,20 @@ button.plan-title:hover {
   cursor: pointer;
 }
 .toast-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font: 600 0.74rem var(--label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--link);
+}
+.toast-who::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--link);
 }
 .toast-text {
   font-size: 0.93rem;
@@ -1909,7 +1917,16 @@ button.plan-title:hover {
 }
 .reply-entry.is-unread {
   background: var(--paper);
-  box-shadow: inset 3px 0 0 var(--link);
+}
+.reply-entry.is-unread .reply-where::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--link);
+  vertical-align: 1px;
 }
 .reply-entry.is-answer .message-body {
   display: -webkit-box;
