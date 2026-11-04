@@ -1109,6 +1109,10 @@ textarea::placeholder {
   align-items: baseline;
   gap: 6px 18px;
 }
+/* The issue tag reads first; the actions sit at the right. */
+.question-links .why-link {
+  margin-left: auto;
+}
 .question-links .text-button {
   text-decoration: none;
 }
