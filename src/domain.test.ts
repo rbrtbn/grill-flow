@@ -630,5 +630,8 @@ describe('agent messages', () => {
       unreadOf(messages, 0, ['reply-9']).map(message => message.id),
     ).toEqual(['answer-7'])
     expect(previewOf('\n- **Q7** b: kept\nmore')).toBe('Q7 b: kept')
+    expect(
+      previewOf('```diagram\n{"kind": "zones"}\n```\n\nThe wiki keeps it'),
+    ).toBe('The wiki keeps it')
   })
 })

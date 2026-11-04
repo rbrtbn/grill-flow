@@ -3,6 +3,13 @@ import { AsyncData } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 
 import {
+  type ProseContext,
+  compareView,
+  plainLabel,
+  proseView,
+  stateLabelFor,
+} from './diagramView'
+import {
   FORMAT_VERSION,
   OWN,
   type Plan,
@@ -397,6 +404,47 @@ const paragraphView = (paragraph: string, grill: Grill, h: H): Html => {
           ],
         )
 }
+
+const stepById = (grill: Grill, stepId: string): Option.Option<Step> =>
+  Array.findFirst(grill.steps, step => step.id === stepId)
+
+const proseContext = (
+  model: Model,
+  grill: Grill,
+  key: string,
+  maybeStep: Option.Option<Step>,
+): ProseContext => ({
+  key,
+  views: model.diagramViews,
+  maybeAnswer: Option.flatMap(maybeStep, step =>
+    Record.get(model.answers, step.question.id),
+  ),
+  label: Option.match(maybeStep, {
+    onNone: () => stateLabelFor([], 'Today'),
+    onSome: step =>
+      stateLabelFor(
+        step.question.options,
+        step.question.compare?.now ?? 'Today',
+      ),
+  }),
+  entities: grill.entities,
+})
+
+/** Agent-written text with its ```diagram blocks drawn and its paragraph titles kept. */
+const richProse = (
+  model: Model,
+  grill: Grill,
+  paragraphs: ReadonlyArray<string>,
+  key: string,
+  maybeStep: Option.Option<Step>,
+  h: H,
+): ReadonlyArray<Html> =>
+  proseView(
+    paragraphs,
+    proseContext(model, grill, key, maybeStep),
+    paragraph => paragraphView(paragraph, grill, h),
+    h,
+  )
 
 // STATE HELPERS
 
@@ -1781,7 +1829,7 @@ const overviewView = (model: Model, snapshot: Snapshot, h: H): Html => {
       h.h1([h.Class('concept-title')], [grill.title]),
       h.div(
         [h.Class('prose')],
-        Array.map(grill.intro, paragraph => paragraphView(paragraph, grill, h)),
+        richProse(model, grill, grill.intro, 'intro', Option.none(), h),
       ),
       grill.entities.length > 0
         ? h.dl(
@@ -2318,6 +2366,19 @@ const questionBodyView = (
       ),
       // A note left without a listed pick stays editable rather than hidden.
       note !== '' && !hasListedPick ? noteBox(id, note, inactive, h) : h.empty,
+      question.compare === undefined
+        ? h.empty
+        : compareView(
+            question.compare,
+            Array.map(question.options, option => ({
+              key: option.key,
+              label: `${option.key} · ${plainLabel(option.label)}`,
+              recommended: option.recommended,
+            })),
+            Option.filter(selected, () => hasListedPick),
+            grill.entities,
+            h,
+          ),
       question.from === undefined && !hasOutside(snapshot, step)
         ? h.empty
         : h.div(
@@ -2619,7 +2680,14 @@ const reasoningView = (
     onNone: () =>
       h.div(
         [h.Class('prose')],
-        Array.map(prose.paragraphs, p => paragraphView(p, grill, h)),
+        richProse(
+          model,
+          grill,
+          prose.paragraphs,
+          `step:${step.id}`,
+          Option.some(step),
+          h,
+        ),
       ),
     onSome: previous =>
       h.div(
@@ -2651,7 +2719,14 @@ const reasoningView = (
               )
             : h.div(
                 [h.Class('prose')],
-                Array.map(prose.paragraphs, p => paragraphView(p, grill, h)),
+                richProse(
+                  model,
+                  grill,
+                  prose.paragraphs,
+                  `step:${step.id}`,
+                  Option.some(step),
+                  h,
+                ),
               ),
         ],
       ),
@@ -2919,8 +2994,13 @@ const repliesView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   ),
                   h.div(
                     [h.Class('message-body')],
-                    Array.map(splitParagraphs(message.text), paragraph =>
-                      paragraphView(paragraph, grill, h),
+                    richProse(
+                      model,
+                      grill,
+                      splitParagraphs(message.text),
+                      `agent:${message.id}`,
+                      stepById(grill, message.stepId),
+                      h,
                     ),
                   ),
                   message.kind === 'answer'
@@ -2961,6 +3041,7 @@ const bySaidTime = (a: Said, b: Said): -1 | 0 | 1 =>
 
 /** The asks on one target and the agent's replies, oldest first. */
 const saidOn = (
+  model: Model,
   snapshot: Snapshot,
   target: string,
   label: string,
@@ -3018,8 +3099,13 @@ const saidOn = (
                   ],
                 ),
               ]
-            : Array.map(splitParagraphs(reply.text), paragraph =>
-                paragraphView(paragraph, grill, h),
+            : richProse(
+                model,
+                grill,
+                splitParagraphs(reply.text),
+                `reply:${reply.id}`,
+                stepById(grill, reply.stepId),
+                h,
               ),
       })),
     ]
@@ -3050,7 +3136,7 @@ const whyMessage = (
   open: boolean,
   h: H,
 ): Html => {
-  const said = saidOn(snapshot, step.id, step.question.id, h)
+  const said = saidOn(model, snapshot, step.id, step.question.id, h)
   return h.div(
     [
       h.Id(`why-${step.id}`),
@@ -3181,7 +3267,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
     ),
     () => 'concept',
   )
-  const general = saidOn(snapshot, generalTargetOf(key), whole, h)
+  const general = saidOn(model, snapshot, generalTargetOf(key), whole, h)
   const draft = Option.getOrElse(Record.get(model.talkDrafts, key), () => '')
   return h.aside(
     [h.Class('side talk'), h.AriaLabel(`Conversation about ${title}`)],

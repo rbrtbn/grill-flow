@@ -882,7 +882,8 @@ button {
   display: grid;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  /* clip, not hidden: a hidden overflow would stop a pinned diagram sticking in Talk. */
+  overflow: clip;
   width: 100%;
   max-width: 100%;
   text-align: left;
@@ -2075,4 +2076,545 @@ button.plan-title:hover {
 }
 .reply-entry .text-button {
   justify-self: start;
+}
+
+/* DIAGRAMS (src/diagramView.ts) */
+
+/* Labels in diagrams wrap between words, never inside one (message bodies break anywhere). */
+.compare,
+.diagram {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+/* A question's comparison: today beside each answer. */
+.compare {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  overflow-x: auto;
+}
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 500 0.84rem/1.3 var(--label);
+}
+.compare-table th,
+.compare-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+  transition:
+    opacity 120ms,
+    box-shadow 120ms;
+}
+.compare-table thead th {
+  vertical-align: bottom;
+  font: 700 0.72rem/1.25 var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.compare-table thead .recommended {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 0.66rem;
+}
+.compare-table tbody .row-head {
+  width: 24%;
+  font-weight: 600;
+  color: var(--ink);
+}
+.column-label {
+  display: block;
+}
+.column-summary {
+  display: block;
+  margin-top: 3px;
+  font: 500 0.74rem var(--label);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.column-summary.has-problems {
+  font-weight: 600;
+  color: var(--rust);
+}
+.compare-table td.has-twice,
+.compare-table td.has-gap {
+  background: color-mix(in srgb, var(--rust-wash) 80%, transparent);
+}
+.compare-table td.has-risk {
+  background: color-mix(in srgb, var(--u-soon) 13%, transparent);
+}
+.compare-table td.has-open {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--rule) 60%, transparent) 6px 8px
+  );
+}
+.compare-table td.is-changed:not([class*='has-']) {
+  background: color-mix(in srgb, var(--link-wash) 75%, transparent);
+}
+.compare.has-pick td:not(.is-picked),
+.compare.has-pick thead th:not(.is-picked, .row-head) {
+  opacity: 0.5;
+}
+.compare-table .is-picked {
+  box-shadow:
+    inset 2px 0 0 var(--link),
+    inset -2px 0 0 var(--link);
+}
+/* Hovering option N lights column N; column 0 is today. */
+.question:has(.option:nth-child(1) .option-pick:hover)
+  .compare-table
+  [data-col='1'],
+.question:has(.option:nth-child(2) .option-pick:hover)
+  .compare-table
+  [data-col='2'],
+.question:has(.option:nth-child(3) .option-pick:hover)
+  .compare-table
+  [data-col='3'],
+.question:has(.option:nth-child(4) .option-pick:hover)
+  .compare-table
+  [data-col='4'],
+.question:has(.option:nth-child(5) .option-pick:hover)
+  .compare-table
+  [data-col='5'],
+.question:has(.option:nth-child(6) .option-pick:hover)
+  .compare-table
+  [data-col='6'] {
+  opacity: 1;
+  box-shadow:
+    inset 2px 0 0 var(--link),
+    inset -2px 0 0 var(--link);
+}
+.holder {
+  display: inline-block;
+  margin: 0 4px 3px 0;
+  color: var(--muted);
+}
+.holder.is-entity {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.cell-note {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.flag {
+  display: inline-block;
+  margin: 0 5px 3px 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font: 700 0.64rem/1.4 var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.flag-twice,
+.flag-gap {
+  background: var(--rust);
+  color: var(--paper);
+}
+.flag-risk {
+  background: var(--u-soon);
+  color: var(--paper);
+}
+.flag-open {
+  padding: 0 5px;
+  border: 1.5px dashed var(--muted);
+  color: var(--muted);
+}
+.compare-same {
+  margin: 0;
+  font: 500 0.8rem/1.4 var(--label);
+  color: var(--muted);
+}
+.diagram-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  font: 500 0.76rem var(--label);
+  color: var(--muted);
+}
+.diagram-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.swatch.is-changed {
+  display: inline-block;
+  width: 16px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 3px;
+  background: var(--link-wash);
+  border: 1px solid color-mix(in srgb, var(--link) 30%, transparent);
+}
+
+/* A diagram in agent-written prose. */
+.diagram {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.diagram-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.diagram-title {
+  font: 600 0.76rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.diagram-following {
+  color: var(--link);
+}
+.diagram-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.diagram-switch button {
+  padding: 3px 10px;
+  border: 0;
+  background: none;
+  font: 600 0.78rem var(--label);
+  color: var(--muted);
+  cursor: pointer;
+}
+.diagram-switch button + button {
+  border-left: 1px solid var(--rule);
+}
+.diagram-switch button:hover {
+  color: var(--link);
+}
+.diagram-switch button.is-active {
+  background: var(--link);
+  color: var(--paper);
+}
+/* Every state in one cell: the diagram is as tall as its tallest state, whichever shows. */
+.diagram-states {
+  display: grid;
+}
+.diagram-state {
+  grid-area: 1 / 1;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  visibility: hidden;
+}
+.diagram-state.is-shown {
+  visibility: visible;
+}
+.diagram-caption {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* zones: regions with the boundary drawn between them. */
+.zones {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+.zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  min-height: 96px;
+  padding: 10px;
+  border-radius: 6px;
+}
+.zone-label {
+  flex-basis: 100%;
+  font: 700 0.7rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.zone-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 18px;
+  padding: 24px 4px 8px;
+  background: repeating-linear-gradient(
+      to bottom,
+      var(--ink) 0 6px,
+      transparent 6px 11px
+    )
+    center / 2px 100% no-repeat;
+}
+.zone-line-label {
+  padding: 1px 4px;
+  font: 700 0.66rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--paper);
+}
+.chip {
+  display: inline-flex;
+  flex-direction: column;
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+  font: 500 0.82rem/1.15 var(--label);
+  color: var(--ink);
+}
+.chip small {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.chip.is-twice {
+  border: 1.5px dashed var(--rust);
+}
+.chip.is-twice small {
+  color: var(--rust);
+}
+.chip.is-open {
+  border: 1.5px dashed var(--muted);
+  text-align: center;
+}
+.chip.is-risk {
+  border: 1.5px solid var(--u-soon);
+}
+
+/* flow: lanes across steps, a band marking a stretch. */
+.flow {
+  display: grid;
+  column-gap: 6px;
+  row-gap: 8px;
+}
+.step-label {
+  font: 700 0.66rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--muted);
+}
+.lane-label {
+  grid-column: 1;
+  align-self: center;
+  padding-right: 4px;
+  font: 700 0.7rem/1.15 var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lane-cell {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-height: 46px;
+  border-radius: 6px;
+}
+.lane-cell.is-empty {
+  background: none !important;
+  border: 1px dashed var(--rule);
+}
+.lane-cell.has-arrow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  width: 12px;
+  border-top: 1.5px solid var(--muted);
+}
+.node {
+  z-index: 1;
+  margin: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  font: 500 0.76rem/1.15 var(--label);
+  text-align: center;
+  transition: opacity 160ms;
+}
+.node.is-twice {
+  border: 1.5px dashed var(--rust);
+}
+.node.is-open {
+  border: 1.5px dashed var(--muted);
+  color: var(--muted);
+}
+.node.is-risk {
+  border: 1.5px solid var(--u-soon);
+}
+.node.is-ghost {
+  border: 0;
+  background: none;
+  font-style: italic;
+  color: var(--muted);
+}
+.node.is-faint {
+  opacity: 0.45;
+}
+.node.is-link::after {
+  content: '↓';
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 1rem var(--label);
+  color: var(--link);
+}
+.lane-cell.is-dimmed .node {
+  opacity: 0.35;
+}
+.band {
+  margin: -3px;
+  border: 1.5px dashed var(--rust);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.band.is-open {
+  border-color: var(--muted);
+}
+.band-label {
+  font: 600 0.74rem var(--label);
+  text-align: center;
+  color: var(--rust);
+}
+.band-label.is-open {
+  color: var(--muted);
+}
+
+/* Region tones: a zone, lane or holder wears the colour of the entity it names. */
+.zone.tone-teal,
+.lane-cell.tone-teal,
+.holder.tone-teal {
+  background: var(--teal-wash);
+}
+.zone.tone-ochre,
+.lane-cell.tone-ochre,
+.holder.tone-ochre {
+  background: var(--ochre-wash);
+}
+.zone.tone-violet,
+.lane-cell.tone-violet,
+.holder.tone-violet {
+  background: var(--violet-wash);
+}
+.zone.tone-olive,
+.lane-cell.tone-olive,
+.holder.tone-olive {
+  background: var(--olive-wash);
+}
+.zone.tone-rust,
+.lane-cell.tone-rust,
+.holder.tone-rust {
+  background: var(--rust-wash);
+}
+.tone-teal > .zone-label,
+.lane-label.tone-teal,
+.holder.tone-teal {
+  color: var(--teal);
+}
+.tone-ochre > .zone-label,
+.lane-label.tone-ochre,
+.holder.tone-ochre {
+  color: var(--ochre);
+}
+.tone-violet > .zone-label,
+.lane-label.tone-violet,
+.holder.tone-violet {
+  color: var(--violet);
+}
+.tone-olive > .zone-label,
+.lane-label.tone-olive,
+.holder.tone-olive {
+  color: var(--olive);
+}
+.tone-rust > .zone-label,
+.lane-label.tone-rust,
+.holder.tone-rust {
+  color: var(--rust);
+}
+
+/* A titled paragraph shows its title on hover, in the gap above it, so nothing moves. */
+.titled {
+  position: relative;
+  margin: 6px 0 0 -12px;
+  padding-left: 9px;
+  border-left: 3px solid transparent;
+  transition: border-color 160ms;
+}
+.titled::before {
+  content: attr(data-title);
+  position: absolute;
+  top: -1.35em;
+  left: 9px;
+  max-width: calc(100% - 9px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 0.7rem var(--label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--link);
+  opacity: 0;
+  transition: opacity 160ms;
+}
+.titled:hover::before,
+.titled.is-followed::before {
+  opacity: 1;
+}
+.titled.is-followed {
+  border-left-color: var(--link);
+}
+.titled > p,
+.titled > .list-block {
+  margin: 0;
+}
+
+/* A diagram stays on screen while the paragraphs it follows are read. */
+.pinned {
+  display: grid;
+  gap: 14px;
+}
+.pinned > .diagram {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  box-shadow: 0 8px 14px -12px rgb(0 0 0 / 0.45);
+}
+.main .pinned > .diagram {
+  top: calc(var(--bar) + 8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titled,
+  .titled::before,
+  .node,
+  .compare-table th,
+  .compare-table td {
+    transition: none;
+  }
 }

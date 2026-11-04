@@ -24,6 +24,7 @@ import {
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 
+import { DiagramView } from './diagram'
 import {
   type Grill,
   OWN,
@@ -114,6 +115,8 @@ export const Model = Schema.Struct({
   // page itself (`card:<card>`). See talkKeyOf.
   talkAbout: Schema.Record(Schema.String, Schema.String),
   diffShown: Schema.Record(Schema.String, Schema.Boolean),
+  // What each diagram shows, keyed by diagramKey (view.ts).
+  diagramViews: Schema.Record(Schema.String, DiagramView),
   whyOpen: Schema.Record(Schema.String, Schema.Boolean),
   send: SendState,
   isSendOpen: Schema.Boolean,
@@ -189,6 +192,9 @@ export const Message = defineMessageUnion({
   ClickedCopy: {},
   CompletedCopyReply: { copied: Schema.Boolean },
   ClickedToggleDiff: { stepId: Schema.String },
+  ClickedDiagramState: { diagram: Schema.String, state: Schema.String },
+  HoveredDiagramParagraph: { diagram: Schema.String, title: Schema.String },
+  ScrolledPinnedDiagram: { diagram: Schema.String, title: Schema.String },
   ClickedToggleWhy: { stepId: Schema.String, open: Schema.Boolean },
   ClickedWhy: { partId: Schema.String, question: Schema.String },
   ClickedConcept: { partId: Schema.String },
@@ -656,6 +662,21 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
+    ClickedDiagramState: ({ diagram, state }) => ({
+      model: modifyFields(model, {
+        diagramViews: Record.set(diagram, DiagramView.Chosen({ state })),
+      }),
+    }),
+    HoveredDiagramParagraph: ({ diagram, title }) => ({
+      model: modifyFields(model, {
+        diagramViews: Record.set(diagram, DiagramView.Following({ title })),
+      }),
+    }),
+    ScrolledPinnedDiagram: ({ diagram, title }) => ({
+      model: modifyFields(model, {
+        diagramViews: Record.set(diagram, DiagramView.Following({ title })),
+      }),
+    }),
     ClickedToggleDiff: ({ stepId }) => ({
       model: modifyFields(model, {
         diffShown: Record.set(
@@ -1428,6 +1449,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     talkDrafts: {},
     talkAbout: {},
     diffShown: {},
+    diagramViews: {},
     whyOpen: {},
     isConceptMapOpen: false,
     isShapeOpen: false,
@@ -1674,6 +1696,69 @@ export const FillBox = Mount.define('FillBox', {
       }
       return Message.CompletedFillBox()
     }),
+})
+
+// A pinned diagram follows the first of its paragraphs still readable under it, once it is stuck
+// or the scroller can go no further, in whichever box scrolls it: Talk, the Replies list, or the
+// window.
+const READABLE_PX = 60
+
+const isAtEnd = (scroller: EventTarget): boolean =>
+  scroller instanceof Element
+    ? scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+    : window.scrollY + window.innerHeight >=
+      document.documentElement.scrollHeight - 2
+
+const followedTitle = (section: Element): Option.Option<string> => {
+  const figure = section.querySelector('.diagram')
+  if (figure === null) {
+    return Option.none()
+  }
+  const box = figure.getBoundingClientRect()
+  const isStuck = box.top > section.getBoundingClientRect().top + 1
+  if (!isStuck && !isAtEnd(scrollerOf(section))) {
+    return Option.none()
+  }
+  const paragraphs = Array.fromIterable(
+    section.querySelectorAll('[data-follow]'),
+  )
+  return pipe(
+    Array.findFirst(
+      paragraphs,
+      paragraph =>
+        paragraph.getBoundingClientRect().bottom > box.bottom + READABLE_PX,
+    ),
+    Option.orElse(() => Array.last(paragraphs)),
+    Option.flatMap(paragraph =>
+      Option.fromNullishOr(paragraph.getAttribute('data-follow')),
+    ),
+  )
+}
+
+const scrollerOf = (element: Element): EventTarget => {
+  const parent = element.parentElement
+  if (parent === null) {
+    return window
+  }
+  const overflow = getComputedStyle(parent).overflowY
+  return overflow === 'auto' || overflow === 'scroll'
+    ? parent
+    : scrollerOf(parent)
+}
+
+export const FollowPinnedDiagram = Mount.defineStream('FollowPinnedDiagram', {
+  args: { diagram: Schema.String },
+  messages: [Message.ScrolledPinnedDiagram],
+  execute: ({ element, diagram }) =>
+    Dom.streamFromEventFilterMap({
+      target: (): EventTarget => scrollerOf(element),
+      type: 'scroll',
+      filterMapEvent: () => followedTitle(element),
+      options: { passive: true },
+    }).pipe(
+      Stream.changes,
+      Stream.map(title => Message.ScrolledPinnedDiagram({ diagram, title })),
+    ),
 })
 
 export const FocusSendBox = Command.define('FocusSendBox', {

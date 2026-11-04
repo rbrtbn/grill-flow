@@ -135,3 +135,33 @@ describe('resizing a sidebar', () => {
     )
   })
 })
+
+describe('a diagram in the reasoning', () => {
+  it('shows the state the reader picks, then the paragraph they hover', () => {
+    story(
+      update,
+      given(loaded),
+      message(
+        Message.ClickedDiagramState({ diagram: 'step:step-q2#0', state: 'b' }),
+      ),
+      model(current => {
+        expect(current.diagramViews['step:step-q2#0']).toEqual({
+          _tag: 'Chosen',
+          state: 'b',
+        })
+      }),
+      message(
+        Message.HoveredDiagramParagraph({
+          diagram: 'step:step-q2#0',
+          title: 'Today',
+        }),
+      ),
+      model(current => {
+        expect(current.diagramViews['step:step-q2#0']).toEqual({
+          _tag: 'Following',
+          title: 'Today',
+        })
+      }),
+    )
+  })
+})

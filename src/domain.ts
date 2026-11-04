@@ -1,5 +1,7 @@
 import { Array, Option, Order, Record, Schema, pipe } from 'effect'
 
+import { Compare, titleOf } from './diagram'
+
 // GRILL
 
 export const AnswerOption = Schema.Struct({
@@ -73,6 +75,8 @@ export const Question = Schema.Struct({
   // A `sources` key, and the question's id in that asker's own rows.
   from: Schema.optionalKey(Schema.String),
   row: Schema.optionalKey(Schema.String),
+  // How today stands beside each answer, shown under the options.
+  compare: Schema.optionalKey(Compare),
 })
 export type Question = typeof Question.Type
 
@@ -155,10 +159,11 @@ export type Plan = typeof Plan.Type
 
 /**
  * The grill format this page reads. A grill without `version` is version 1. Version 2 adds
- * `plan`. Fields from a newer version are dropped on decode, so an older page still shows the
- * rest (docs/adr/0001-version-the-grill-format.md).
+ * `plan`; version 3 adds a question's `compare` and ```diagram blocks in prose. Fields from a
+ * newer version are dropped on decode, so an older page still shows the rest
+ * (docs/adr/0001-version-the-grill-format.md).
  */
-export const FORMAT_VERSION = 2
+export const FORMAT_VERSION = 3
 
 export const Grill = Schema.Struct({
   version: Schema.optionalKey(Schema.Number),
@@ -478,9 +483,22 @@ export const unreadOf = (
     message => message.at > since && !read.includes(message.id),
   )
 
-/** A message's first line as plain text, for a one-line preview. */
+type FenceReading = Readonly<{ lines: ReadonlyArray<string>; inFence: boolean }>
+
+const notYetRead: FenceReading = { lines: [], inFence: false }
+
+const outsideFences = (text: string): ReadonlyArray<string> =>
+  Array.reduce(text.split('\n'), notYetRead, (read, line): FenceReading =>
+    FENCE.test(line)
+      ? { lines: read.lines, inFence: !read.inFence }
+      : read.inFence
+        ? read
+        : { lines: Array.append(read.lines, line), inFence: false },
+  ).lines
+
+/** A message's first line of text, outside any ``` block, as plain text for a one-line preview. */
 export const previewOf = (text: string): string =>
-  (text.split('\n').find(line => line.trim() !== '') ?? '')
+  (outsideFences(text).find(line => line.trim() !== '') ?? '')
     .replace(/[*_`#>]/g, '')
     .replace(/^\s*-\s+/, '')
     .trim()
@@ -1029,21 +1047,32 @@ export const splitParagraphs = (text: string): ReadonlyArray<string> => {
   return paragraphs
 }
 
+const joinParagraphLines = (paragraph: string): string =>
+  paragraph.split('\n').some(line => ITEM.test(line))
+    ? Array.join(
+        Array.map(paragraph.split('\n'), line => line.trim()),
+        '\n',
+      ).trim()
+    : paragraph.replace(/\s*\n\s*/g, ' ').trim()
+
 // A paragraph with `- ` lines keeps its line breaks, so its items stay a list; a ``` block keeps
-// every line as written.
+// every line as written; a `### ` title keeps its own line.
 export const paragraphsOf = (text: string): ReadonlyArray<string> =>
   pipe(
     splitParagraphs(text),
-    Array.map(paragraph =>
-      isFigure(paragraph)
-        ? paragraph.replace(/^\n+|\s+$/g, '')
-        : paragraph.split('\n').some(line => ITEM.test(line))
-          ? Array.join(
-              Array.map(paragraph.split('\n'), line => line.trim()),
-              '\n',
-            ).trim()
-          : paragraph.replace(/\s*\n\s*/g, ' ').trim(),
-    ),
+    Array.map(paragraph => {
+      if (isFigure(paragraph)) {
+        return paragraph.replace(/^\n+|\s+$/g, '')
+      }
+      const titled = titleOf(paragraph)
+      return Option.match(titled.title, {
+        onNone: () => joinParagraphLines(paragraph),
+        onSome: title =>
+          titled.text === ''
+            ? `### ${title}`
+            : `### ${title}\n${joinParagraphLines(titled.text)}`,
+      })
+    }),
     Array.filter(paragraph => paragraph !== ''),
   )
 
