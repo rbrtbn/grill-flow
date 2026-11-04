@@ -861,6 +861,19 @@ button {
 .why-link::after {
   content: ' \2192';
 }
+.concept-link {
+  font: 600 0.84rem var(--label);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  border-radius: 3px;
+  padding: 1px 0.45em;
+  cursor: pointer;
+}
+.concept-link:hover {
+  text-decoration: underline;
+}
 .why-message {
   scroll-margin: 16px;
 }
@@ -1109,7 +1122,7 @@ textarea::placeholder {
   align-items: baseline;
   gap: 6px 18px;
 }
-/* The issue tag reads first; the actions sit at the right. */
+/* The issue and concept tags read first; the actions sit at the right. */
 .question-links .why-link {
   margin-left: auto;
 }

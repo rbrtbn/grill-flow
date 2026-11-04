@@ -249,6 +249,7 @@ export const Message = defineMessageUnion({
   HoveredMapNode: { question: Schema.String },
   LeftMapNode: {},
   ClickedMapNode: { question: Schema.String },
+  ClickedOpenInConcept: { question: Schema.String },
   ClickedMapConcept: { partId: Schema.String },
   CompletedScroll: {},
   LeftAnswered: {
@@ -1091,6 +1092,28 @@ export const update = (model: Model, message: Message) =>
           ],
         }
       }),
+
+    // Unlike ClickedMapNode, this leaves a page that lists the question for its concept's own.
+    ClickedOpenInConcept: ({ question }) =>
+      withSnapshot(model, snapshot =>
+        Option.match(partOf(snapshot, question), {
+          onNone: () => ({ model }),
+          onSome: partId => {
+            const next = goTo(
+              openQuestion(model, snapshot, question),
+              snapshot.grill,
+              partId,
+            )
+            return {
+              model: next,
+              commands: [
+                ...pushIfMoved(model, next, snapshot.grill),
+                ScrollToQuestion({ question }),
+              ],
+            }
+          },
+        }),
+      ),
 
     ClickedMapConcept: ({ partId }) => ({
       model: modifyFields(model, { currentPart: () => partId }),

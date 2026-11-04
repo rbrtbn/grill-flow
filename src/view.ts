@@ -2211,6 +2211,7 @@ const questionBodyView = (
           question.issue === undefined
             ? h.empty
             : refOrKey(grill, question.issue, h),
+          conceptLink(model, grill, step, h),
           whyLink(step, h),
           status._tag === 'Open' && !Array.contains(model.skipped, id)
             ? h.button(
@@ -2383,6 +2384,28 @@ const outsideView = (
       ),
   })
 }
+
+/** The question's concept page, from any page that lists it among others. */
+const conceptLink = (model: Model, grill: Grill, step: Step, h: H): Html =>
+  model.currentPart === step.part
+    ? h.empty
+    : Option.match(
+        Array.findFirst(grill.parts, part => part.id === step.part),
+        {
+          onNone: () => h.empty,
+          onSome: part =>
+            h.button(
+              [
+                h.Class('concept-link'),
+                h.Title(`Open ${step.question.id} on its concept's page`),
+                h.OnClick(
+                  Message.ClickedOpenInConcept({ question: step.question.id }),
+                ),
+              ],
+              [`↗ ${part.title}`],
+            ),
+        },
+      )
 
 const whyLink = (step: Step, h: H): Html =>
   h.button(
