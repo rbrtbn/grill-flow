@@ -10,6 +10,7 @@ import {
   type PlanPhase,
   downstreamOf,
   openGatesOf,
+  openReviewOf,
   planPhaseOf,
   waitingOnYou,
   type DiffBlock,
@@ -1455,12 +1456,9 @@ const waitingBlock = (
   const open = openGatesOf(grill, issue, model.answers)
   const answeredStart = Array.filter(
     issue.start ?? [],
-    id => !open.includes(id),
+    id => statusIn(model, grill, id)._tag === 'Answered',
   )
-  const review = Array.filter(
-    issue.review ?? [],
-    id => statusIn(model, grill, id)._tag !== 'Answered',
-  )
+  const review = openReviewOf(grill, issue, model.answers)
   const after = downstreamOf(grill, issue.id)
   return h.article(
     [h.Class(`plan-issue${rank === 1 ? ' is-first' : ''}`)],
@@ -1503,7 +1501,7 @@ const waitingBlock = (
               ...Array.map(answeredStart, id => planLink(grill, id, h)),
             ],
           ),
-      Array.isArrayEmpty(review)
+      Array.isReadonlyArrayEmpty(review)
         ? h.empty
         : h.div(
             [h.Class('plan-qs')],

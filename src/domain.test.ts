@@ -514,6 +514,22 @@ describe('plan', () => {
     ])
     expect(waitingOnYou(reviewing, { Q5: 'a', Q6: 'a' })).toEqual([])
   })
+
+  it('lets a question an answer made unneeded stop holding a build or a review', () => {
+    const settled = Schema.decodeUnknownSync(Grill)({
+      ...planned,
+      plan: {
+        issues: [
+          { id: 'G', title: 'Gated', phase: 'gated', start: ['Q1', 'Q2'] },
+          { id: 'R', title: 'Running', phase: 'building', review: ['Q2'] },
+        ],
+      },
+    })
+    const gated =
+      settled.plan?.issues.find(candidate => candidate.id === 'G') ?? fail('G')
+    expect(planPhaseOf(settled, gated, { Q1: 'b' })).toBe('ready')
+    expect(waitingOnYou(settled, { Q1: 'b' })).toEqual([])
+  })
 })
 
 describe('page addresses', () => {

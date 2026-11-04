@@ -229,27 +229,27 @@ export const planPhaseOf = (
   return 'ready'
 }
 
-/** The start questions still unanswered, in the plan's order. */
+// A question another answer made unneeded holds nothing up, as the answered count treats it.
+const isUnsettled = (grill: Grill, answers: Answers, id: string): boolean => {
+  const status = statusOf(grill, answers, id)._tag
+  return status !== 'Answered' && status !== 'NotNeeded'
+}
+
+/** The start questions still to settle, in the plan's order. */
 export const openGatesOf = (
   grill: Grill,
   issue: PlanIssue,
   answers: Answers,
 ): ReadonlyArray<string> =>
-  Array.filter(
-    issue.start ?? [],
-    id => statusOf(grill, answers, id)._tag !== 'Answered',
-  )
+  Array.filter(issue.start ?? [], id => isUnsettled(grill, answers, id))
 
-/** The questions its review needs that are still unanswered. */
+/** The questions its review needs that are still to settle. */
 export const openReviewOf = (
   grill: Grill,
   issue: PlanIssue,
   answers: Answers,
 ): ReadonlyArray<string> =>
-  Array.filter(
-    issue.review ?? [],
-    id => statusOf(grill, answers, id)._tag !== 'Answered',
-  )
+  Array.filter(issue.review ?? [], id => isUnsettled(grill, answers, id))
 
 /** Every in-run issue that waits, directly or through others, on this one. */
 export const downstreamOf = (
