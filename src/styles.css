@@ -2294,28 +2294,26 @@ button.plan-title:hover {
 .diagram-following {
   color: var(--link);
 }
+/* One pill per state, so a switch of long option labels wraps cleanly. */
 .diagram-switch {
   display: inline-flex;
   flex-wrap: wrap;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  overflow: hidden;
+  gap: 4px;
 }
 .diagram-switch button {
-  padding: 3px 10px;
-  border: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
   background: none;
   font: 600 0.78rem var(--label);
   color: var(--muted);
   cursor: pointer;
 }
-.diagram-switch button + button {
-  border-left: 1px solid var(--rule);
-}
 .diagram-switch button:hover {
   color: var(--link);
 }
 .diagram-switch button.is-active {
+  border-color: var(--link);
   background: var(--link);
   color: var(--paper);
 }
