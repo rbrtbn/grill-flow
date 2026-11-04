@@ -796,6 +796,13 @@ export const replyText = (
   return Array.join([header, ...freshLines, ...openLine, ...skippedLine], '\n')
 }
 
+/** What Send delivers inside its instructions to the agent: the answers, then the message. */
+export const sentAnswers = (reply: string, message: string): string =>
+  Array.join(
+    [reply, ...(message.trim() === '' ? [] : [`Message: ${message.trim()}`])],
+    '\n',
+  )
+
 // PROSE
 
 export type Segment =

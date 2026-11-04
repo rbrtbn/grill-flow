@@ -35,6 +35,7 @@ import {
   answerLines,
   isSent,
   replyText,
+  sentAnswers,
   roundSteps,
   segments,
   splitParagraphs,
@@ -887,6 +888,27 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 : Option.none(),
             ),
           ]),
+          h.details(
+            [h.Class('send-review send-preview')],
+            [
+              h.summary([], ['Message preview']),
+              h.pre(
+                [],
+                [
+                  sentAnswers(
+                    replyText(
+                      grill,
+                      model.answers,
+                      model.notes,
+                      model.own,
+                      snapshot.sent,
+                    ),
+                    model.sendMessage,
+                  ),
+                ],
+              ),
+            ],
+          ),
           model.send === 'Failed'
             ? h.p([h.Class('send-error')], [`Not sent: ${model.sendDetail}`])
             : h.empty,

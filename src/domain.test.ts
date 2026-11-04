@@ -18,6 +18,7 @@ import {
   urgencyRank,
   usesUrgency,
   segments,
+  sentAnswers,
   splitParagraphs,
   statusOf,
   tally,
@@ -99,6 +100,13 @@ describe('replyText', () => {
     expect(replyText(grill, { Q1: 'b' }, {})).toContain(
       'Not needed: Q2 (you chose Q1 b)',
     )
+  })
+})
+
+describe('sentAnswers', () => {
+  it("adds the reader's message after the answers, and nothing when it is blank", () => {
+    expect(sentAnswers('Q1: a', '  ship it \n')).toBe('Q1: a\nMessage: ship it')
+    expect(sentAnswers('Q1: a', '   ')).toBe('Q1: a')
   })
 })
 

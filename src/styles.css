@@ -1528,6 +1528,18 @@ a.ref-link:hover {
   font: 600 0.92rem var(--label);
   color: var(--link);
 }
+.send-preview pre {
+  margin: 10px 0 0;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 12px 14px;
+  font: 400 0.82rem/1.5 var(--code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
 .send-review ul {
   list-style: none;
   padding: 0;

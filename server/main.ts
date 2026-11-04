@@ -2,7 +2,13 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 
-import { OWN, answerLines, hasTarget, replyText } from '../src/domain'
+import {
+  OWN,
+  answerLines,
+  hasTarget,
+  replyText,
+  sentAnswers,
+} from '../src/domain'
 import { dashboard } from './dashboard'
 import { askMessage } from './messages'
 import { startRemotes } from './remote'
@@ -242,8 +248,7 @@ const handleSend = async (
   const gf = gfFor(grillId) ?? `bun run --cwd ${ROOT} gf`
   const text = [
     `[grill-flow] Answers from the ${grill.title} page:`,
-    reply,
-    ...(message === '' ? [] : [`Message: ${message}`]),
+    sentAnswers(reply, message),
     `Once you've taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run`,
     `${gf} reply ${grill.id} --file <path>`,
   ].join('\n')
