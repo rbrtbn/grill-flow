@@ -129,9 +129,12 @@ well:
 - `steps` run in the order a person thinks the problem through. Each `prose`
   says what is decided, why, and why now, in short paragraphs. Every list is
   bullets, one `- ` line per item after an optional lead line. Backticks mark
-  code. To compare options as a diagram or timeline, draw it in a fenced
-  ```` ``` ```` block: it shows in monospace with its spacing and blank lines
-  kept. Rewrites and Talk replies take the same blocks.
+  code. A fenced ```` ``` ```` block shows in monospace with its spacing and
+  blank lines kept, for a timeline or anything no diagram kind fits.
+  Rewrites and Talk replies take the same blocks.
+- A `### Title` first line titles its paragraph; the reader sees it on hover,
+  so a few words that say what the paragraph is for. Rewrites and Talk replies
+  take titles too.
 - Every question has a `scope`: one line on when or where it applies. `ask`
   is worded so yes takes the recommendation. Each option's `effect` is one
   line on what that choice changes later; mark one `recommended`.
@@ -142,6 +145,32 @@ well:
   sessions, services), each with a colour `tone`.
 - `session` is `$HC_TERMINAL_ID`, or `""` without one. `next` says what the
   answers unblock.
+
+### Diagrams
+
+Draw the problem and the change when a picture is quicker to read than the
+prose: who owns what, where a boundary moves, what path work takes. Set
+`version: 3` when you use them. The shapes are `Compare` and `Diagram` in
+`<checkout>/src/diagram.ts`; `examples/decision-sample.json` has one of each.
+
+- `compare` on a question is the overview under its options: where today
+  breaks and what each answer changes. `now` names today's column; each row is
+  one part of the problem, with `cells` keyed by `now` and every option key. A
+  cell is a short holder (`"Squad wiki + cos-rob"` for two) or `{value, note,
+  flag}`. `flag` marks the problems: `twice` (two places hold it), `gap`
+  (nothing covers it), `risk` (works, with a known failure), `open` (a later
+  round decides). Rows alike in every column fold into one line, so keep the
+  rows to the parts that differ.
+- In prose, rewrites and Talk replies, a ```` ```diagram ```` block holding
+  JSON draws a diagram; one that doesn't parse shows as plain text. Kinds:
+  `zones` (regions and what each holds), `flow` (lanes across steps) and
+  `compare` (a table like the above). `states` keyed by `now` and option keys
+  give it a switch, opening on the reader's answer. Use as many as help, each
+  for one job: an overview first, then one beside each hard part.
+- A diagram's `follow` maps paragraph titles to `{state, focus}`, `focus`
+  being a lane or zone id. The diagram then stays pinned while those
+  paragraphs are read and shows what each one is about, so title every
+  paragraph it should follow and put it before them.
 
 When questions are about Linear issues or PRs, any grill can add:
 

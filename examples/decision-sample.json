@@ -117,8 +117,10 @@
       "part": "why",
       "heading": "Move the jobs at all",
       "prose": [
-        "The nightly export takes most of `web-1`'s memory for about forty minutes, and page loads slow down while it runs.",
-        "There are two ways out:\n- Move the jobs to their own machine, `jobs-1`. The web server then only serves pages.\n- Give `web-1` more memory. Cheaper today, but the next heavy job brings the slowdown back."
+        "### What goes wrong\nThe nightly export takes most of `web-1`'s memory for about forty minutes, and page loads slow down while it runs.",
+        "```diagram\n{\n \"kind\": \"zones\",\n \"title\": \"Where the jobs run\",\n \"zones\": [\n  {\n   \"id\": \"web\",\n   \"label\": \"web-1\"\n  },\n  {\n   \"id\": \"jobs\",\n   \"label\": \"jobs-1\"\n  }\n ],\n \"states\": {\n  \"now\": {\n   \"caption\": \"Pages and the export share web-1's memory.\",\n   \"items\": [\n    {\n     \"label\": \"Pages\",\n     \"in\": \"web\"\n    },\n    {\n     \"label\": \"Nightly export\",\n     \"in\": \"web\",\n     \"flag\": \"twice\"\n    }\n   ]\n  },\n  \"a\": {\n   \"caption\": \"The export moves out; web-1 only serves pages.\",\n   \"items\": [\n    {\n     \"label\": \"Pages\",\n     \"in\": \"web\"\n    },\n    {\n     \"label\": \"Nightly export\",\n     \"in\": \"jobs\"\n    }\n   ]\n  },\n  \"b\": {\n   \"caption\": \"Both stay on a bigger web-1 until the next heavy job.\",\n   \"items\": [\n    {\n     \"label\": \"Pages\",\n     \"in\": \"web\"\n    },\n    {\n     \"label\": \"Nightly export\",\n     \"in\": \"web\",\n     \"flag\": \"risk\"\n    }\n   ]\n  }\n },\n \"follow\": {\n  \"Move them\": {\n   \"state\": \"a\"\n  },\n  \"Add memory\": {\n   \"state\": \"b\"\n  }\n }\n}\n```",
+        "### Move them\nMove the jobs to their own machine, `jobs-1`. The web server then only serves pages.",
+        "### Add memory\nGive `web-1` more memory. Cheaper today, but the next heavy job brings the slowdown back."
       ],
       "question": {
         "id": "Q1",
@@ -140,7 +142,64 @@
           }
         ],
         "dependsOn": [],
-        "when": []
+        "when": [],
+        "compare": {
+          "now": "Today",
+          "rows": [
+            {
+              "label": "Serves pages",
+              "cells": {
+                "now": "web-1",
+                "a": "web-1",
+                "b": "web-1"
+              }
+            },
+            {
+              "label": "Runs the nightly export",
+              "cells": {
+                "now": {
+                  "value": "web-1",
+                  "note": "takes most of its memory for forty minutes",
+                  "flag": "twice"
+                },
+                "a": {
+                  "value": "jobs-1",
+                  "note": "its own memory"
+                },
+                "b": {
+                  "value": "web-1",
+                  "note": "more memory, same contention",
+                  "flag": "risk"
+                }
+              }
+            },
+            {
+              "label": "Page loads during the export",
+              "cells": {
+                "now": {
+                  "value": "slow",
+                  "flag": "gap"
+                },
+                "a": "normal",
+                "b": {
+                  "value": "normal until the next heavy job",
+                  "flag": "risk"
+                }
+              }
+            },
+            {
+              "label": "Machines to run",
+              "cells": {
+                "now": "one",
+                "a": {
+                  "value": "two",
+                  "note": "jobs-1 to patch and watch"
+                },
+                "b": "one"
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -354,5 +413,6 @@
   ],
   "next": [
     "The answers settle the move plan; the cutover gets a date once Q6 and Q7 are answered."
-  ]
+  ],
+  "version": 3
 }
