@@ -51,7 +51,12 @@ import {
   withRefs,
   withTerms,
 } from './domain'
-import type { Message as MessageType, Model, SidebarMode } from './main'
+import type {
+  Message as MessageType,
+  Model,
+  SidebarEdge,
+  SidebarMode,
+} from './main'
 import {
   CARD_PAGE,
   DECIDED,
@@ -61,6 +66,7 @@ import {
   Message,
   OVERVIEW,
   PLAN,
+  SIDEBAR_BOUNDS,
   STATUS,
   URGENCY_PAGE,
   generalTargetOf,
@@ -679,14 +685,18 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
           ? Option.some(repliesView(model, snapshot, h))
           : Option.none()
   return h.div(
-    [h.Class('app')],
+    [h.Class(`app${Option.isSome(model.maybeResizing) ? ' is-resizing' : ''}`)],
     [
       toastsView(model, snapshot, h),
       topbarView(model, snapshot, maybePart, talkPartOf(model, grill), h),
       h.div(
-        [h.Class(`frame${Option.isSome(side) ? ' with-side' : ''}`)],
+        [
+          h.Class(`frame${Option.isSome(side) ? ' with-side' : ''}`),
+          h.Style(sidebarWidthStyle(model)),
+        ],
         [
           navView(model, grill, h),
+          resizeHandleView(model, 'Nav', h),
           h.main(
             [h.Class('main')],
             [
@@ -723,11 +733,68 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
             ],
           ),
           Option.getOrElse(side, () => h.empty),
+          Option.isSome(side) ? resizeHandleView(model, 'Side', h) : h.empty,
         ],
       ),
       model.isSendOpen ? sendDialogView(model, snapshot, h) : h.empty,
     ],
   )
+}
+
+/** The widths the reader dragged to, as the variables the frame's columns read. */
+const sidebarWidthStyle = (model: Model): Record<string, string> =>
+  Object.fromEntries([
+    ...Option.match(model.maybeNavWidth, {
+      onNone: () => [],
+      onSome: width => [['--nav-w', `${width}px`]],
+    }),
+    ...Option.match(model.maybeSideWidth, {
+      onNone: () => [],
+      onSome: width => [['--side-set', `${width}px`]],
+    }),
+  ])
+
+const RESIZE_STEP = 16
+const RESIZE_STEP_LARGE = 64
+
+/**
+ * A sidebar's draggable edge. Arrow keys step it (Shift steps further) and a double click gives
+ * the layout its own width back. The left list widens rightwards, the right sidebar leftwards.
+ */
+const resizeHandleView = (model: Model, edge: SidebarEdge, h: H): Html => {
+  const maybeWidth = edge === 'Nav' ? model.maybeNavWidth : model.maybeSideWidth
+  const widenKey = edge === 'Nav' ? 'ArrowRight' : 'ArrowLeft'
+  const narrowKey = edge === 'Nav' ? 'ArrowLeft' : 'ArrowRight'
+  return h.div([
+    h.Class(`resize-handle resize-${edge === 'Nav' ? 'nav' : 'side'}`),
+    h.Role('separator'),
+    h.AriaOrientation('vertical'),
+    h.AriaLabel(
+      edge === 'Nav' ? 'Resize the pages list' : 'Resize the sidebar',
+    ),
+    h.AriaValuemin(SIDEBAR_BOUNDS[edge].min),
+    h.AriaValuemax(SIDEBAR_BOUNDS[edge].max),
+    ...Option.match(maybeWidth, {
+      onNone: () => [],
+      onSome: width => [h.AriaValuenow(width)],
+    }),
+    h.Title('Drag to resize; double-click for the default width'),
+    h.Tabindex(0),
+    h.OnPointerDown((_pointerType, button) =>
+      button === 0
+        ? Option.some(Message.PressedResizeHandle({ edge }))
+        : Option.none(),
+    ),
+    h.OnDoubleClick(Message.DoubleClickedResizeHandle({ edge })),
+    h.OnKeyDownPreventDefault((key, { shiftKey }) => {
+      const size = shiftKey ? RESIZE_STEP_LARGE : RESIZE_STEP
+      return key === widenKey
+        ? Option.some(Message.PressedResizeKey({ edge, step: size }))
+        : key === narrowKey
+          ? Option.some(Message.PressedResizeKey({ edge, step: -size }))
+          : Option.none()
+    }),
+  ])
 }
 
 // SEND

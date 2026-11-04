@@ -391,14 +391,60 @@ button {
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
 }
 
-/* Frame: concepts, the concept, the conversation */
+/* Frame: concepts, the concept, the conversation. A dragged sidebar sets --nav-w or --side-set;
+   the right one still leaves the page 360px. */
 .frame {
+  --nav-w: 250px;
+  --side-w: max(
+    320px,
+    min(var(--side-set, max(420px, 36vw)), 100vw - var(--nav-w) - 360px)
+  );
+  position: relative;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: var(--nav-w) minmax(0, 1fr);
   align-items: start;
 }
 .frame.with-side {
-  grid-template-columns: 250px minmax(0, 1fr) minmax(420px, 36vw);
+  grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--side-w);
+}
+/* A strip over each sidebar's inner border, as tall as the frame, so the edge stays in reach. */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.resize-handle.resize-nav {
+  left: calc(var(--nav-w) - 5px);
+}
+.resize-handle.resize-side {
+  right: calc(var(--side-w) - 4px);
+}
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 3px;
+  background: transparent;
+  transition: background 120ms;
+}
+.resize-handle:hover::after,
+.resize-handle:focus-visible::after,
+.is-resizing .resize-handle::after {
+  background: var(--link);
+}
+.resize-handle:focus-visible {
+  outline: none;
+}
+.app.is-resizing,
+.app.is-resizing * {
+  cursor: col-resize;
+  user-select: none;
 }
 .concepts {
   position: sticky;
@@ -1218,23 +1264,35 @@ textarea::placeholder {
 }
 
 @media (max-width: 1180px) {
+  .frame {
+    --side-w: min(var(--side-set, 520px), 100vw);
+  }
   .frame.with-side {
-    grid-template-columns: 230px minmax(0, 1fr);
+    --nav-w: 230px;
+    grid-template-columns: var(--nav-w) minmax(0, 1fr);
   }
   .side {
     position: fixed;
     top: var(--bar);
     right: 0;
     bottom: 0;
-    width: min(520px, 100vw);
+    width: var(--side-w);
     height: auto;
     z-index: 30;
     box-shadow: -12px 0 30px rgb(0 0 0 / 0.18);
+  }
+  .resize-handle.resize-side {
+    position: fixed;
+    top: var(--bar);
+    z-index: 31;
   }
 }
 @media (max-width: 760px) {
   body {
     font-size: 16px;
+  }
+  .resize-handle {
+    display: none;
   }
   .frame,
   .frame.with-side {

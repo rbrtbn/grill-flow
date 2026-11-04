@@ -84,6 +84,26 @@ export const SidebarMode = Schema.Literals([
 ])
 export type SidebarMode = typeof SidebarMode.Type
 
+/** The sidebar edges a reader can drag: the left list's and the right sidebar's. */
+export const SidebarEdge = Schema.Literals(['Nav', 'Side'])
+export type SidebarEdge = typeof SidebarEdge.Type
+
+/** How narrow and wide a dragged sidebar may go, in px. */
+export const SIDEBAR_BOUNDS: Readonly<
+  Record<SidebarEdge, Readonly<{ min: number; max: number }>>
+> = {
+  Nav: { min: 180, max: 480 },
+  Side: { min: 320, max: 960 },
+}
+
+export const clampSidebarWidth = (edge: SidebarEdge, width: number): number =>
+  Math.round(
+    Math.min(
+      Math.max(width, SIDEBAR_BOUNDS[edge].min),
+      SIDEBAR_BOUNDS[edge].max,
+    ),
+  )
+
 export const Model = Schema.Struct({
   page: PageData.schema,
   answers: Schema.Record(Schema.String, Schema.String),
@@ -120,6 +140,11 @@ export const Model = Schema.Struct({
   isShapeOpen: Schema.Boolean,
   // Left sidebar lists the reader folded; kept in the browser, the same for every grill.
   navFolded: Schema.Array(SidebarMode),
+  // Sidebar widths the reader dragged to, in px; none keeps the layout's own. Kept in the browser,
+  // the same for every grill.
+  maybeNavWidth: Schema.Option(Schema.Number),
+  maybeSideWidth: Schema.Option(Schema.Number),
+  maybeResizing: Schema.Option(SidebarEdge),
   // What the reader has seen of the agent's messages: everything up to `readSince` (none until
   // the browser's record is read), and each later one in `readIds`. Kept per grill in the browser.
   readSince: Schema.Option(Schema.Number),
@@ -178,6 +203,22 @@ export const Message = defineMessageUnion({
   ClickedToggleNavSection: { mode: SidebarMode },
   RestoredNavFolded: { folded: Schema.Array(SidebarMode) },
   CompletedSaveNavFolded: {},
+  PressedResizeHandle: { edge: SidebarEdge },
+  MovedResizePointer: { edge: SidebarEdge, width: Schema.Number },
+  ReleasedResizeHandle: {},
+  // `step` is in px, positive to widen.
+  PressedResizeKey: { edge: SidebarEdge, step: Schema.Number },
+  CompletedMeasureSidebar: {
+    edge: SidebarEdge,
+    maybeWidth: Schema.Option(Schema.Number),
+    step: Schema.Number,
+  },
+  DoubleClickedResizeHandle: { edge: SidebarEdge },
+  RestoredSidebarWidths: {
+    maybeNav: Schema.Option(Schema.Number),
+    maybeSide: Schema.Option(Schema.Number),
+  },
+  CompletedSaveSidebarWidths: {},
   RestoredRead: {
     maybeSince: Schema.Option(Schema.Number),
     ids: Schema.Array(Schema.String),
@@ -813,6 +854,54 @@ export const update = (model: Model, message: Message) =>
 
     CompletedSaveNavFolded: () => ({ model }),
 
+    PressedResizeHandle: ({ edge }) => ({
+      model: modifyFields(model, { maybeResizing: () => Option.some(edge) }),
+    }),
+
+    MovedResizePointer: ({ edge, width }) => ({
+      model: withSidebarWidth(model, edge, Option.some(width)),
+    }),
+
+    ReleasedResizeHandle: () => {
+      const released = modifyFields(model, {
+        maybeResizing: () => Option.none(),
+      })
+      return { model: released, commands: [saveSidebarWidths(released)] }
+    },
+
+    PressedResizeKey: ({ edge, step }) => ({
+      model,
+      commands: [MeasureSidebar({ edge, step })],
+    }),
+
+    CompletedMeasureSidebar: ({ edge, maybeWidth, step }) =>
+      Option.match(maybeWidth, {
+        onNone: () => ({ model }),
+        onSome: width => {
+          const resized = withSidebarWidth(
+            model,
+            edge,
+            Option.some(width + step),
+          )
+          return { model: resized, commands: [saveSidebarWidths(resized)] }
+        },
+      }),
+
+    DoubleClickedResizeHandle: ({ edge }) => {
+      const reset = withSidebarWidth(model, edge, Option.none())
+      return { model: reset, commands: [saveSidebarWidths(reset)] }
+    },
+
+    RestoredSidebarWidths: ({ maybeNav, maybeSide }) => ({
+      model: withSidebarWidth(
+        withSidebarWidth(model, 'Nav', maybeNav),
+        'Side',
+        maybeSide,
+      ),
+    }),
+
+    CompletedSaveSidebarWidths: () => ({ model }),
+
     RestoredRead: ({ maybeSince, ids }) =>
       withSnapshot(model, snapshot => {
         // A first visit counts everything already said as read, so old answers don't pop up.
@@ -1247,6 +1336,27 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   }
 }
 
+const withSidebarWidth = (
+  model: Model,
+  edge: SidebarEdge,
+  maybeWidth: Option.Option<number>,
+): Model => {
+  const clamped = Option.map(maybeWidth, width =>
+    clampSidebarWidth(edge, width),
+  )
+  return edge === 'Nav'
+    ? modifyFields(model, { maybeNavWidth: () => clamped })
+    : modifyFields(model, { maybeSideWidth: () => clamped })
+}
+
+const saveSidebarWidths = (model: Model) =>
+  SaveSidebarWidths({
+    widths: JSON.stringify({
+      nav: Option.getOrNull(model.maybeNavWidth),
+      side: Option.getOrNull(model.maybeSideWidth),
+    }),
+  })
+
 // INIT
 
 export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
@@ -1262,6 +1372,9 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     isConceptMapOpen: false,
     isShapeOpen: false,
     navFolded: [],
+    maybeNavWidth: Option.none(),
+    maybeSideWidth: Option.none(),
+    maybeResizing: Option.none(),
     readSince: Option.none(),
     readIds: [],
     send: 'Idle',
@@ -1283,7 +1396,13 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeTalkPart: Option.none(),
     maybeJustAnswered: Option.none(),
   },
-  commands: [LoadGrill(), CheckBuild(), RestoreDrafts(), RestoreNavFolded()],
+  commands: [
+    LoadGrill(),
+    CheckBuild(),
+    RestoreDrafts(),
+    RestoreNavFolded(),
+    RestoreSidebarWidths(),
+  ],
 })
 
 // COMMAND
@@ -1696,6 +1815,80 @@ export const RestoreNavFolded = Command.define('RestoreNavFolded', {
   ),
 })
 
+const SIDEBAR_WIDTHS_KEY = 'grill-flow:sidebar-widths'
+
+const StoredSidebarWidths = Schema.Struct({
+  nav: Schema.NullOr(Schema.Number),
+  side: Schema.NullOr(Schema.Number),
+})
+
+export const SaveSidebarWidths = Command.define('SaveSidebarWidths', {
+  args: { widths: Schema.String },
+  messages: [Message.CompletedSaveSidebarWidths],
+  execute: ({ widths }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(SIDEBAR_WIDTHS_KEY, widths)
+      } catch {
+        // Storage can be off; the widths then last until the reload.
+      }
+      return Message.CompletedSaveSidebarWidths()
+    }),
+})
+
+export const RestoreSidebarWidths = Command.define('RestoreSidebarWidths', {
+  messages: [Message.RestoredSidebarWidths],
+  execute: pipe(
+    Effect.sync(() => {
+      try {
+        return window.localStorage.getItem(SIDEBAR_WIDTHS_KEY) ?? 'null'
+      } catch {
+        return 'null'
+      }
+    }),
+    Effect.flatMap(raw => Effect.try((): unknown => JSON.parse(raw))),
+    Effect.flatMap(parsed =>
+      Schema.decodeUnknownEffect(StoredSidebarWidths)(parsed),
+    ),
+    Effect.map(({ nav, side }) =>
+      Message.RestoredSidebarWidths({
+        maybeNav: Option.fromNullOr(nav),
+        maybeSide: Option.fromNullOr(side),
+      }),
+    ),
+    Effect.catch(() =>
+      Effect.succeed(
+        Message.RestoredSidebarWidths({
+          maybeNav: Option.none(),
+          maybeSide: Option.none(),
+        }),
+      ),
+    ),
+  ),
+})
+
+const SIDEBAR_SELECTOR: Readonly<Record<SidebarEdge, string>> = {
+  Nav: '.concepts',
+  Side: '.side',
+}
+
+// A key press steps from the width on screen, which is the layout's own until the first drag.
+export const MeasureSidebar = Command.define('MeasureSidebar', {
+  args: { edge: SidebarEdge, step: Schema.Number },
+  messages: [Message.CompletedMeasureSidebar],
+  execute: ({ edge, step }) =>
+    Effect.sync(() =>
+      Message.CompletedMeasureSidebar({
+        edge,
+        maybeWidth: Option.map(
+          Option.fromNullOr(document.querySelector(SIDEBAR_SELECTOR[edge])),
+          element => element.getBoundingClientRect().width,
+        ),
+        step,
+      }),
+    ),
+})
+
 // SUBSCRIPTION
 
 /**
@@ -1811,6 +2004,53 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  // While a sidebar edge is held, the pointer sets its width; the left list starts at the
+  // window's left edge and the right sidebar ends at its right one.
+  resizeSidebar: entry(
+    { edge: Schema.Literals(['Nav', 'Side', 'None']) },
+    {
+      modelToDependencies: model => ({
+        edge: Option.getOrElse(
+          model.maybeResizing,
+          (): SidebarEdge | 'None' => 'None',
+        ),
+      }),
+      dependenciesToStream: ({ edge }) =>
+        edge === 'None'
+          ? Stream.empty
+          : Stream.merge(
+              Dom.streamFromEventFilterMap({
+                target: document,
+                type: 'pointermove',
+                filterMapEvent: event =>
+                  Option.some(
+                    Message.MovedResizePointer({
+                      edge,
+                      width:
+                        edge === 'Nav'
+                          ? event.clientX
+                          : document.documentElement.clientWidth -
+                            event.clientX,
+                    }),
+                  ),
+              }),
+              Stream.merge(
+                Dom.streamFromEventFilterMap({
+                  target: document,
+                  type: 'pointerup',
+                  filterMapEvent: () =>
+                    Option.some(Message.ReleasedResizeHandle()),
+                }),
+                Dom.streamFromEventFilterMap({
+                  target: document,
+                  type: 'pointercancel',
+                  filterMapEvent: () =>
+                    Option.some(Message.ReleasedResizeHandle()),
+                }),
+              ),
+            ),
+    },
+  ),
   // While Talk is open, its About follows what the reader scrolls to; on an urgency or issue page
   // the concept Talk shows follows too.
   followQuestion: entry(
