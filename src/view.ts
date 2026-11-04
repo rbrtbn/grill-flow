@@ -2765,42 +2765,67 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
       )
 }
 
-/** The agent's newest message as one line in the top bar; it opens in Replies. */
+/** The agent's newest message as one line in the top bar; it opens in Replies, and × closes it. */
 const agentLineView = (model: Model, snapshot: Snapshot, h: H): Html =>
-  Option.match(Array.last(agentMessagesOf(snapshot)), {
-    onNone: () => h.empty,
-    onSome: latest => {
-      const isUnread = unreadMessagesOf(model).some(
-        message => message.id === latest.id,
-      )
-      return h.button(
-        [
-          h.Class(`agent-line${isUnread ? ' is-unread' : ''}`),
-          h.Title(`${agentWhere(snapshot.grill, latest)}: open in Replies`),
-          h.OnClick(
-            Message.ClickedAgentMessage({ id: latest.id, inReplies: true }),
-          ),
-        ],
-        [
-          h.span([h.Class('agent-line-dot'), h.AriaHidden(true)]),
-          h.span(
-            [h.Class('agent-line-text')],
-            [
-              h.b(
-                [],
-                [
-                  snapshot.grill.session === ''
-                    ? 'Agent'
-                    : snapshot.grill.session,
-                ],
-              ),
-              `: ${previewOf(latest.text)}`,
-            ],
-          ),
-        ],
-      )
+  Option.match(
+    Option.filter(
+      Array.last(agentMessagesOf(snapshot)),
+      latest => !Option.contains(model.maybeClosedLine, latest.id),
+    ),
+    {
+      onNone: () => h.empty,
+      onSome: latest => {
+        const isUnread = unreadMessagesOf(model).some(
+          message => message.id === latest.id,
+        )
+        return h.span(
+          [h.Class('agent-line-wrap')],
+          [
+            h.button(
+              [
+                h.Class(`agent-line${isUnread ? ' is-unread' : ''}`),
+                h.Title(
+                  `${agentWhere(snapshot.grill, latest)}: open in Replies`,
+                ),
+                h.OnClick(
+                  Message.ClickedAgentMessage({
+                    id: latest.id,
+                    inReplies: true,
+                  }),
+                ),
+              ],
+              [
+                h.span([h.Class('agent-line-dot'), h.AriaHidden(true)]),
+                h.span(
+                  [h.Class('agent-line-text')],
+                  [
+                    h.b(
+                      [],
+                      [
+                        snapshot.grill.session === ''
+                          ? 'Agent'
+                          : snapshot.grill.session,
+                      ],
+                    ),
+                    `: ${previewOf(latest.text)}`,
+                  ],
+                ),
+              ],
+            ),
+            h.button(
+              [
+                h.Class('agent-line-close'),
+                h.AriaLabel("Close the agent's message until a newer one"),
+                h.Title('Close until the agent says something new'),
+                h.OnClick(Message.ClickedCloseAgentLine({ id: latest.id })),
+              ],
+              ['×'],
+            ),
+          ],
+        )
+      },
     },
-  })
+  )
 
 /** Every message from the agent, newest first, each opening where it was said. */
 const repliesView = (model: Model, snapshot: Snapshot, h: H): Html => {

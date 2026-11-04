@@ -9,6 +9,7 @@ import {
   MeasureSidebar,
   Message,
   PageData,
+  SaveClosedLine,
   SaveSidebarWidths,
   init,
   update,
@@ -48,6 +49,24 @@ describe('folding a question on the page', () => {
       model(current => {
         expect(current.whyOpen['step-q2']).toBe(false)
       }),
+    )
+  })
+})
+
+describe("closing the agent's line in the top bar", () => {
+  it('remembers the message it closed, for this grill', () => {
+    story(
+      update,
+      given(loaded),
+      message(Message.ClickedCloseAgentLine({ id: 'reply-7' })),
+      model(current => {
+        expect(current.maybeClosedLine).toEqual(Option.some('reply-7'))
+        expect(current.readIds).toContain('reply-7')
+      }),
+      Command.expectExact(
+        SaveClosedLine({ grillId: 'fixture', id: 'reply-7' }),
+      ),
+      Command.resolve(SaveClosedLine, Message.CompletedSaveClosedLine()),
     )
   })
 })

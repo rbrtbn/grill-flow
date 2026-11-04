@@ -1858,13 +1858,19 @@ button.plan-title:hover {
 }
 
 /* From the agent: the top bar's newest message, its unread count, toasts and the Replies panel. */
+.agent-line-wrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 30rem;
+}
 .agent-line {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   min-width: 0;
-  max-width: 30rem;
-  padding: 3px 11px 3px 8px;
+  max-width: 100%;
+  padding: 3px 28px 3px 8px;
   background: var(--panel);
   border: 1px solid var(--rule);
   border-radius: 999px;
@@ -1878,6 +1884,28 @@ button.plan-title:hover {
 .agent-line.is-unread {
   background: var(--link-wash);
   border-color: color-mix(in srgb, var(--link) 40%, transparent);
+  color: var(--ink);
+}
+/* Inside the pill's right end, but its own button: the line itself opens Replies. */
+.agent-line-close {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font: 600 0.95rem/1 var(--label);
+  color: var(--muted);
+  cursor: pointer;
+}
+.agent-line-close:hover {
+  background: var(--rule);
   color: var(--ink);
 }
 .agent-line-dot {

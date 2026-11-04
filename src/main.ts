@@ -149,6 +149,9 @@ export const Model = Schema.Struct({
   // the browser's record is read), and each later one in `readIds`. Kept per grill in the browser.
   readSince: Schema.Option(Schema.Number),
   readIds: Schema.Array(Schema.String),
+  // The agent message the reader closed in the top bar; a newer one brings the line back. Kept
+  // per grill in the browser.
+  maybeClosedLine: Schema.Option(Schema.String),
   maybeJustAnswered: Schema.Option(Schema.String),
   // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
   maybeTalkPart: Schema.Option(Schema.String),
@@ -224,6 +227,9 @@ export const Message = defineMessageUnion({
     ids: Schema.Array(Schema.String),
   },
   CompletedSaveRead: {},
+  ClickedCloseAgentLine: { id: Schema.String },
+  RestoredClosedLine: { maybeId: Schema.Option(Schema.String) },
+  CompletedSaveClosedLine: {},
   // `inReplies` opens the message in the Replies panel; otherwise where it was said.
   ClickedAgentMessage: { id: Schema.String, inReplies: Schema.Boolean },
   DismissedAgentMessage: { id: Schema.String },
@@ -934,6 +940,28 @@ export const update = (model: Model, message: Message) =>
 
     DismissedAgentMessage: ({ id }) => markRead(model, [id]),
 
+    ClickedCloseAgentLine: ({ id }) => {
+      const read = markRead(model, [id])
+      return {
+        model: modifyFields(read.model, {
+          maybeClosedLine: () => Option.some(id),
+        }),
+        commands: [
+          ...(read.commands ?? []),
+          ...Option.match(grillIdOf(model), {
+            onNone: () => [],
+            onSome: grillId => [SaveClosedLine({ grillId, id })],
+          }),
+        ],
+      }
+    },
+
+    RestoredClosedLine: ({ maybeId }) => ({
+      model: modifyFields(model, { maybeClosedLine: () => maybeId }),
+    }),
+
+    CompletedSaveClosedLine: () => ({ model }),
+
     SawAgentMessages: ({ ids }) => markRead(model, ids),
 
     ClickedAgentMessage: ({ id, inReplies }) =>
@@ -1363,6 +1391,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
           ]
         : []),
       RestoreRead({ grillId: snapshot.grill.id }),
+      RestoreClosedLine({ grillId: snapshot.grill.id }),
     ],
   }
 }
@@ -1408,6 +1437,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeResizing: Option.none(),
     readSince: Option.none(),
     readIds: [],
+    maybeClosedLine: Option.none(),
     send: 'Idle',
     isSendOpen: false,
     sendMessage: '',
@@ -1731,6 +1761,40 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
 })
 
 const readKey = (grillId: string): string => `grill-flow:read:${grillId}`
+
+const closedLineKey = (grillId: string): string =>
+  `grill-flow:closed-line:${grillId}`
+
+export const SaveClosedLine = Command.define('SaveClosedLine', {
+  args: { grillId: Schema.String, id: Schema.String },
+  messages: [Message.CompletedSaveClosedLine],
+  execute: ({ grillId, id }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(closedLineKey(grillId), id)
+      } catch {
+        // Storage can be off; the line then comes back on the reload.
+      }
+      return Message.CompletedSaveClosedLine()
+    }),
+})
+
+export const RestoreClosedLine = Command.define('RestoreClosedLine', {
+  args: { grillId: Schema.String },
+  messages: [Message.RestoredClosedLine],
+  execute: ({ grillId }) =>
+    Effect.sync(() => {
+      try {
+        return Message.RestoredClosedLine({
+          maybeId: Option.fromNullOr(
+            window.localStorage.getItem(closedLineKey(grillId)),
+          ),
+        })
+      } catch {
+        return Message.RestoredClosedLine({ maybeId: Option.none() })
+      }
+    }),
+})
 
 const SavedRead = Schema.Struct({
   since: Schema.Number,
