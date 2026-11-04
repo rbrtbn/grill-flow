@@ -1,0 +1,694 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway: how a diagram could explain a boundary change on a concept page, in the
+     question and in the Talk sidebar. The page under it is a snapshot of the live wiki-boundary
+     concept page (squad-wiki-refresh-20261104); only the options, the figures and the Talk
+     paragraphs respond. The diagram content is drawn from that page's own prose. Switch with
+     ?variant=, the bottom bar, or the arrow keys. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary diagram prototypes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&display=swap">
+<style>
+:root{--paper:#f5f6f3;--panel:#eceee9;--ink:#1c1e1d;--muted:#585e5a;--rule:#d3d7d1;--link:#2c4c9c;--link-wash:#e3e9f6;--u-blocking:#b3261e;--u-soon:#c25e00;--u-wait:#a07c00;--u-fyi:#8b918d;--scope:#7a4f06;--scope-wash:#f5e8cc;--ins-bg:#d9ead3;--ins-ink:#1f4a26;--del-bg:#f4ddd6;--del-ink:#7a2a1c;--ochre:#85570a;--ochre-wash:#f5e8cc;--teal:#0a675e;--teal-wash:#d5ece8;--violet:#66409a;--violet-wash:#eae1f5;--rust:#973a1b;--rust-wash:#f6dfd6;--olive:#52661a;--olive-wash:#e4ebcf;--read:"Literata", Georgia, "Times New Roman", serif;--label:"Archivo Narrow", "Arial Narrow", "Helvetica Neue", sans-serif;--code:"JetBrains Mono", ui-monospace, Menlo, monospace;--bar:56px;--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light}@media (prefers-color-scheme:dark){:root{--paper:#141618;--panel:#1c1f22;--ink:#e3e4df;--muted:#a2a8a3;--rule:#2e3236;--link:#9cb4f2;--link-wash:#1f2a44;--u-blocking:#f2867d;--u-soon:#f0a35c;--u-wait:#e2c45a;--u-fyi:#8b918d;--scope:#e6b95f;--scope-wash:#3a2c10;--ins-bg:#1e3524;--ins-ink:#b0dcae;--del-bg:#3d221d;--del-ink:#f2b6a6;--ochre:#e6b95f;--ochre-wash:#3a2c10;--teal:#72d0c2;--teal-wash:#12322e;--violet:#c6a8ef;--violet-wash:#2c2240;--rust:#efa286;--rust-wash:#3d2219;--olive:#bed27c;--olive-wash:#29301a;--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}}*,:before,:after{box-sizing:border-box}html{background:var(--paper);overflow-anchor:none}body{background:var(--paper);color:var(--ink);font:400 17px/1.62 var(--read);-webkit-font-smoothing:antialiased;margin:0}::selection{background:var(--link-wash);color:var(--ink)}a{color:var(--link)}.text-link{overflow-wrap:anywhere}:focus-visible{outline:2px solid var(--link);outline-offset:3px;border-radius:2px}code{font:400 .84em var(--code);overflow-wrap:anywhere}p{margin:0}h1,h2,h3{text-wrap:balance;margin:0}button{font:inherit;color:inherit}.notice{max-width:60ch;color:var(--muted);margin:20vh auto}.label{font:600 .76rem var(--label);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.hint{font:500 .88rem var(--label);color:var(--muted)}.entity{white-space:nowrap;border-radius:3px;padding:0 .14em;font-weight:600}.entity.tone-ochre{color:var(--ochre);background:var(--ochre-wash)}.entity.tone-teal{color:var(--teal);background:var(--teal-wash)}.entity.tone-violet{color:var(--violet);background:var(--violet-wash)}.entity.tone-rust{color:var(--rust);background:var(--rust-wash)}.entity.tone-olive{color:var(--olive);background:var(--olive-wash)}.term{-webkit-text-decoration:underline dotted var(--muted);text-decoration:underline dotted var(--muted);text-underline-offset:4px;cursor:help}.has-tip{position:relative}.tip{z-index:30;white-space:normal;text-align:left;cursor:auto;width:max-content;max-width:min(340px,80vw);padding-top:6px;display:none;position:absolute;top:100%;left:0}.has-tip:hover>.tip{display:block}.tip-card{font:400 .9rem/1.45 var(--read);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;display:block;box-shadow:0 8px 20px #00000026}.tip-card>b{font:700 .86rem var(--label)}.tip-card .entity{white-space:normal}.prose{gap:14px;display:grid}.figure{font:400 .84rem/1.45 var(--code);color:var(--ink);background:var(--panel);white-space:pre;border-radius:6px;margin:0;padding:10px 12px;overflow-x:auto}.list-block{gap:6px;display:grid}.list-block ul{gap:4px;margin:0;padding-left:1.25em;display:grid}.list-block li::marker{color:var(--muted)}.diff ins{background:var(--ins-bg);color:var(--ins-ink);border-radius:2px;text-decoration:none}.diff del{background:var(--del-bg);color:var(--del-ink);border-radius:2px;text-decoration-thickness:1px}.revision-line{font:500 .88rem var(--label);color:var(--muted)}.text-button,.quiet-button,.send-button{font:600 .9rem var(--label);letter-spacing:.02em;cursor:pointer}.text-button{color:var(--link);text-underline-offset:3px;background:0 0;border:0;padding:0;text-decoration:underline}.quiet-button{background:var(--paper);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:6px 12px}.quiet-button:hover:not(:disabled){border-color:var(--ink)}.quiet-button.is-active{border-color:var(--link);color:var(--link);background:var(--link-wash)}.send-button{background:var(--link);color:var(--paper);border:1px solid var(--link);border-radius:4px;padding:6px 14px}.send-button:disabled{opacity:.45;cursor:default}.ref{font:700 .86em var(--label);color:var(--link);background:var(--link-wash);cursor:pointer;border:0;border-radius:3px;padding:0 .35em}.topbar{z-index:20;background:var(--paper);border-bottom:1px solid var(--rule);position:sticky;top:0;box-shadow:0 6px 16px -14px #00000059}.topbar-inner{min-height:var(--bar);padding:8px max(20px, env(safe-area-inset-right,0px)) 8px max(20px, env(safe-area-inset-left,0px));align-items:center;gap:8px 20px;display:flex}.topbar-context{flex:300px;align-items:baseline;gap:14px;min-width:0;display:flex}.topbar-title{font:700 1rem var(--read);white-space:nowrap;text-overflow:ellipsis;min-width:0;color:inherit;flex:0 auto;text-decoration:none;overflow:hidden}.topbar-title:hover{color:var(--link)}.where-part,.topbar-status{font:500 .92rem var(--label);color:var(--muted);white-space:nowrap;text-overflow:ellipsis;flex:0 auto;min-width:0;overflow:hidden}.topbar-status.is-failed{color:var(--u-blocking)}.topbar-actions{flex:none;align-items:center;gap:8px;display:flex}.topbar-count{font:500 .92rem var(--label);font-variant-numeric:tabular-nums;margin-right:4px}.preview{position:relative}.preview summary{list-style:none}.preview summary::-webkit-details-marker{display:none}.preview[open] summary{border-color:var(--link);color:var(--link);background:var(--link-wash)}.preview pre{z-index:30;width:min(560px,100vw - 40px);max-height:60vh;font:400 .85rem/1.5 var(--code);white-space:pre-wrap;background:var(--panel);border:1px solid var(--rule);border-radius:6px;margin:0;padding:14px 16px;position:absolute;top:calc(100% + 8px);right:0;overflow:auto;box-shadow:0 8px 24px #0000001f}.frame{--nav-w:250px;--side-w:max(320px, min(var(--side-set,max(420px, 36vw)), 100vw - var(--nav-w) - 360px));grid-template-columns:var(--nav-w) minmax(0, 1fr);align-items:start;display:grid;position:relative}.frame.with-side{grid-template-columns:var(--nav-w) minmax(0, 1fr) var(--side-w)}.resize-handle{z-index:5;cursor:col-resize;touch-action:none;width:9px;position:absolute;top:0;bottom:0}.resize-handle.resize-nav{left:calc(var(--nav-w) - 5px)}.resize-handle.resize-side{right:calc(var(--side-w) - 4px)}.resize-handle:after{content:"";background:0 0;width:3px;transition:background .12s;position:absolute;top:0;bottom:0;left:3px}.resize-handle:hover:after,.resize-handle:focus-visible:after,.is-resizing .resize-handle:after{background:var(--link)}.resize-handle:focus-visible{outline:none}.app.is-resizing,.app.is-resizing *{cursor:col-resize;-webkit-user-select:none;user-select:none}.concepts{top:var(--bar);height:calc(100vh - var(--bar));border-right:1px solid var(--rule);align-content:start;gap:2px;padding:18px 12px;display:grid;position:sticky;overflow:auto}.concept{text-align:left;cursor:pointer;background:0 0;border:0;border-radius:4px;gap:4px;padding:9px 12px;display:grid}.concept:hover{background:var(--panel)}.concept.is-current{background:var(--link-wash)}.concept-name{font:700 .98rem var(--label)}.concept-count{font:500 .8rem var(--label);color:var(--muted)}.dots{flex-wrap:wrap;gap:3px;display:flex}.dot{border:1px solid var(--muted);border-radius:50%;width:9px;height:9px}.dot.is-answered{background:var(--link);border-color:var(--link)}.dot.is-open{border-color:var(--link);border-width:1.5px}.dot.is-waiting{border-style:dashed}.dot.is-skipped{border:2px dotted var(--link)}.dot.is-moot{background:linear-gradient(45deg, transparent 42%, var(--muted) 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, var(--muted) 42% 58%, transparent 58%)}.main{min-width:0;padding:0 clamp(20px,3vw,44px) 120px}.concept-page{gap:26px;max-width:880px;padding-top:28px;display:grid}.concept-title{font:700 clamp(1.8rem, 3.4vw, 2.4rem)/1.1 var(--read);letter-spacing:-.01em}.concept-def{max-width:66ch;font-size:1.12rem}.section-title{font:700 1.35rem var(--read);margin-bottom:8px}.who{grid-template-columns:max-content minmax(0,60ch);gap:6px 14px;margin:0;font-size:.95rem;display:grid}.who dt{margin:0}.who dd{color:var(--muted);margin:0}.shape{border:1px solid var(--rule);border-radius:6px;gap:8px;padding:14px 18px;display:grid}.shape ul{gap:4px;margin:0;padding-left:1.2em;display:grid}.map{gap:8px;display:grid}.map-frame{overflow-x:auto}.map.is-focused .map-frame{border:1px solid var(--rule);border-radius:6px;padding:8px 10px;overflow:visible}.map.is-focused .map-svg{max-width:100%;height:auto}.map-svg{max-width:none;display:block}.lane{font:600 12px var(--label);fill:var(--muted);cursor:pointer}.lane.is-current{fill:var(--link);font-weight:700}.lane:hover{fill:var(--ink)}.edge{fill:none;stroke:var(--muted);stroke-opacity:.45;stroke-width:1.3px;transition:stroke-opacity .12s}.edge.is-mention{stroke-dasharray:4 4}.edge.is-faint{stroke-opacity:.12}.edge.is-lit{stroke:var(--link);stroke-opacity:1;stroke-width:2.2px}.node{cursor:pointer;transition:opacity .12s}.node rect{fill:var(--paper);stroke:var(--ink);stroke-width:1px}.node text{font:500 12px var(--label);fill:var(--ink);pointer-events:none}.node .node-id{font-weight:700}.node.is-open rect{stroke:var(--link);stroke-width:1.8px}.node.is-answered rect{fill:var(--link);stroke:var(--link)}.node.is-answered text{fill:var(--paper)}.node.is-waiting rect{stroke:var(--muted);stroke-dasharray:3 3}.node.is-skipped rect{stroke:var(--link);stroke-dasharray:1 3;stroke-width:2px}.node.is-moot{opacity:.45}.node.is-moot .node-title{text-decoration:line-through}.node.is-current rect{stroke-width:2.6px}.node.is-dim{opacity:.22}.node.is-hover rect{stroke:var(--ink);stroke-width:3px}.node:focus{outline:none}.node:focus-visible rect{stroke:var(--ink);stroke-width:3px}.legend{font:500 .82rem var(--label);color:var(--muted);flex-wrap:wrap;gap:6px 14px;display:flex}.legend-item{align-items:center;gap:6px;display:inline-flex}.swatch{border:1px solid var(--ink);background:var(--paper);border-radius:2px;width:14px;height:10px}.legend-item.is-answered .swatch{background:var(--link);border-color:var(--link)}.legend-item.is-open .swatch{border:2px solid var(--link)}.legend-item.is-waiting .swatch{border-style:dashed}.legend-item.is-skipped .swatch{border:2px dotted var(--link)}.legend-item.is-moot .swatch{opacity:.4}.questions{display:grid}.question{border-top:1px solid var(--rule);scroll-margin-top:calc(var(--bar) + 12px)}.question:last-child{border-bottom:1px solid var(--rule)}.row{text-align:left;cursor:pointer;background:0 0;border:0;grid-template-columns:3.2rem minmax(0,1fr) minmax(0,auto);align-items:baseline;gap:12px;width:100%;padding:14px 4px;display:grid}.row:hover{background:color-mix(in srgb, var(--panel) 60%, transparent)}.row-id{font:700 1rem var(--label);color:var(--link)}.question.is-waiting .row-id,.question.is-moot .row-id{color:var(--muted)}.row-main{flex-wrap:wrap;align-items:baseline;gap:4px 10px;min-width:0;display:flex}.row-title{font:600 1.05rem var(--read)}.question.is-expanded .row-title{font-size:1.2rem}.scope{font:600 .8rem var(--label);color:var(--scope);background:var(--scope-wash);border-radius:4px;padding:2px 7px}.row-state{font:500 .88rem var(--label);color:var(--muted);text-align:right;max-width:22rem}.row-state b{color:var(--link)}.question.is-sent>.row{opacity:.55}.sent-tag{font:600 .72rem var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule);border-radius:999px;margin-left:.5em;padding:0 6px}.question.is-answered .row-state{color:var(--ink)}.question-body{gap:12px;padding:2px 4px 22px 3.95rem;display:grid}.outside{gap:10px;display:grid}.chips{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.chip{font:500 .86rem var(--label);background:var(--panel);cursor:pointer;text-align:left;border:1px solid #0000;border-radius:999px;padding:3px 11px}.chip b{color:var(--link)}.chip.is-on{border-color:var(--link);background:var(--link-wash)}.peek{background:var(--panel);border-radius:6px;gap:6px;padding:12px 16px;font-size:.97rem;display:grid}.peek-title{font:700 1rem var(--read)}.peek-answer{font:500 .9rem var(--label);color:var(--muted)}.peek-answer b{color:var(--link)}.why-link{font:600 .9rem var(--label);color:var(--link);cursor:pointer;background:0 0;border:0;justify-self:start;padding:0}.why-link:after{content:" →"}.concept-link{font:600 .84rem var(--label);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule);cursor:pointer;background:0 0;border:0;border-radius:3px;padding:1px .45em}.concept-link:hover{text-decoration:underline}.why-message{scroll-margin:16px}.message.why-card{text-align:left;width:100%;max-width:100%;font:inherit;color:inherit;gap:0;padding:0;display:grid;overflow:hidden}button.why-card{cursor:pointer}button.why-card:hover .why-head,.why-head:hover{background:color-mix(in srgb, var(--rule) 85%, var(--panel))}.why-head{background:color-mix(in srgb, var(--rule) 45%, var(--panel));border:0;border-bottom:1px solid var(--rule);width:100%;font:600 .78rem var(--label);color:var(--muted);text-align:left;cursor:pointer;align-items:center;gap:8px;padding:7px 14px;display:flex}.why-head:before{content:"";border-bottom:2px solid;border-right:2px solid;width:.4em;height:.4em;transition:transform .12s;transform:rotate(-45deg)}.why-message.is-open .why-head:before{transform:rotate(45deg)}.why-body,.why-folded{padding:10px 14px}.why-folded{color:var(--muted);font-size:.92rem;display:block}.thread{gap:10px;display:grid}.thread .replies{border-left:2px solid var(--rule);gap:10px;margin-left:14px;padding-left:12px;display:grid}.thread-box{align-items:flex-end;gap:8px;display:flex}.thread-box textarea{flex:1;min-height:2.3rem;padding:6px 9px;font-size:.92rem}.thread-box .quiet-button{padding:4px 10px}.thread.general{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}.thread-label{font:600 .78rem var(--label);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.thread.general.is-about .thread-label{color:var(--link)}.status-line{font:500 .92rem var(--label);color:var(--muted)}.skip-line{color:var(--link)}.ask-block{gap:8px;display:grid}.applies{font:600 .88rem var(--label);color:var(--scope);background:var(--scope-wash);border-radius:4px;flex-wrap:wrap;justify-self:start;align-items:baseline;gap:8px;padding:3px 9px;display:inline-flex}.applies .label{color:inherit}.question-ask{font:600 1.15rem/1.4 var(--read)}.question-id{font:700 1rem var(--label);color:var(--link)}.options{border:1px solid var(--rule);border-radius:4px;display:grid}.option{background:var(--paper);gap:8px;padding:8px 12px;display:grid}.option-pick{text-align:left;width:100%;color:inherit;font:inherit;cursor:pointer;background:0 0;border:0;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;gap:10px;padding:0;display:grid}.option+.option{border-top:1px solid var(--rule)}.option:first-child{border-radius:4px 4px 0 0}.option:last-child{border-radius:0 0 4px 4px}.option:has(.option-pick:hover:not(:disabled)){background:color-mix(in srgb, var(--link-wash) 50%, var(--paper))}.option-pick:disabled{cursor:default;opacity:.55}.option.is-selected{background:var(--link-wash)}.option-key{border:1px solid var(--ink);width:1.4rem;height:1.4rem;font:700 .82rem var(--label);border-radius:50%;place-items:center;display:grid}.option.is-selected .option-key{background:var(--link);border-color:var(--link);color:var(--paper)}.option-body{line-height:1.45}.option-label{font-weight:600}.option-effect{color:var(--muted);font-size:.93rem}.option-effect:before{content:" — "}.recommended{font:600 .74rem var(--label);letter-spacing:.05em;text-transform:uppercase;color:var(--link);white-space:nowrap;margin-left:8px}.option.own .option-key{border-style:dashed}.option.own.is-selected .option-key{border-style:solid}textarea{font:400 .95rem/1.5 var(--read);color:var(--ink);background:var(--paper);border:1px solid var(--rule);resize:vertical;border-radius:4px;width:100%;padding:8px 10px}textarea:focus{border-color:var(--link);outline:none}textarea::placeholder{color:var(--muted)}.option .note-box,.own-text{box-sizing:border-box;width:calc(100% - 1.6rem - 10px);margin-left:calc(1.6rem + 10px)}.question-links{flex-wrap:wrap;align-items:baseline;gap:6px 18px;display:flex}.question-links .why-link{margin-left:auto}.question-links .text-button{text-decoration:none}.question-links .text-button:hover{text-decoration:underline}.question-meta{font:500 .84rem var(--label);color:var(--muted);flex-wrap:wrap;align-items:baseline;gap:6px 14px;display:flex}.side{top:var(--bar);height:calc(100vh - var(--bar));border-left:1px solid var(--rule);background:var(--panel);grid-template-rows:auto minmax(0,1fr);display:grid;position:sticky}.side.talk{grid-template-rows:auto minmax(0,1fr) auto}.side-head{border-bottom:1px solid var(--rule);justify-content:space-between;align-items:start;gap:12px;padding:16px 20px;display:flex}.side-head h2{font:700 1.2rem var(--read)}.side-body{padding:16px 20px;overflow:auto}.map.is-columns .map-svg{width:100%;height:auto}.map.is-columns .lane,.map.is-columns .node-id{text-anchor:middle}.map.is-columns .lane{font-size:11px}.map-readout{font:500 .88rem var(--label);color:var(--muted);min-height:2.6em}.map-readout strong{color:var(--ink)}.side-switch{border:1px solid var(--rule);border-radius:4px;display:inline-flex;overflow:hidden}.side-choice{font:600 .9rem var(--label);letter-spacing:.02em;background:var(--paper);color:var(--ink);cursor:pointer;border:0;padding:6px 12px}.side-choice+.side-choice{border-left:1px solid var(--rule)}.side-choice:hover:not(:disabled){background:var(--link-wash)}.side-choice.is-active{background:var(--link);color:var(--paper)}.side-choice:disabled{color:var(--muted);cursor:default}.messages{align-content:start;gap:14px;padding:16px 20px;display:grid;overflow:auto}.message{border-radius:8px;gap:6px;max-width:94%;padding:10px 14px;font-size:.97rem;display:grid}.message.from-you{background:var(--link-wash);justify-self:end}.message.from-agent{background:var(--paper);border:1px solid var(--rule)}.message-who{font:600 .78rem var(--label);color:var(--muted)}.message-body{overflow-wrap:anywhere;gap:8px;display:grid}.composer{border-top:1px solid var(--rule);gap:8px;padding:12px 20px 18px;display:grid}.about{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.about .quiet-button{padding:3px 9px;font-size:.84rem}.about .quiet-button.is-answered:not(.is-active){color:var(--muted);opacity:.7;border-style:dashed}.composer-foot{justify-content:space-between;align-items:center;gap:12px;display:flex}@media (width<=1180px){.frame{--side-w:min(var(--side-set,520px), 100vw)}.frame.with-side{--nav-w:230px;grid-template-columns:var(--nav-w) minmax(0, 1fr)}.side{top:var(--bar);width:var(--side-w);z-index:30;height:auto;position:fixed;bottom:0;right:0;box-shadow:-12px 0 30px #0000002e}.resize-handle.resize-side{top:var(--bar);z-index:31;position:fixed}}@media (width<=760px){body{font-size:16px}.resize-handle{display:none}.frame,.frame.with-side{grid-template-columns:minmax(0,1fr)}.concepts{border-right:0;border-bottom:1px solid var(--rule);height:auto;padding:8px 12px;display:flex;position:static;overflow-x:auto}.concept{flex:none}.wide-only,.topbar-title,.preview,.copy-button{display:none}.row{grid-template-columns:2.6rem minmax(0,1fr)}.row-state{text-align:left;grid-column:2}.question-body{padding-left:4px}.who{grid-template-columns:minmax(0,1fr)}}@media (prefers-reduced-motion:reduce){*{transition:none!important}}.urgency{vertical-align:.05em;border-radius:50%;flex:none;width:9px;height:9px;margin-right:6px;display:inline-block}.urgency.is-trailing{margin:0 0 0 .45em}.u-blocking{background:var(--u-blocking)}.u-soon{background:var(--u-soon)}.u-wait{background:var(--u-wait)}.u-fyi{background:var(--u-fyi)}.u-unset{border:1.5px dashed var(--muted)}.ref-link,.ref-label{font:700 .86em var(--label);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule);white-space:nowrap;background:0 0;border-radius:3px;margin-right:.3em;padding:0 .35em;text-decoration:none}.ref-link{position:relative}a.ref-link:hover{text-decoration:underline}.ref-glyph{margin-right:.2em;font-weight:400}.ref-link:hover:after,.ref-link:focus-visible:after{content:attr(data-summary);z-index:20;white-space:normal;width:max-content;max-width:300px;font:500 .82rem/1.4 var(--label);color:var(--ink);background:var(--paper);border:1px solid var(--rule);pointer-events:none;border-radius:6px;padding:8px 10px;position:absolute;top:1.7em;left:0;box-shadow:0 8px 20px #00000026}.from{font:600 .8rem var(--label);color:var(--muted);border:1px solid var(--rule);white-space:nowrap;border-radius:999px;padding:0 8px}.from a{color:inherit}.from-card{font:inherit;color:var(--link);cursor:pointer;background:0 0;border:0;padding:0}.from-card:hover{text-decoration:underline}.squad-line{font:500 .88rem var(--label);color:var(--muted);flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin:0 0 10px;display:flex}.squad-urgency{align-items:baseline;display:inline-flex}.issue-head{font:600 .92rem var(--label);color:var(--muted);margin:0 0 4px}.decided{gap:8px;padding:0;list-style:none;display:grid}.decided li{grid-template-columns:3.2rem minmax(0,1fr);align-items:baseline;gap:10px;display:grid}.decided-id{font:700 .88rem var(--label);color:var(--muted)}.concept-title .urgency{vertical-align:.15em;width:16px;height:16px}.dialog-layer{z-index:50;place-items:center;padding:16px;display:grid;position:fixed;inset:0}.dialog-backdrop{background:#0a0e0c73;position:absolute;inset:0}.dialog{background:var(--paper);border-radius:10px;align-content:start;gap:12px;width:min(640px,100%);max-height:min(86vh,900px);padding:20px 24px 22px;display:grid;position:relative;overflow:auto;box-shadow:0 24px 60px #0000004d}.dialog h2{font:700 1.3rem var(--read);margin:0}.send-counts{color:var(--muted);font:500 .95rem var(--label);margin:0}.send-review summary{cursor:pointer;font:600 .92rem var(--label);color:var(--link)}.send-preview pre{max-height:40vh;font:400 .82rem/1.5 var(--code);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--rule);border-radius:6px;margin:10px 0 0;padding:12px 14px;overflow:auto}.send-review ul{gap:4px;margin:10px 0 0;padding:0;list-style:none;display:grid}.send-row{font:500 .9rem var(--label);border-bottom:1px solid var(--rule);grid-template-columns:2.8rem minmax(0,1fr) minmax(0,auto);align-items:baseline;gap:10px;padding:4px 0;display:grid}.send-id{color:var(--muted);font-weight:700}.send-answer{color:var(--muted);text-align:right}.send-row.is-answered .send-answer{color:var(--link)}.send-dialog textarea{width:100%}.send-error{color:var(--del-ink);font:600 .9rem var(--label);margin:0}.send-actions{justify-content:flex-end;align-items:center;gap:10px;display:flex}.send-actions .hint{margin-right:auto}.plan-page{max-width:none}.plan-deadline{background:var(--panel);border-radius:8px;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:6px 20px;padding:12px 16px;display:grid}.plan-when{font:600 .95rem var(--label);white-space:nowrap;color:var(--u-blocking)}.plan-when b{font-size:1.1rem}.plan-agents{flex-wrap:wrap;align-items:baseline;gap:6px;display:flex}.plan-slot{font:600 .8rem var(--label);border:1.5px solid var(--teal);color:var(--teal);border-radius:4px;padding:1px 8px}.plan-slot.is-stuck{border-style:dashed;border-color:var(--scope);color:var(--scope)}.plan-slot.is-idle{border:1.5px dotted var(--rule);color:var(--muted)}.plan-list{grid-template-columns:minmax(0,1fr) repeat(2,minmax(240px,300px));align-items:start;gap:24px;display:grid}.plan-board{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));align-items:start;gap:16px;display:grid}.plan-col,.plan-rest{align-content:start;gap:12px;display:grid}.plan-rest{background:var(--panel);border-radius:8px;gap:16px;padding:14px 16px}.plan-col h2,.plan-group h2{font:700 .98rem var(--label);border-bottom:2px solid var(--rule);padding-bottom:6px}.plan-group h2{border-bottom:0;padding-bottom:0}.plan-group{gap:4px;display:grid}.plan-issue{border:1px solid var(--rule);border-radius:8px;gap:10px;padding:14px 16px;display:grid}.plan-issue.is-first{border-color:var(--u-blocking);box-shadow:0 0 0 1px var(--u-blocking)}.plan-head{flex-wrap:wrap;align-items:baseline;gap:8px;display:flex}.plan-rank{font:700 .78rem var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--u-blocking)}.plan-title{font:600 1.02rem/1.35 var(--read);color:inherit;text-align:left;background:0 0;border:0;flex:240px;padding:0}button.plan-title{cursor:pointer}button.plan-title:hover{color:var(--link);text-decoration:underline}.plan-crit{font:700 .7rem var(--label);letter-spacing:.05em;text-transform:uppercase;color:var(--u-soon)}.plan-qs{gap:2px;display:grid}.plan-q{border-top:1px solid var(--rule);grid-template-columns:3.4rem minmax(0,1fr);align-items:baseline;gap:8px;padding:4px 0;font-size:.94rem;display:grid}.plan-q.is-done{opacity:.5}.plan-also,.plan-detail,.plan-then{font:500 .84rem var(--label);color:var(--muted)}.plan-line{border-top:1px solid var(--rule);gap:2px;padding:6px 0;display:grid}.plan-line .plan-title{font-size:.92rem}.plan-card{border:1px solid var(--rule);border-radius:8px;padding:4px 12px}.plan-card .plan-line{border-top:0}.plan-card.is-crit{border-color:var(--u-soon)}.pill{font:600 .74rem var(--label);white-space:nowrap;border-radius:999px;padding:1px 8px}.ph-building,.ph-review{color:var(--paper);background:var(--teal)}.ph-ready{color:var(--link);box-shadow:inset 0 0 0 1.5px var(--link)}.ph-you{color:var(--paper);background:var(--u-blocking)}.ph-stuck{color:var(--scope);box-shadow:inset 0 0 0 1.5px var(--scope)}.ph-after,.ph-merged,.ph-outside{color:var(--muted);box-shadow:inset 0 0 0 1px var(--rule)}@media (width<=1180px){.plan-list,.plan-board{grid-template-columns:minmax(0,1fr)}}.nav-section{border:0;border-top:1px solid var(--rule);text-align:left;width:100%;color:var(--muted);cursor:pointer;background:0 0;align-items:center;gap:8px;margin:12px 0 2px;padding:14px 12px 4px;display:flex}.nav-section:before{content:"";border-bottom:2px solid;border-right:2px solid;width:.38em;height:.38em;transition:transform .12s;transform:rotate(-45deg)}.nav-section.is-open:before{transform:rotate(45deg)}.nav-section:hover{color:var(--ink)}.back-link{font:600 .88rem var(--label);color:var(--link);cursor:pointer;background:0 0;border:0;justify-self:start;margin:0 0 10px;padding:0}.back-link:hover{text-decoration:underline}.question-meta .from{padding:1px 9px;font-size:.88rem}.concept-map{gap:10px;display:grid}.fold-toggle{font:600 .9rem var(--label);color:var(--link);cursor:pointer;background:0 0;border:0;justify-self:start;align-items:center;gap:8px;padding:0;display:inline-flex}.fold-toggle:before{content:"";border-bottom:2px solid;border-right:2px solid;width:.4em;height:.4em;transition:transform .12s;transform:rotate(-45deg)}.concept-map.is-open .fold-toggle:before{transform:rotate(45deg)}.agent-line-wrap{min-width:0;max-width:30rem;display:inline-flex;position:relative}.agent-line{background:var(--panel);border:1px solid var(--rule);min-width:0;max-width:100%;font:500 .84rem var(--label);color:var(--muted);cursor:pointer;border-radius:999px;align-items:center;gap:7px;padding:3px 28px 3px 8px;display:inline-flex}.agent-line:hover{border-color:var(--link)}.agent-line.is-unread{background:var(--link-wash);border-color:color-mix(in srgb, var(--link) 40%, transparent);color:var(--ink)}.agent-line-close{width:18px;height:18px;font:600 .95rem/1 var(--label);color:var(--muted);cursor:pointer;background:0 0;border:0;border-radius:50%;place-items:center;padding:0;display:grid;position:absolute;top:50%;right:5px;transform:translateY(-50%)}.agent-line-close:hover{background:var(--rule);color:var(--ink)}.agent-line-dot{background:var(--rule);border-radius:50%;flex:none;width:7px;height:7px}.agent-line.is-unread .agent-line-dot{background:var(--link)}.agent-line-text{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.unread-count{background:var(--u-blocking);color:#fff;min-width:1.15rem;height:1.15rem;font:700 .7rem var(--label);border-radius:999px;place-items:center;margin-left:6px;padding:0 4px;display:inline-grid}.toasts{z-index:40;gap:10px;width:min(380px,100vw - 32px);display:grid;position:fixed;bottom:18px;right:18px}.toast{background:var(--paper);border:1px solid color-mix(in srgb, var(--link) 30%, var(--rule));border-radius:8px;animation:.18s ease-out toast-in;position:relative;box-shadow:0 8px 24px #00000029}.toast-open{text-align:left;width:100%;font:inherit;color:inherit;cursor:pointer;background:0 0;border:0;gap:4px;padding:10px 34px 10px 14px;display:grid}.toast-who{font:600 .74rem var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--link);align-items:center;gap:7px;display:flex}.toast-who:before{content:"";background:var(--link);border-radius:50%;width:7px;height:7px}.toast-text{-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:.93rem;line-height:1.4;display:-webkit-box;overflow:hidden}.toast-go{font:600 .84rem var(--label);color:var(--link)}.toast-go:after{content:" →"}.toast-close{color:var(--muted);cursor:pointer;background:0 0;border:0;font-size:1.05rem;position:absolute;top:6px;right:8px}.toast-more{background:var(--paper);border:1px solid var(--rule);font:600 .82rem var(--label);color:var(--link);cursor:pointer;border-radius:999px;justify-self:end;padding:4px 12px}@keyframes toast-in{0%{opacity:0;transform:translateY(8px)}}.replies-list{align-content:start;display:grid;overflow:auto}.replies-list .hint{padding:16px 20px}.reply-entry{border-bottom:1px solid var(--rule);gap:6px;padding:12px 20px 14px;scroll-margin:12px;display:grid}.reply-entry.is-unread{background:var(--paper)}.reply-entry.is-unread .reply-where:before{content:"";background:var(--link);vertical-align:1px;border-radius:50%;width:7px;height:7px;margin-right:7px;display:inline-block}.reply-entry.is-answer .message-body{-webkit-line-clamp:4;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.reply-where{font:600 .76rem var(--label);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.reply-entry .text-button{justify-self:start}
+
+</style>
+<style>
+body { background: var(--paper); color: var(--ink); margin: 0; font-family: var(--read); }
+.snapshot nav, .snapshot a, .snapshot .topbar-actions, .snapshot .resize-handle { pointer-events: none; }
+
+/* Prototype chrome, clearly not part of the design. */
+.switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 99; display: flex; align-items: center; gap: 4px; background: #111; color: #fff; border-radius: 999px; padding: 6px 8px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); font: 600 0.9rem system-ui, sans-serif; }
+.switcher button { background: transparent; border: 0; color: #fff; font-size: 1.1rem; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; }
+.switcher button:hover { background: #333; }
+.switcher span { padding: 0 10px; min-width: 300px; text-align: center; }
+.controls { position: fixed; left: 16px; bottom: 16px; z-index: 98; width: 300px; background: #111; color: #eee; border-radius: 10px; padding: 12px 14px; font: 500 0.8rem/1.4 system-ui, sans-serif; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); display: grid; gap: 7px; }
+.controls b { color: #fff; }
+.controls p { margin: 0; color: #bbb; }
+.controls p.data { color: #9fb; }
+.controls pre { margin: 0; font: 500 0.72rem/1.35 ui-monospace, monospace; color: #9fb; white-space: pre-wrap; }
+.controls .fold { position: absolute; top: 6px; right: 8px; background: none; border: 0; color: #888; cursor: pointer; font-size: 1rem; }
+.controls.is-folded > :not(.fold, .head) { display: none; }
+
+/* Shared figure pieces. */
+.fig { border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); padding: 12px 14px; display: grid; gap: 10px; margin: 4px 0 14px; }
+.fig-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fig-title { margin: 0; font: 600 0.78rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; overflow: hidden; }
+.seg button { font: 600 0.8rem var(--label); background: none; border: 0; padding: 3px 10px; color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button.is-active { background: var(--link); color: var(--paper); }
+.seg button.is-preview:not(.is-active) { background: var(--link-wash); color: var(--link); }
+.fig-cap { margin: 0; font-size: 0.9rem; line-height: 1.45; }
+.fig-cap b { font-weight: 600; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font: 500 0.76rem var(--label); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { display: inline-block; width: 18px; height: 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--paper); }
+.sw.dup { border: 1.5px dashed var(--rust); }
+.sw.open { border: 1.5px dashed var(--muted); }
+.sw.moved { box-shadow: 0 0 0 2px var(--link); }
+.option.is-preview { background: color-mix(in srgb, var(--link-wash) 55%, transparent); }
+
+/* A: two zones and the line between them; chips move across it. */
+.bd-stage { display: grid; grid-template-columns: 1fr minmax(18px, auto) 1fr; align-items: stretch; }
+.bd-zone { border-radius: 6px; padding: 10px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; min-height: 120px; }
+.bd-zone.wiki { background: var(--teal-wash); }
+.bd-zone.owner { background: var(--ochre-wash); }
+.bd-zone h4 { flex-basis: 100%; margin: 0 0 2px; font: 700 0.72rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; }
+.bd-zone.wiki h4 { color: var(--teal); }
+.bd-zone.owner h4 { color: var(--ochre); }
+.bd-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 4px 8px; background: repeating-linear-gradient(to bottom, var(--ink) 0 6px, transparent 6px 11px) center / 2px 100% no-repeat; }
+.bd-mid h4 { margin: 0; font: 700 0.68rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--paper); padding: 1px 4px; }
+.chip { display: inline-flex; flex-direction: column; font: 500 0.82rem/1.15 var(--label); padding: 4px 9px; border-radius: 12px; background: var(--paper); border: 1px solid var(--rule); color: var(--ink); max-width: 100%; }
+.chip small { font-size: 0.72rem; color: var(--muted); }
+.chip.dup { border: 1.5px dashed var(--rust); }
+.chip.dup small { color: var(--rust); }
+.chip.open { border: 1.5px dashed var(--muted); text-align: center; }
+.chip.moved { box-shadow: 0 0 0 2px var(--link); }
+.chip.faint { opacity: 0.55; }
+
+/* B: who owns each part, one column per answer. */
+.om { width: 100%; border-collapse: collapse; font: 500 0.84rem/1.25 var(--label); }
+.om th, .om td { padding: 6px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.om thead th { font: 700 0.72rem var(--label); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.om tbody th { font-weight: 600; color: var(--ink); width: 30%; }
+.om td { transition: opacity 120ms, background 120ms; }
+.om .col-hot { background: color-mix(in srgb, var(--link-wash) 60%, transparent); }
+.om.has-pick td:not(.col-hot), .om.has-pick thead th.col-dim { opacity: 0.45; }
+.om td.changed { box-shadow: inset 3px 0 0 var(--link); }
+.om tr.ask-row:hover th, .om tr.ask-row:hover td { background: var(--link-wash); cursor: pointer; }
+.own { display: inline-block; padding: 1px 7px; border-radius: 999px; font-weight: 600; font-size: 0.78rem; margin: 0 3px 2px 0; }
+.own.w { background: var(--teal-wash); color: var(--teal); }
+.own.o { background: var(--ochre-wash); color: var(--ochre); }
+.own.q { border: 1.5px dashed var(--muted); color: var(--muted); }
+.own.x { color: var(--muted); font-weight: 500; padding-left: 0; }
+.twice { display: inline-block; color: var(--rust); font-weight: 700; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.om small { display: block; color: var(--muted); font-size: 0.74rem; font-weight: 500; }
+.fig-card { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; border: 1px solid var(--rule); border-radius: 8px; padding: 10px; background: var(--paper); cursor: zoom-in; margin: 4px 0 14px; text-align: left; font: inherit; color: inherit; width: 100%; }
+.fig-card:hover { border-color: var(--link); }
+.mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 6px; background: var(--panel); border-radius: 5px; }
+.mini i { height: 9px; border-radius: 3px; }
+.mini i.w { background: var(--teal); } .mini i.o { background: var(--ochre); } .mini i.d { background: var(--rust); } .mini i.q { border: 1px dashed var(--muted); } .mini i.x { background: var(--rule); }
+.fig-card p { margin: 0; font-size: 0.9rem; line-height: 1.35; }
+.fig-card .go { font: 600 0.8rem var(--label); color: var(--link); }
+.lightbox { position: fixed; inset: 0; z-index: 90; background: rgb(0 0 0 / 0.35); display: grid; place-items: center; padding: 16px; }
+.lightbox .fig { width: min(900px, 100%); max-height: 86vh; overflow: auto; margin: 0; box-shadow: 0 20px 50px rgb(0 0 0 / 0.3); }
+.ask-tag { display: inline-flex; align-items: center; gap: 6px; font: 600 0.8rem var(--label); background: var(--link-wash); color: var(--link); border-radius: 999px; padding: 2px 4px 2px 10px; }
+.ask-tag button { background: none; border: 0; color: var(--link); cursor: pointer; font-size: 0.95rem; }
+
+/* C: a reminder's path through two lanes, with the boundary drawn on it. */
+.flow { display: grid; grid-template-columns: 74px repeat(5, minmax(0, 1fr)); row-gap: 8px; column-gap: 6px; position: relative; }
+.flow .colh { font: 700 0.68rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.flow .laneh { font: 700 0.72rem/1.15 var(--label); letter-spacing: 0.04em; text-transform: uppercase; align-self: center; }
+.flow .laneh.w { color: var(--teal); } .flow .laneh.o { color: var(--ochre); }
+.flow .cell { position: relative; display: grid; align-items: center; min-height: 46px; }
+.flow .cell.lane-w { background: var(--teal-wash); } .flow .cell.lane-o { background: var(--ochre-wash); }
+.flow .cell.first { border-radius: 6px 0 0 6px; } .flow .cell.last { border-radius: 0 6px 6px 0; }
+.flow .cell.lane-w.off, .flow .cell.lane-o.off { background: transparent; border: 1px dashed var(--rule); }
+.node { margin: 4px; padding: 4px 6px; border-radius: 8px; background: var(--paper); border: 1px solid var(--rule); font: 500 0.76rem/1.15 var(--label); text-align: center; z-index: 1; transition: opacity 160ms, box-shadow 160ms; }
+.node.dup { border: 1.5px dashed var(--rust); }
+.node.open { border: 1.5px dashed var(--muted); color: var(--muted); }
+.node.warn { border-color: var(--u-soon); }
+.node.ghost { background: none; border: 0; color: var(--muted); font-style: italic; }
+.node.faint { opacity: 0.4; }
+.node.link::after { content: '↓'; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); color: var(--link); font: 700 1rem var(--label); }
+.cell.arrow::before { content: ''; position: absolute; left: -6px; width: 12px; top: 50%; border-top: 1.5px solid var(--muted); }
+.flow .band { grid-row: 2 / span 2; border: 1.5px dashed var(--rust); border-radius: 8px; pointer-events: none; margin: -3px; }
+.flow .band-label { font: 600 0.74rem var(--label); color: var(--rust); text-align: center; }
+.flow.hot-w .cell.lane-o .node, .flow.hot-o .cell.lane-w .node { opacity: 0.35; }
+.flow-wrap.is-sticky { position: sticky; top: 0; z-index: 3; margin: -2px 0 12px; box-shadow: 0 6px 12px -8px rgb(0 0 0 / 0.25); }
+.prose p[data-st] { cursor: default; border-left: 3px solid transparent; padding-left: 9px; margin-left: -12px; transition: border-color 160ms; }
+.prose p[data-st].is-linked { border-left-color: var(--link); }
+.prose p[data-st]::before { content: attr(data-tag); display: block; font: 600 0.7rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; color: var(--link); opacity: 0; height: 0; transition: opacity 160ms; }
+.prose p[data-st].is-linked::before { opacity: 1; height: auto; margin-bottom: 2px; }
+
+
+/* D: built from data. */
+.dm th, .dm td { padding: 8px 10px; }
+.dm tbody th { width: 24%; }
+.dm thead th { vertical-align: bottom; }
+.dh-label { display: block; }
+.dm thead .recommended { display: inline-block; margin: 2px 0 0; }
+.dh-sum { display: block; font: 500 0.74rem var(--label); text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: 3px; }
+.dh-sum.has { color: var(--rust); font-weight: 600; }
+.dm td.fl-twice, .dm td.fl-gap { background: color-mix(in srgb, var(--rust-wash) 75%, transparent); }
+.dm td.fl-risk { background: color-mix(in srgb, var(--u-soon) 13%, transparent); }
+.dm td.fl-open { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--rule) 55%, transparent) 6px 8px); }
+.flag { display: inline-block; font: 700 0.64rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; margin: 0 5px 3px 0; vertical-align: 1px; }
+.f-twice, .f-gap { background: var(--rust); color: var(--paper); }
+.f-risk { background: var(--u-soon); color: var(--paper); }
+.f-open { border: 1.5px dashed var(--muted); color: var(--muted); padding: 0 5px; }
+.dm td.changed { box-shadow: none; }
+.dm td.changed:not([class*='fl-']) { background: color-mix(in srgb, var(--link-wash) 70%, transparent); }
+.dm td.col-hot { outline: 2px solid var(--link); outline-offset: -2px; }
+.dm-same { margin: 0; font: 500 0.8rem var(--label); color: var(--muted); }
+.chip.risk { border: 1.5px solid var(--u-soon); }
+.prose p.dp { position: relative; margin-top: 1.5em; border-left: 3px solid transparent; padding-left: 9px; margin-left: -12px; transition: border-color 160ms; }
+.prose p.dp[data-title]::before { content: attr(data-title); position: absolute; left: 9px; top: -1.45em; font: 600 0.7rem var(--label); letter-spacing: 0.05em; text-transform: uppercase; color: var(--link); opacity: 0; transition: opacity 160ms; white-space: nowrap; }
+.prose p.dp[data-title]:hover::before, .prose p.dp.is-linked::before { opacity: 1; }
+.prose p.dp.is-linked { border-left-color: var(--link); }
+.dfig .seg { flex-wrap: wrap; }
+.dfig.is-sticky { position: sticky; top: 0; z-index: 3; box-shadow: 0 6px 12px -8px rgb(0 0 0 / 0.25); }
+.dfig { margin-top: 1.2em; }
+.controls .dctl { display: grid; gap: 5px; }
+.controls .dctl button { font: 600 0.78rem system-ui, sans-serif; background: #2c4c9c; color: #fff; border: 0; border-radius: 6px; padding: 5px 9px; cursor: pointer; text-align: left; }
+.controls .dctl button.ghost { background: #333; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="snapshot" id="snapshot">
+<div class="page"><div class="app"><header class="topbar"><div class="topbar-inner"><div class="topbar-context"><a class="topbar-title" href="/" title="All grills">Squad lead wiki refresh — a smaller wiki beside the evolved CoS</a><span class="where-part">What the wiki owns</span><span aria-live="polite" class="topbar-status" title=""></span></div><div class="topbar-actions"><span class="topbar-count"><strong>0/2</strong><span class="wide-only"> answered</span></span><div role="group" aria-label="Right sidebar" class="side-switch"><button aria-pressed="true" class="side-choice is-active" title="Talk about this concept in the sidebar">Talk</button><button aria-pressed="false" class="side-choice" title="Show the map of all questions in the sidebar">Map</button><button aria-pressed="false" class="side-choice" title="Everything the agent has said to you">Replies</button></div><details class="preview"><summary class="quiet-button">Preview</summary><pre>Round 1 (0 of 2 answered):
+Open: Q1, Q2</pre></details><button class="quiet-button copy-button">Copy</button><button class="send-button" disabled="" title="Nothing new to send: every answer already went out">Send<span class="wide-only"> to homelab/t96</span></button></div></div></header><div class="frame with-side"><nav aria-label="Pages" class="concepts"><button aria-current="false" class="concept"><span class="concept-name">Overview</span><span class="concept-count">What this is about</span></button><button aria-current="false" class="concept"><span class="concept-name">Plan</span><span class="concept-count">Nothing waits on you</span></button><button aria-current="false" class="concept"><span class="concept-name">Run status</span><span class="concept-count">0 building · 0 ready · 0 merged</span></button><button aria-expanded="true" class="nav-section is-open"><span class="label">Urgency</span></button><button aria-current="false" class="concept"><span class="concept-name"><span aria-label="Blocking" class="urgency u-blocking" title="Blocking"></span>Blocking</span><span class="concept-count">0 to answer</span></button><button aria-current="false" class="concept"><span class="concept-name"><span aria-label="Soon" class="urgency u-soon" title="Soon"></span>Soon</span><span class="concept-count">2 to answer</span></button><button aria-current="false" class="concept"><span class="concept-name"><span aria-label="Can wait" class="urgency u-wait" title="Can wait"></span>Can wait</span><span class="concept-count">0 to answer</span></button><button aria-current="false" class="concept"><span class="concept-name"><span aria-label="FYI" class="urgency u-fyi" title="FYI"></span>FYI</span><span class="concept-count">0 to answer</span></button><button aria-current="false" class="concept"><span class="concept-name"><span aria-label="No urgency set" class="urgency u-unset" title="No urgency set"></span>No urgency set</span><span class="concept-count">0 to answer</span></button><button aria-expanded="true" class="nav-section is-open"><span class="label">Concepts</span></button><button aria-current="page" class="concept is-current"><span class="concept-name">What the wiki owns<span aria-label="Soon" class="urgency is-trailing u-soon" title="Soon"></span></span><span class="concept-count">0 of 1 decided</span><span aria-hidden="true" class="dots"><span class="dot is-open" title="Q1"></span></span></button><button aria-current="false" class="concept"><span class="concept-name">Avoid a second Slack front door by default<span aria-label="Soon" class="urgency is-trailing u-soon" title="Soon"></span></span><span class="concept-count">0 of 1 decided</span><span aria-hidden="true" class="dots"><span class="dot is-open" title="Q2"></span></span></button><button aria-expanded="true" class="nav-section is-open"><span class="label">Cards</span></button><button aria-current="false" class="concept"><span class="concept-name"><span class="ref-label" title="LAB-1054 · Backlog · Lead wiki: grill the open ideas (I1–I10, L1–L5) before W0+W1 is built"><span aria-hidden="true" class="ref-glyph">◌</span>LAB-1054</span>Lead wiki: grill the open ideas (I1–I10, L1–L5) before W0+W1 is built<span aria-label="Soon" class="urgency is-trailing u-soon" title="Soon"></span></span><span class="concept-count">wiki-refresh · 0 of 2 decided</span></button><button aria-current="false" class="concept"><span class="concept-name">Decided so far</span><span class="concept-count">3 decisions</span></button></nav><div role="separator" aria-orientation="vertical" aria-label="Resize the pages list" aria-valuemin="180" aria-valuemax="480" class="resize-handle resize-nav" title="Drag to resize; double-click for the default width" tabindex="0"></div><main class="main"><div class="concept-page"><p class="issue-head"><a data-summary="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" aria-label="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" class="ref-link" href="https://linear.app/rbrtbn/issue/LAB-914/squad-lead-wiki-robs-standing-instructions-and-the-leads-lessons-in" target="_blank" rel="noreferrer"><span aria-hidden="true" class="ref-glyph">○</span>LAB-914</a> Todo</p><h1 class="concept-title">What the wiki owns</h1><p class="concept-def">Lasting knowledge can point to live work without becoming its scheduler or control plane.</p><div class="shape"><button aria-expanded="false" class="fold-toggle">The shape so far<span class="fold-count">0 of 1 decided</span></button><section class="concept-map is-folded"><button aria-expanded="false" class="fold-toggle">This concept on the map</button></section></div><div class="questions"><section class="question is-open is-expanded" id="q-Q1"><button aria-expanded="true" class="row"><span class="row-id">Q1</span><span class="row-main"><span class="row-title">Keep one owner for each reminder<span aria-label="Soon" class="urgency is-trailing u-soon" title="Soon"></span></span><span class="scope">The first Squad wiki slice in each environment; no cross-environment sharing.</span></span><span class="row-state">Open</span></button><div class="question-body"><div class="question-links"><a data-summary="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" aria-label="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" class="ref-link" href="https://linear.app/rbrtbn/issue/LAB-914/squad-lead-wiki-robs-standing-instructions-and-the-leads-lessons-in" target="_blank" rel="noreferrer"><span aria-hidden="true" class="ref-glyph">○</span>LAB-914</a><button class="why-link" title="Opens the reasoning in Talk">Why we're asking</button><button class="text-button">Skip for now</button></div><p class="question-ask" id="ask-text-Q1">Should the refreshed W0+W1 wiki hold lasting knowledge and work references, with timed reminder execution staying with an existing owner in that same environment?</p><div role="radiogroup" aria-labelledby="ask-text-Q1" class="options"><div class="option"><button role="radio" aria-checked="false" class="option-pick" type="button"><span class="option-key">a</span><span class="option-body"><span class="option-label">Yes — knowledge and references<span class="recommended">Recommended</span></span><span class="option-effect">Change the old W1 reminder scope; later rounds decide capture/lifecycle and links without adding a second scheduler or sent ledger.</span></span></button></div><div class="option"><button role="radio" aria-checked="false" class="option-pick" type="button"><span class="option-key">b</span><span class="option-body"><span class="option-label">Keep operational reminders.md</span><span class="option-effect">Retain the original reminder direction; later rounds must decide execution ownership, delivery failures and duplicate state before implementation.</span></span></button></div><div class="option own"><button role="radio" aria-checked="false" class="option-pick" type="button"><span class="option-key">?</span><span class="option-body"><span class="option-label" title="None of these fits">My own answer</span></span></button></div></div><div class="question-meta"><span class="from" title="Independent planning session homelab/t96">from wiki-refresh · <span><button class="from-card" title="Go to card wiki-refresh">wiki-refresh</button>/Q1</span></span></div></div></section></div></div></main><aside aria-label="Conversation about What the wiki owns" class="side talk"><header class="side-head"><div><p class="label">Talking with the agent in homelab/t96</p><h2>What the wiki owns</h2></div><button class="text-button">Close</button></header><div class="messages"><div class="thread why-message is-open" id="why-knowledge-and-reminders"><div class="message from-agent why-card"><button aria-expanded="true" class="why-head why-toggle">Agent · why we're asking Q1</button><div class="message-body why-body"><div class="prose"><p><a data-summary="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" aria-label="LAB-914 · Todo · Squad lead wiki: Rob's standing instructions and the lead's lessons, in rbrtbn/squad-wiki" class="ref-link" href="https://linear.app/rbrtbn/issue/LAB-914/squad-lead-wiki-robs-standing-instructions-and-the-leads-lessons-in" target="_blank" rel="noreferrer"><span aria-hidden="true" class="ref-glyph">○</span>LAB-914</a>'s accepted W1 plan puts reminders and closed-session leftovers in reminders.md. L5 then proposes a sent line so a recycled lead does not send a reminder twice. That was a reasonable open direction before this source comparison; changing it is your choice.</p><p>Current cos-rob already has the operating pattern: its role reads Scheduled entries in open-tasks.md, creates one-shot timers, replies with a stable --once key, then marks the wiki entry done. scripts/cos deduplicates queue ids under a lock. The listener advances its cursor before delivery to avoid duplicate posts after an unknown outcome; that can lose a post. Queued and posted are different.</p><p>I recommend that Squad's wiki retain lasting <span class="term has-tip">preferences<span role="tooltip" class="tip"><span class="tip-card"><b>preference</b> Non-authorizing guidance. It grants no action and loses to rules.</span></span></span>, corrections and evidenced lessons, plus references to unresolved work. An existing owner in the same environment keeps due times, execution and delivery status. Where no such owner exists, keep the unresolved request visible as pending work; this proposal does not create a CoS service or silently send a personal reminder through work Slack.</p><p>This changes the old W1 reminder boundary while preserving the knowledge repository, history and citations. It reduces duplicated state. It also means the wiki does not provide a new delivery guarantee. If you want operational reminders.md retained, we should design its owner and failure semantics explicitly before considering L5.</p><p>Either answer leaves lifecycle details open: trials/review dates, expiry, conflicts, citation checks, same-turn durability and each old visibility/leftovers idea will get its own later decision.</p></div></div></div><div class="replies"><form class="thread-box"><textarea aria-label="Message to the agent about Q1" id="thread-box-knowledge-and-reminders" rows="1" placeholder="Ask about Q1"></textarea><button class="quiet-button" type="submit">Send</button></form></div></div><div class="thread general"><p class="thread-label">About the whole concept</p><p class="hint">Nothing asked about the whole concept yet.</p></div></div><form class="composer"><div class="about"><span class="label">About</span><button class="quiet-button" type="button">The whole concept</button><button class="quiet-button is-active" type="button" title="Keep reminder execution outside the wiki?">Q1</button></div><textarea aria-label="Message to the agent" id="talk-box" rows="4" placeholder="Ask, push back, or ask for a clearer rewrite"></textarea><div class="composer-foot"><span class="hint">Enter sends, Shift+Enter for a new line. Goes to homelab/t96; the reply lands here.</span><button class="send-button" type="submit">Send</button></div></form></aside><div role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuemin="320" aria-valuemax="960" class="resize-handle resize-side" title="Drag to resize; double-click for the default width" tabindex="0"></div></div></div></div>
+</div>
+<div id="layer"></div>
+<div class="controls" id="controls" aria-label="Prototype controls">
+  <button class="fold" id="fold" title="Fold">–</button>
+  <p class="head"><b id="vname"></b></p>
+  <p id="vnote"></p>
+  <p class="data" id="vdata"></p>
+  <div class="dctl" id="dctl"><button id="d-place"></button><button id="d-qfig"></button><button id="d-data" class="ghost">Show the data the agent wrote</button></div>
+  <pre id="state"></pre>
+</div>
+<div class="switcher" role="group" aria-label="Prototype variant">
+  <button id="prev" aria-label="Previous variant">←</button><span id="vlabel"></span><button id="next" aria-label="Next variant">→</button>
+</div>
+<script>
+const $ = (s, r = document) => r.querySelector(s)
+const $$ = (s, r = document) => [...r.querySelectorAll(s)]
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// States the figures can show: the accepted W1 plan, and each answer to Q1.
+const STATES = {
+  today: { tab: "Today's plan", cap: '<b>Two owners for one reminder.</b> LAB-914\'s W1 plan puts reminders in the wiki\'s reminders.md, with an L5 sent line; cos-rob already keeps the same reminder in open-tasks.md with its own timer and --once key. Due time and sent state live twice.' },
+  a: { tab: 'a · Knowledge and references', cap: '<b>One owner.</b> The wiki keeps lasting knowledge and a reference to the open work. The existing owner in that environment keeps due time, firing and delivery. With no owner there, the reference stays visible as pending work and nothing is sent.' },
+  b: { tab: 'b · Keep reminders.md', cap: '<b>The wiki stays a scheduler.</b> reminders.md keeps due times, but who fires them, what a failed post means and how it avoids duplicating cos-rob are still open; later rounds decide them before anything is built.' },
+}
+const S = { variant: 'A', pick: null, preview: null, q: 'today', talk: 'today', linked: null, ask: null, lightbox: false }
+{ const p = new URLSearchParams(location.search).get('pick'); if (p === 'a' || p === 'b') { S.pick = p; S.q = p; S.talk = p } }
+const qState = () => S.preview ?? S.pick ?? S.q
+
+/* ---------- A: zones ---------- */
+const ITEMS = [
+  { k: 'prefs', label: 'Preferences & corrections', at: { today: 'wiki', a: 'wiki', b: 'wiki' } },
+  { k: 'lessons', label: 'Evidenced lessons', at: { today: 'wiki', a: 'wiki', b: 'wiki' } },
+  { k: 'ref', label: { today: 'Reminder entry', a: 'Reference to open work', b: 'Reminder entry' }, sub: { today: 'reminders.md', a: 'points at the owner', b: 'reminders.md' }, at: { today: 'wiki', a: 'wiki', b: 'wiki' } },
+  { k: 'due', label: 'Due time', sub: { wiki: 'reminders.md', owner: 'open-tasks.md', open: '' }, at: { today: 'both', a: 'owner', b: 'wiki' } },
+  { k: 'fire', label: 'Fires it', sub: { wiki: 'the lead', owner: 'one-shot timer', open: 'who?' }, at: { today: 'both', a: 'owner', b: 'open' } },
+  { k: 'sent', label: 'Sent record', sub: { wiki: 'L5 sent line', owner: '--once key', open: 'on failure?' }, at: { today: 'both', a: 'owner', b: 'open' } },
+  { k: 'dedupe', label: 'Dedupe with cos-rob', sub: { open: 'undecided' }, at: { b: 'open' } },
+  { k: 'pending', label: 'No owner here', sub: { wiki: 'stays pending, never sent' }, at: { a: 'wiki' } },
+]
+const val = (v, st) => typeof v === 'object' && v ? v[st] : v
+const chip = (it, st, zone, dupKey) => {
+  const at = it.at[st], was = it.at.today
+  const moved = st !== 'today' && at !== was
+  const sub = it.sub ? (it.sub[zone] ?? it.sub[st] ?? '') : ''
+  const cls = ['chip', at === 'both' ? 'dup' : '', zone === 'open' ? 'open' : '', moved ? 'moved' : ''].join(' ')
+  return `<span class="${cls}" data-k="${dupKey ?? it.k}">${val(it.label, st)}${sub ? `<small>${sub}${at === 'both' ? ' · twice' : ''}</small>` : ''}</span>`
+}
+const stageHTML = st => {
+  const z = { wiki: [], owner: [], open: [] }
+  for (const it of ITEMS) {
+    const at = it.at[st]
+    if (!at) continue
+    if (at === 'both') { z.wiki.push(chip(it, st, 'wiki')); z.owner.push(chip(it, st, 'owner', it.k + '-o')) }
+    else z[at].push(chip(it, st, at, at === 'owner' ? it.k + '-o' : undefined))
+  }
+  return `<div class="bd-zone wiki"><h4>Squad wiki</h4>${z.wiki.join('')}</div>
+    <div class="bd-mid">${z.open.length ? '<h4>Undecided</h4>' : ''}${z.open.join('')}</div>
+    <div class="bd-zone owner"><h4>Existing owner · e.g. cos-rob</h4>${z.owner.join('')}</div>`
+}
+const segHTML = (id, active, preview) => `<div class="seg" data-seg="${id}">${Object.entries(STATES).map(([k, s]) => `<button data-st="${k}" class="${k === active ? 'is-active' : ''}${k === preview ? ' is-preview' : ''}">${s.tab}</button>`).join('')}</div>`
+const legendA = `<div class="legend"><span><i class="sw dup"></i>held twice</span><span><i class="sw open"></i>on the line: undecided</span><span><i class="sw moved"></i>moved from today's plan</span></div>`
+const boundaryFig = (id, st, title) => `<div class="fig" data-fig="${id}">
+  <div class="fig-head"><p class="fig-title">${title}</p>${segHTML(id, st, id === 'q' ? S.preview : null)}</div>
+  <div class="bd-stage">${stageHTML(st)}</div>
+  <p class="fig-cap">${STATES[st].cap}</p>${legendA}</div>`
+// Chips that cross the line animate from where they were, so the move itself is visible.
+const flip = (root, paint) => {
+  const first = new Map($$('[data-k]', root).map(c => [c.dataset.k, c.getBoundingClientRect()]))
+  paint()
+  if (reduce) return
+  for (const c of $$('[data-k]', root)) {
+    const f = first.get(c.dataset.k)
+    if (!f) { c.animate([{ opacity: 0, transform: 'scale(.85)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' }); continue }
+    const l = c.getBoundingClientRect(), dx = f.left - l.left, dy = f.top - l.top
+    if (dx || dy) c.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.7,.2,1)' })
+  }
+}
+const paintBoundary = (id, st) => {
+  const fig = $(`[data-fig="${id}"]`); if (!fig) return
+  flip(fig, () => {
+    $('.bd-stage', fig).innerHTML = stageHTML(st)
+    $('.fig-cap', fig).innerHTML = STATES[st].cap
+    $$('.seg button', fig).forEach(b => { b.classList.toggle('is-active', b.dataset.st === st); b.classList.toggle('is-preview', id === 'q' && b.dataset.st === S.preview) })
+  })
+}
+
+/* ---------- B: ownership table ---------- */
+const W = (s = '') => `<span class="own w">Wiki</span>${s ? `<small>${s}</small>` : ''}`
+const O = (s = '') => `<span class="own o">Owner</span>${s ? `<small>${s}</small>` : ''}`
+const Q = (s = '') => `<span class="own q">Undecided</span>${s ? `<small>${s}</small>` : ''}`
+const X = s => `<span class="own x">${s}</span>`
+const TWICE = (a, b) => `<span class="twice">Twice</span><br><span class="own w">Wiki</span><span class="own o">Owner</span><small>${a} · ${b}</small>`
+const ROWS = [
+  ['Preferences, corrections, lessons', { today: W(), a: W(), b: W() }, 'w w w'],
+  ['The unresolved request', { today: W('reminders.md entry'), a: W('a reference to the owner\'s entry'), b: W('reminders.md entry') }, 'w w w'],
+  ['Due time', { today: TWICE('reminders.md', 'open-tasks.md'), a: O('open-tasks.md'), b: W('reminders.md') }, 'd o w'],
+  ['Fires it', { today: TWICE('the lead', 'one-shot timer'), a: O('one-shot timer'), b: Q('who runs it?') }, 'd o q'],
+  ['Sent record', { today: TWICE('L5 sent line', '--once key'), a: O('--once key; queued ≠ posted'), b: Q('what a failed post means') }, 'd o q'],
+  ['Avoiding duplicate sends', { today: X('two ledgers'), a: X('not needed: one owner'), b: Q('dedupe with cos-rob') }, 'x x q'],
+  ['No owner in this environment', { today: X('not covered'), a: W('stays pending, never sent'), b: Q() }, 'x w q'],
+]
+const plain = s => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+const matrixHTML = (askable) => {
+  const hot = S.preview ?? S.pick
+  const cols = ['today', 'a', 'b']
+  return `<table class="om${S.pick && !askable ? ' has-pick' : ''}">
+    <thead><tr><th></th>${cols.map(c => `<th class="${!askable && hot === c ? 'col-hot' : hot && !askable ? 'col-dim' : ''}">${STATES[c].tab}</th>`).join('')}${askable ? '<th></th>' : ''}</tr></thead>
+    <tbody>${ROWS.map(([label, cells], i) => `<tr class="${askable ? 'ask-row' : ''}" data-row="${i}"><th>${label}</th>${cols.map(c => {
+      const changed = c !== 'today' && plain(cells[c]) !== plain(cells.today)
+      return `<td class="${changed ? 'changed' : ''} ${!askable && hot === c ? 'col-hot' : ''}">${cells[c]}</td>`
+    }).join('')}${askable ? '<td><span class="go" style="font:600 .78rem var(--label);color:var(--link)">Ask →</span></td>' : ''}</tr>`).join('')}</tbody></table>`
+}
+const legendB = `<div class="legend"><span><i class="sw" style="box-shadow:inset 3px 0 0 var(--link)"></i>changes from today's plan</span><span><span class="twice">Twice</span> both keep it</span><span><span class="own q" style="font:600 .7rem var(--label)">Undecided</span> a later round decides</span></div>`
+const matrixFig = (askable) => `<div class="fig" data-fig="${askable ? 'lb' : 'q'}">
+  <div class="fig-head"><p class="fig-title">Who owns each part of a reminder</p>${askable ? '<button class="text-button" data-close="1">Close</button>' : ''}</div>
+  ${matrixHTML(askable)}${legendB}${askable ? '<p class="fig-cap" style="color:var(--muted)">Click a row to ask the agent about it in Talk.</p>' : ''}</div>`
+const miniHTML = () => `<div class="mini">${ROWS.flatMap(r => r[2].split(' ')).map(c => `<i class="${c}"></i>`).join('')}</div>`
+
+/* ---------- C: the reminder's path ---------- */
+const STEPS = ['Capture', 'Due time', 'Fire', 'Deliver', 'Close']
+const N = (t, c = '') => ({ t, c })
+const FLOW = {
+  today: { w: [N('reminders.md entry'), N('due in reminders.md', 'dup'), N('lead sends', 'dup'), N('post to Slack', 'dup'), N('L5 sent line', 'dup')],
+    o: [N('Scheduled in open-tasks.md'), N('due in open-tasks.md', 'dup'), N('one-shot timer', 'dup'), N('queued → posted', 'dup'), N('--once key, marked done', 'dup')],
+    band: 'Held twice: two due times, two sent records' },
+  a: { w: [N('reference to the open task', 'link'), N('not the wiki\'s job', 'ghost'), null, null, N('no owner? stays pending, never sent', 'ghost')], wOff: [false, true, true, true, true],
+    o: [N('Scheduled in open-tasks.md'), N('due time'), N('one-shot timer'), N('queued ≠ posted: a post can be lost', 'warn'), N('--once key, marked done')] },
+  b: { w: [N('reminders.md entry'), N('due in reminders.md'), N('who fires it?', 'open'), N('on a failed post?', 'open'), N('sent ledger (L5)?', 'open')],
+    o: [N('Scheduled in open-tasks.md', 'faint'), N('due time', 'faint'), N('one-shot timer', 'faint'), N('queued → posted', 'faint'), N('marked done', 'faint')],
+    band: 'Undecided: how reminders.md and cos-rob avoid sending twice', bandOpen: true },
+}
+const flowHTML = (st, hot) => {
+  const f = FLOW[st]
+  const lane = (key, nodes, off = []) => nodes.map((n, i) => {
+    const pos = `grid-row:${key === 'w' ? 2 : 3};grid-column:${i + 2}`
+    const cls = ['cell', `lane-${key}`, i === 0 ? 'first' : '', i === 4 ? 'last' : '', off[i] ? 'off' : '', i > 0 && n && nodes[i - 1] && !/ghost/.test(n.c) && !/ghost/.test(nodes[i - 1].c) ? 'arrow' : ''].join(' ')
+    return `<div class="${cls}" style="${pos}">${n ? `<span class="node ${n.c}">${n.t}</span>` : ''}</div>`
+  }).join('')
+  return `<div class="flow ${hot ? 'hot-' + hot : ''}">
+    <div></div>${STEPS.map(s => `<div class="colh">${s}</div>`).join('')}
+    <div class="laneh w" style="grid-row:2;grid-column:1">Squad wiki</div>${lane('w', f.w, f.wOff)}
+    <div class="laneh o" style="grid-row:3;grid-column:1">Owner · e.g. cos-rob</div>${lane('o', f.o)}
+    ${f.band ? `<div class="band" style="grid-column:${st === 'b' ? '4 / span 3' : '3 / span 4'};${f.bandOpen ? 'border-color:var(--muted)' : ''}"></div><div class="band-label" style="grid-row:4;grid-column:${st === 'b' ? '4 / span 3' : '3 / span 4'};${f.bandOpen ? 'color:var(--muted)' : ''}">${f.band}</div>` : ''}
+  </div>`
+}
+const flowFig = (id, st, hot, title) => `<div class="fig flow-wrap${id === 'talk' ? ' is-sticky' : ''}" data-fig="${id}">
+  <div class="fig-head"><p class="fig-title">${title}</p>${segHTML(id, st, id === 'q' ? S.preview : null)}</div>
+  <div class="flow-host">${flowHTML(st, hot)}</div>
+  <p class="fig-cap">${STATES[st].cap}</p></div>`
+// Which picture each paragraph of the reasoning is about.
+const PARA = [
+  { st: 'today', hot: 'w', tag: "Today's plan · the wiki's lane" },
+  { st: 'today', hot: 'o', tag: "What cos-rob already does · the owner's lane" },
+  { st: 'a', hot: null, tag: 'Answer a' },
+  { st: 'b', hot: null, tag: 'Answer b' },
+]
+
+/* ---------- mounting ---------- */
+/* ---------- D: rendered only from data in the proposed format ---------- */
+// What the agent writes. QUESTION_COMPARE is a new optional field on a question; PROSE is the
+// step's prose as text, exactly as a rewrite or a Talk reply would carry it.
+const QUESTION_COMPARE = {
+  now: "Today's plan",
+  rows: [
+    { label: 'Preferences, corrections, lessons', now: 'Squad wiki', a: 'Squad wiki', b: 'Squad wiki' },
+    { label: 'The unresolved request', now: { value: 'Squad wiki', note: 'an entry in reminders.md' }, a: { value: 'Squad wiki', note: "a reference to the owner's entry" }, b: { value: 'Squad wiki', note: 'an entry in reminders.md' } },
+    { label: 'Due time', now: { value: 'Squad wiki + cos-rob', note: 'reminders.md and open-tasks.md', flag: 'twice' }, a: { value: 'cos-rob', note: 'open-tasks.md' }, b: { value: 'Squad wiki', note: 'reminders.md' } },
+    { label: 'Fires the reminder', now: { value: 'Squad wiki + cos-rob', note: 'the lead and a one-shot timer', flag: 'twice' }, a: { value: 'cos-rob', note: 'one-shot timer' }, b: { value: '?', note: 'who runs it', flag: 'open' } },
+    { label: 'Sent record', now: { value: 'Squad wiki + cos-rob', note: 'L5 sent line and --once key', flag: 'twice' }, a: { value: 'cos-rob', note: 'queued is not posted: a post can be lost', flag: 'risk' }, b: { value: '?', note: 'what a failed post means', flag: 'open' } },
+    { label: 'Avoiding a double send', now: { value: 'two ledgers', note: 'nothing joins them', flag: 'gap' }, a: { value: 'not needed', note: 'one owner' }, b: { value: '?', note: 'dedupe with cos-rob', flag: 'open' } },
+    { label: 'No owner in this environment', now: { value: 'not covered', flag: 'gap' }, a: { value: 'Squad wiki', note: 'stays pending, never sent' }, b: { value: '?', flag: 'open' } },
+  ],
+}
+const PROSE = `\`\`\`diagram
+{ "kind": "zones", "title": "The change at a glance",
+  "zones": [ { "id": "wiki", "label": "Squad wiki" }, { "id": "owner", "label": "Existing owner, e.g. cos-rob" } ],
+  "states": {
+    "now": { "caption": "Two owners: due time, firing and the sent record live in both.",
+      "items": [ { "label": "Preferences & lessons", "in": "wiki" }, { "label": "Reminder entry", "note": "reminders.md", "in": "wiki" },
+        { "label": "Due time", "in": ["wiki", "owner"], "flag": "twice" }, { "label": "Fires it", "in": ["wiki", "owner"], "flag": "twice" },
+        { "label": "Sent record", "in": ["wiki", "owner"], "flag": "twice" } ] },
+    "a": { "caption": "One owner: the wiki points at the open work; the owner runs it.",
+      "items": [ { "label": "Preferences & lessons", "in": "wiki" }, { "label": "Reminder entry", "note": "a reference", "in": "wiki" },
+        { "label": "Due time", "in": "owner" }, { "label": "Fires it", "in": "owner" }, { "label": "Sent record", "in": "owner" },
+        { "label": "No owner here", "note": "pending, never sent", "in": "wiki" } ] },
+    "b": { "caption": "The wiki keeps a schedule; who fires it and how it avoids cos-rob are open.",
+      "items": [ { "label": "Preferences & lessons", "in": "wiki" }, { "label": "Reminder entry", "note": "reminders.md", "in": "wiki" },
+        { "label": "Due time", "in": "wiki" }, { "label": "Fires it", "in": "line", "flag": "open" },
+        { "label": "Sent record", "in": "line", "flag": "open" }, { "label": "Dedupe with cos-rob", "in": "line", "flag": "open" } ] } } }
+\`\`\`
+
+### Today's plan holds every reminder twice
+LAB-914's accepted W1 plan puts reminders and closed-session leftovers in reminders.md. L5 then proposes a sent line so a recycled lead does not send a reminder twice. That was a reasonable open direction before this source comparison; changing it is your choice.
+
+\`\`\`diagram
+{ "kind": "flow", "title": "A reminder's path",
+  "lanes": [ { "id": "wiki", "label": "Squad wiki" }, { "id": "owner", "label": "Owner, e.g. cos-rob" } ],
+  "steps": ["Capture", "Due time", "Fire", "Deliver", "Close"],
+  "states": {
+    "now": { "nodes": {
+        "wiki": ["reminders.md entry", {"text": "due in reminders.md", "flag": "twice"}, {"text": "lead sends", "flag": "twice"}, {"text": "post to Slack", "flag": "twice"}, {"text": "L5 sent line", "flag": "twice"}],
+        "owner": ["Scheduled in open-tasks.md", {"text": "due in open-tasks.md", "flag": "twice"}, {"text": "one-shot timer", "flag": "twice"}, {"text": "queued → posted", "flag": "twice"}, {"text": "--once key, done", "flag": "twice"}] },
+      "band": { "from": 2, "to": 5, "label": "Held twice: two due times, two sent records", "flag": "twice" } },
+    "a": { "nodes": {
+        "wiki": [{"text": "reference to the open task", "flag": "link"}, {"text": "not the wiki's job", "flag": "ghost"}, null, null, {"text": "no owner? pending, never sent", "flag": "ghost"}],
+        "owner": ["Scheduled in open-tasks.md", "due time", "one-shot timer", {"text": "queued ≠ posted: a post can be lost", "flag": "risk"}, "--once key, done"] } },
+    "b": { "nodes": {
+        "wiki": ["reminders.md entry", "due in reminders.md", {"text": "who fires it?", "flag": "open"}, {"text": "on a failed post?", "flag": "open"}, {"text": "sent ledger (L5)?", "flag": "open"}],
+        "owner": [{"text": "Scheduled in open-tasks.md", "flag": "faint"}, {"text": "due time", "flag": "faint"}, {"text": "one-shot timer", "flag": "faint"}, {"text": "queued → posted", "flag": "faint"}, {"text": "done", "flag": "faint"}] },
+      "band": { "from": 3, "to": 5, "label": "Undecided: how the two avoid sending twice", "flag": "open" } } },
+  "follow": {
+    "cos-rob already runs reminders": { "state": "now", "focus": "owner" },
+    "Recommended: one owner per reminder": { "state": "a" },
+    "What answer b would cost": { "state": "b" } } }
+\`\`\`
+
+### cos-rob already runs reminders
+Current cos-rob already has the operating pattern: its role reads Scheduled entries in open-tasks.md, creates one-shot timers, replies with a stable --once key, then marks the wiki entry done. scripts/cos deduplicates queue ids under a lock. The listener advances its cursor before delivery to avoid duplicate posts after an unknown outcome; that can lose a post. Queued and posted are different.
+
+### Recommended: one owner per reminder
+I recommend that Squad's wiki retain lasting preferences, corrections and evidenced lessons, plus references to unresolved work. An existing owner in the same environment keeps due times, execution and delivery status. Where no such owner exists, keep the unresolved request visible as pending work; this proposal does not create a CoS service or silently send a personal reminder through work Slack.
+
+### What answer b would cost
+This changes the old W1 reminder boundary while preserving the knowledge repository, history and citations. It reduces duplicated state. It also means the wiki does not provide a new delivery guarantee. If you want operational reminders.md retained, we should design its owner and failure semantics explicitly before considering L5.
+
+### Left open either way
+Either answer leaves lifecycle details open: trials/review dates, expiry, conflicts, citation checks, same-turn durability and each old visibility/leftovers idea will get its own later decision.`
+const REPLY_ASK = 'And in the personal environment, where nothing like cos-rob exists yet?'
+const REPLY = `### Nothing is sent there
+Under answer a the wiki still records the request, as pending work you can see on the lead's page. Nothing fires it, so nothing reaches work Slack by accident.
+
+\`\`\`diagram
+{ "kind": "zones", "title": "Personal environment, answer a",
+  "zones": [ { "id": "wiki", "label": "Squad wiki" }, { "id": "owner", "label": "Existing owner: none yet" } ],
+  "states": { "a": { "items": [ { "label": "Reminder entry", "note": "a reference", "in": "wiki" }, { "label": "No owner here", "note": "pending, never sent", "in": "wiki", "flag": "risk" } ] } } }
+\`\`\`
+
+### When you want it sent
+Name the owner first, then a later round decides how it fires; the wiki's side doesn't change.`
+
+const D = { place: 'below', qfig: 'table', states: {}, focus: {}, linked: null }
+const OPTIONS = [{ key: 'a', label: 'Knowledge and references', recommended: true }, { key: 'b', label: 'Keep reminders.md' }]
+const ENTITIES = [['cos-rob', 'ochre'], ['Squad', 'teal']]
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const toneOf = s => ENTITIES.find(([n]) => s.includes(n))?.[1]
+const stateLabel = (k, short) => k === 'now' ? QUESTION_COMPARE.now : `${k} · ${OPTIONS.find(o => o.key === k)?.label ?? k}`
+const FLAG = { twice: 'Twice', open: 'Undecided', risk: 'Risk', gap: 'Gap' }
+const cellOf = c => typeof c === 'string' ? { value: c } : c ?? { value: '' }
+
+// Splits prose text like the page does: blank lines, ``` blocks kept whole, a ### line titling
+// the paragraph under it.
+const parseProse = text => {
+  const blocks = []; let buf = [], fence = null, title = null
+  const flush = () => { const t = buf.join(' ').trim(); if (t) { blocks.push({ kind: 'p', title, text: t }); title = null } buf = [] }
+  for (const line of text.split('\n')) {
+    if (fence) { if (line.startsWith('```')) { blocks.push(fence.lang === 'diagram' ? diagramBlock(fence.lines.join('\n')) : { kind: 'pre', text: fence.lines.join('\n') }); fence = null } else fence.lines.push(line); continue }
+    if (line.startsWith('```')) { flush(); fence = { lang: line.slice(3).trim(), lines: [] }; continue }
+    if (line.startsWith('### ')) { flush(); title = line.slice(4).trim(); continue }
+    if (!line.trim()) { flush(); continue }
+    buf.push(line.trim())
+  }
+  flush(); return blocks
+}
+// A diagram the page can't read still shows, as the monospace figure it would be today.
+const diagramBlock = src => { try { const d = JSON.parse(src); return ['zones', 'flow', 'compare'].includes(d.kind) ? { kind: 'diagram', d } : { kind: 'pre', text: src } } catch { return { kind: 'pre', text: src } } }
+
+const tags = v => v === '?' ? '' : v.split(' + ').map(s => { const t = toneOf(s); return t ? `<span class="own" style="background:var(--${t}-wash);color:var(--${t})">${esc(s)}</span>` : `<span class="own x">${esc(s)}</span>` }).join('')
+const compareHTML = (cmp, opts) => {
+  const cols = ['now', ...OPTIONS.map(o => o.key)]
+  const hot = S.preview ?? S.pick
+  const same = cmp.rows.filter(r => cols.every(c => JSON.stringify(cellOf(r[c])) === JSON.stringify(cellOf(r.now))))
+  const rows = cmp.rows.filter(r => !same.includes(r))
+  const summary = c => { const n = {}; rows.forEach(r => { const f = cellOf(r[c]).flag; if (f) n[f] = (n[f] ?? 0) + 1 }); const parts = Object.entries(n).map(([f, k]) => `${k} ${FLAG[f]?.toLowerCase() ?? f}`); return parts.length ? parts.join(' · ') : 'no problems flagged' }
+  const head = c => `<th class="${hot === c ? 'col-hot' : hot ? 'col-dim' : ''}"><span class="dh-label">${esc(stateLabel(c))}</span>${OPTIONS.find(o => o.key === c)?.recommended ? '<span class="recommended">Recommended</span>' : ''}<span class="dh-sum${/no problems/.test(summary(c)) ? '' : ' has'}">${summary(c)}</span></th>`
+  return `<table class="om dm${S.pick ? ' has-pick' : ''}">
+    <thead><tr><th></th>${cols.map(head).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr><th>${esc(r.label)}</th>${cols.map(c => {
+      const x = cellOf(r[c]), changed = c !== 'now' && JSON.stringify(x) !== JSON.stringify(cellOf(r.now))
+      return `<td class="${x.flag ? 'fl-' + x.flag : ''} ${changed ? 'changed' : ''} ${hot === c ? 'col-hot' : ''}">${x.flag ? `<span class="flag f-${x.flag}">${FLAG[x.flag] ?? x.flag}</span>` : ''}${tags(x.value)}${x.note ? `<small>${esc(x.note)}</small>` : ''}</td>`
+    }).join('')}</tr>`).join('')}</tbody></table>
+    ${same.length ? `<p class="dm-same">Same in every answer: ${same.map(r => `${esc(r.label)} (${esc(cellOf(r.now).value)})`).join('; ')}.</p>` : ''}`
+}
+
+const zoneItems = (d, st) => {
+  const out = { line: [] }; d.zones.forEach(z => { out[z.id] = [] })
+  const seen = {}
+  for (const it of d.states[st]?.items ?? []) for (const z of [].concat(it.in)) {
+    const n = seen[it.label] = (seen[it.label] ?? -1) + 1
+    const cls = ['chip', it.flag === 'twice' ? 'dup' : '', z === 'line' || it.flag === 'open' ? 'open' : '', it.flag === 'risk' ? 'risk' : ''].join(' ')
+    ;(out[z] ?? out.line).push(`<span class="${cls}" data-k="${esc(it.label)}#${n}">${esc(it.label)}${it.note || it.flag === 'twice' ? `<small>${esc(it.note ?? '')}${it.flag === 'twice' ? (it.note ? ' · ' : '') + 'twice' : ''}</small>` : ''}</span>`)
+  }
+  return out
+}
+const zonesStage = (d, st) => {
+  const z = zoneItems(d, st), [l, r] = d.zones
+  const zone = (zd, side) => { const t = toneOf(zd.label) ?? (side === 'l' ? 'teal' : 'ochre'); return `<div class="bd-zone" style="background:var(--${t}-wash)"><h4 style="color:var(--${t})">${esc(zd.label)}</h4>${z[zd.id].join('')}</div>` }
+  return `<div class="bd-stage">${zone(l, 'l')}<div class="bd-mid">${z.line.length ? '<h4>Undecided</h4>' : ''}${z.line.join('')}</div>${zone(r, 'r')}</div>`
+}
+const flowStage = (d, st, focus) => {
+  const s = d.states[st], cls = { twice: 'dup', open: 'open', risk: 'warn', ghost: 'ghost', faint: 'faint', link: 'link' }
+  const lane = (ln, row) => (s.nodes[ln.id] ?? []).map((n0, i, all) => {
+    const n = n0 == null ? null : typeof n0 === 'string' ? { text: n0 } : n0
+    const prev = all[i - 1], ghost = !n || n.flag === 'ghost'
+    const arrow = i > 0 && n && prev && n.flag !== 'ghost' && prev.flag !== 'ghost'
+    return `<div class="cell ${row === 2 ? 'lane-w' : 'lane-o'} ${i === 0 ? 'first' : ''} ${i === all.length - 1 ? 'last' : ''} ${ghost ? 'off' : ''} ${arrow ? 'arrow' : ''}" style="grid-row:${row};grid-column:${i + 2}">${n ? `<span class="node ${cls[n.flag] ?? ''}">${esc(n.text)}</span>` : ''}</div>`
+  }).join('')
+  const [w, o] = d.lanes, b = s.band
+  const bandStyle = b ? `grid-column:${b.from + 1} / ${b.to + 2};${b.flag === 'open' ? 'border-color:var(--muted);color:var(--muted)' : ''}` : ''
+  return `<div class="flow ${focus === w.id ? 'hot-w' : focus === o.id ? 'hot-o' : ''}" style="grid-template-columns:74px repeat(${d.steps.length}, minmax(0,1fr))">
+    <div></div>${d.steps.map(x => `<div class="colh">${esc(x)}</div>`).join('')}
+    <div class="laneh w" style="grid-row:2;grid-column:1">${esc(w.label)}</div>${lane(w, 2)}
+    <div class="laneh o" style="grid-row:3;grid-column:1">${esc(o.label)}</div>${lane(o, 3)}
+    ${b ? `<div class="band" style="${bandStyle}"></div><div class="band-label" style="grid-row:4;${bandStyle};border:0">${esc(b.label)}</div>` : ''}</div>`
+}
+const stageOf = (d, st, focus) => d.kind === 'zones' ? zonesStage(d, st) : d.kind === 'flow' ? flowStage(d, st, focus) : compareHTML(d)
+const keysOf = d => Object.keys(d.states ?? {})
+const diagramHTML = (id, d, st, extra = '') => {
+  const keys = keysOf(d)
+  return `<div class="fig dfig${d.follow ? ' is-sticky' : ''}" data-dfig="${id}" ${extra}>
+    <div class="fig-head"><p class="fig-title">${esc(d.title ?? '')}</p>${keys.length > 1 ? `<div class="seg" data-seg="d:${id}">${keys.map(k => `<button data-st="${k}" class="${k === st ? 'is-active' : ''}">${esc(stateLabel(k))}</button>`).join('')}</div>` : ''}</div>
+    <div class="d-stage">${stageOf(d, st, D.focus[id])}</div>
+    ${keys.some(k => d.states[k].caption) ? `<p class="fig-cap d-cap">${esc(d.states[st]?.caption ?? '')}</p>` : ''}</div>`
+}
+const DIAGRAMS = {}
+// A diagram keeps the height of its tallest state, so switching never moves what's below it.
+const stabilize = id => {
+  const fig = $(`[data-dfig="${id}"]`), d = DIAGRAMS[id]; if (!fig || !d.states) return
+  const stage = $('.d-stage', fig), cap = $('.d-cap', fig)
+  stage.style.minHeight = ''; if (cap) cap.style.minHeight = ''
+  let hs = 0, hc = 0
+  for (const k of keysOf(d)) { stage.innerHTML = stageOf(d, k); hs = Math.max(hs, stage.offsetHeight); if (cap) { cap.textContent = d.states[k].caption ?? ''; hc = Math.max(hc, cap.offsetHeight) } }
+  stage.style.minHeight = hs + 'px'; if (cap) cap.style.minHeight = hc + 'px'
+  paintD(id, D.states[id], false)
+}
+const paintD = (id, st, animate = true) => {
+  const fig = $(`[data-dfig="${id}"]`), d = DIAGRAMS[id]; if (!fig) return
+  D.states[id] = st
+  const paint = () => { $('.d-stage', fig).innerHTML = stageOf(d, st, D.focus[id]); const cap = $('.d-cap', fig); if (cap) cap.textContent = d.states?.[st]?.caption ?? ''; $$('.seg button', fig).forEach(b => b.classList.toggle('is-active', b.dataset.st === st)) }
+  if (animate && d.kind === 'zones') flip(fig, paint); else paint()
+}
+const proseHTML = (text, prefix) => {
+  const blocks = parseProse(text)
+  let html = '', i = 0, pin = null
+  const close = () => { if (pin) { html += '</section>'; pin = null } }
+  for (const b of blocks) {
+    if (b.kind === 'diagram') {
+      close()
+      const id = `${prefix}${i++}`; DIAGRAMS[id] = b.d
+      D.states[id] ??= keysOf(b.d).includes(S.pick) ? S.pick : keysOf(b.d)[0]
+      if (b.d.follow) { html += `<section class="pin-sec" data-pin="${id}">`; pin = { id, titles: Object.keys(b.d.follow) } }
+      html += diagramHTML(id, b.d, D.states[id])
+      continue
+    }
+    if (pin && !(b.kind === 'p' && pin.titles.includes(b.title))) close()
+    if (b.kind === 'pre') { html += `<pre class="figure"><code>${esc(b.text)}</code></pre>`; continue }
+    html += `<p class="dp" ${b.title ? `data-title="${esc(b.title)}"` : ''} ${pin ? `data-follows="${pin.id}"` : ''}>${esc(b.text)}</p>`
+  }
+  close(); return html
+}
+let ORIGINAL_PROSE = null
+const mountD = () => {
+  ORIGINAL_PROSE ??= prose().innerHTML
+  const anchor = D.place === 'above' ? ask() : $('.snapshot .options')
+  if (D.qfig === 'table') mount(anchor, `<div class="fig dq" data-fig="dq"><div class="fig-head"><p class="fig-title">How the answers compare</p></div>${compareHTML(QUESTION_COMPARE)}${legendD}</div>`)
+  else { const glance = parseProse(PROSE).find(b => b.kind === 'diagram').d; DIAGRAMS.q0 = glance; D.states.q0 = qState() === 'today' ? 'now' : qState(); mount(anchor, diagramHTML('q0', glance, D.states.q0)); stabilize('q0') }
+  prose().innerHTML = proseHTML(PROSE, 't')
+  Object.keys(DIAGRAMS).filter(k => k.startsWith('t')).forEach(stabilize)
+  const replies = $('.snapshot .why-message .replies')
+  mount(replies, `<div class="message from-you"><p class="message-who">You · about Q1</p><div class="message-body"><p>${esc(REPLY_ASK)}</p></div></div><div class="message from-agent"><p class="message-who">Agent</p><div class="message-body prose">${proseHTML(REPLY, 'r')}</div></div>`, 'afterbegin')
+  Object.keys(DIAGRAMS).filter(k => k.startsWith('r')).forEach(stabilize)
+}
+const legendD = `<div class="legend"><span><span class="flag f-twice">Twice</span>both keep it</span><span><span class="flag f-gap">Gap</span>nobody covers it</span><span><span class="flag f-risk">Risk</span>works, with a known failure</span><span><span class="flag f-open">Undecided</span>a later round decides</span><span><i class="sw" style="background:var(--link-wash);border-color:var(--link-wash)"></i>differs from today's plan</span></div>`
+const updateD = () => {
+  const fig = $('[data-fig="dq"]'); if (fig) { const t = $('table', fig).outerHTML; fig.outerHTML = `<div class="fig dq" data-fig="dq"><div class="fig-head"><p class="fig-title">How the answers compare</p></div>${compareHTML(QUESTION_COMPARE)}${legendD}</div>` }
+  if (DIAGRAMS.q0 && $('[data-dfig="q0"]')) paintD('q0', qState() === 'today' ? 'now' : qState())
+}
+const linkD = p => {
+  const id = p.dataset.follows; if (!id || D.linked === p) return
+  D.linked = p; $$('.snapshot .dp').forEach(x => x.classList.toggle('is-linked', x === p))
+  const f = DIAGRAMS[id].follow[p.dataset.title]; D.focus[id] = f.focus; paintD(id, f.state)
+  showState()
+}
+const showDataHTML = () => `<div class="lightbox" data-close="1"><div class="fig" style="width:min(1000px,100%)">
+  <div class="fig-head"><p class="fig-title">What the agent wrote for this page</p><button class="text-button" data-close="1">Close</button></div>
+  <p class="fig-cap"><b>question.compare</b>, a new optional field on Q1. The column keys are the option keys plus <code>now</code>; the labels come from the options.</p>
+  <pre class="figure"><code>${esc(JSON.stringify(QUESTION_COMPARE, null, 1))}</code></pre>
+  <p class="fig-cap"><b>step.prose</b>, unchanged in shape: text with <code>###</code> paragraph titles and <code>\`\`\`diagram</code> blocks. A rewrite (<code>gf revise --kind rewrite</code>) sends the same text.</p>
+  <pre class="figure"><code>${esc(PROSE)}</code></pre>
+  <p class="fig-cap"><b>A Talk reply</b> (<code>gf revise --ask N</code>), same blocks:</p>
+  <pre class="figure"><code>${esc(REPLY)}</code></pre></div></div>`
+
+const VARIANTS = [
+  ['A', 'Zones that move', 'Q1 shows the wiki and the existing owner as two zones with the boundary between them. Hover or pick an option and the parts slide across the line. Talk carries the same figure inside the agent\'s reasoning, where paragraph 3 makes the recommendation.',
+    'Data: { kind: "boundary", zones, items: [{ label, at: { today, a, b } }] }. The agent says where each part sits per answer; the page draws and animates it.'],
+  ['B', 'Who owns what, per answer', 'Q1 gets a table: each part of a reminder down the side, one column per answer, changed cells marked. Hover an option to light its column; pick one to dim the others. In Talk the figure is a thumbnail in the agent\'s message that opens large; clicking a row starts an ask about that row.',
+    'Data: { kind: "ownership", rows: [{ label, cells: { today, a, b } }] }. Plain table data, the easiest for an agent to write.'],
+  ['C', 'A reminder\'s path', 'Q1 shows a reminder\'s path, capture to close, through two lanes, and where the boundary cuts it under each answer. In Talk the diagram stays pinned while you read; the paragraph you point at or scroll to sets what the diagram shows.',
+    'Data: { kind: "flow", lanes, steps, nodes: { today, a, b } } plus a figure state per prose paragraph. Richest, and the most to author.'],
+  ['D', 'From data: compare + diagrams', 'Q1 carries a comparison table the agent writes as question.compare: flags (twice, gap, risk, undecided) mark where today breaks and what each answer leaves open; rows the same in every answer fold into one line. Talk renders the agent\'s prose: an overview diagram, titled paragraphs (hover for the title), and a reminder\'s path pinned while you read the paragraphs it follows. Every diagram keeps the height of its tallest state.',
+    'Data: question.compare (new, optional) plus ```diagram blocks and ### titles inside prose, rewrites and Talk replies. Use the buttons below to move the table or swap it for the zones diagram.'],
+]
+const key = () => { const v = new URLSearchParams(location.search).get('variant'); return VARIANTS.some(x => x[0] === v) ? v : 'A' }
+const body = () => $('.snapshot .question-body')
+const ask = () => $('.snapshot .question-ask')
+const prose = () => $('.snapshot .why-body .prose')
+const clearMounts = () => { $$('[data-mount]').forEach(e => e.remove()); if (ORIGINAL_PROSE != null) prose().innerHTML = ORIGINAL_PROSE; D.linked = null; $$('.snapshot .prose p').forEach(p => { delete p.dataset.st; delete p.dataset.tag; p.classList.remove('is-linked') }); $('#layer').innerHTML = '' }
+const mount = (where, html, pos = 'afterend') => { where.insertAdjacentHTML(pos, `<div data-mount>${html}</div>`) }
+
+const mountA = () => {
+  mount(ask(), boundaryFig('q', qState(), 'Where each part of a reminder sits'))
+  mount(prose().children[2], boundaryFig('talk', S.talk, 'Figure · where each part sits'))
+}
+const mountB = () => {
+  mount(ask(), matrixFig(false))
+  mount(prose().children[2], `<button class="fig-card" data-open-lb="1">${miniHTML()}<span><p><b>Figure · who owns each part of a reminder</b></p><p style="color:var(--muted)">Today's plan beside answers a and b, 7 rows.</p><span class="go">Open the figure ↗</span></span></button>`)
+  if (S.ask) mountAskTag()
+  if (S.lightbox) $('#layer').innerHTML = `<div class="lightbox" data-close="1">${matrixFig(true)}</div>`
+}
+const mountAskTag = () => {
+  const about = $('.snapshot .composer .about')
+  mount(about, `<span class="ask-tag">Figure · ${ROWS[S.ask][0]}<button data-unask="1" aria-label="Remove">×</button></span>`, 'beforeend')
+  const box = $('#talk-box'); box.placeholder = `Ask about "${ROWS[S.ask][0]}" in the figure`; box.focus()
+}
+const mountC = () => {
+  mount(ask(), flowFig('q', qState(), null, 'A reminder\'s path, and where the wiki stops'))
+  const linked = S.linked == null ? null : PARA[S.linked]
+  mount(prose(), flowFig('talk', linked?.st ?? S.talk, linked?.hot, 'Pinned while you read'), 'beforebegin')
+  $$('.snapshot .prose p').forEach((p, i) => { if (PARA[i]) { p.dataset.st = PARA[i].st; p.dataset.tag = PARA[i].tag; p.classList.toggle('is-linked', S.linked === i) } })
+}
+const paintFlow = (id, st, hot) => {
+  const fig = $(`[data-fig="${id}"]`); if (!fig) return
+  $('.flow-host', fig).innerHTML = flowHTML(st, hot)
+  $('.fig-cap', fig).innerHTML = STATES[st].cap
+  $$('.seg button', fig).forEach(b => { b.classList.toggle('is-active', b.dataset.st === st); b.classList.toggle('is-preview', id === 'q' && b.dataset.st === S.preview) })
+}
+const syncOptions = () => {
+  $$('.snapshot .option').forEach((o, i) => {
+    const k = ['a', 'b', null][i]
+    o.classList.toggle('is-selected', !!k && S.pick === k)
+    o.classList.toggle('is-preview', !!k && S.preview === k && S.pick !== k)
+    $('.option-pick', o).setAttribute('aria-checked', String(!!k && S.pick === k))
+  })
+}
+const showState = () => {
+  $('#state').textContent = JSON.stringify({ variant: S.variant, picked: S.pick, previewing: S.preview, questionFigure: qState(), talkFigure: S.variant === 'C' && S.linked != null ? `${PARA[S.linked].st} (paragraph ${S.linked + 1})` : S.talk, askAbout: S.ask == null ? null : ROWS[S.ask][0], ...(S.variant === 'D' ? { figurePlace: D.place, questionFigure: D.qfig, talkDiagrams: { ...D.states }, linkedParagraph: D.linked?.dataset.title ?? null } : {}) }, null, 1)
+}
+// Hover and pick only repaint the figures, so a chip's slide isn't lost to a full remount.
+const update = () => {
+  syncOptions()
+  if (S.variant === 'A') paintBoundary('q', qState())
+  if (S.variant === 'B') { $$('[data-mount]').forEach(e => { if (e.querySelector('[data-fig="q"]')) e.remove() }); mount(ask(), matrixFig(false)) }
+  if (S.variant === 'C') paintFlow('q', qState(), null)
+  if (S.variant === 'D') updateD()
+  showState()
+}
+const render = () => {
+  S.variant = key()
+  const [k, name, note, data] = VARIANTS.find(x => x[0] === S.variant)
+  $('#vname').textContent = `${k}: ${name}`; $('#vnote').textContent = note; $('#vdata').textContent = data
+  $('#vlabel').textContent = `${k} (${name})  ·  ${VARIANTS.findIndex(x => x[0] === k) + 1}/${VARIANTS.length}`
+  clearMounts()
+  const box = $('#talk-box'); if (box) box.placeholder = 'Ask, push back, or ask for a clearer rewrite'
+  ;({ A: mountA, B: mountB, C: mountC, D: mountD })[k]()
+  $('#dctl').style.display = k === 'D' ? '' : 'none'; $('#d-place').textContent = `Figure ${D.place} the options (switch)`; $('#d-qfig').textContent = `Question figure: ${D.qfig === 'table' ? 'table' : 'zones'} (switch)`
+  syncOptions(); showState()
+}
+const go = d => { const i = VARIANTS.findIndex(x => x[0] === key()); const n = VARIANTS[(i + d + VARIANTS.length) % VARIANTS.length][0]; const u = new URL(location); u.searchParams.set('variant', n); history.replaceState(null, '', u); S.preview = null; S.linked = null; S.lightbox = false; render() }
+$('#prev').onclick = () => go(-1); $('#next').onclick = () => go(1)
+$('#fold').onclick = () => { $('#controls').classList.toggle('is-folded'); $('#fold').textContent = $('#controls').classList.contains('is-folded') ? '+' : '–' }
+document.addEventListener('keydown', e => { if (e.target.closest('input, textarea, [contenteditable]')) return; if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); if (e.key === 'Escape' && S.lightbox) { S.lightbox = false; render() } })
+
+// Options: hover previews the answer in the question's figure; a click picks it.
+const optKey = el => { const o = el.closest('.snapshot .option'); if (!o) return undefined; return ['a', 'b', null][$$('.snapshot .option').indexOf(o)] }
+document.addEventListener('mouseover', e => { const k = optKey(e.target); if (k === undefined) return; if (S.preview !== k) { S.preview = k; update() } })
+document.addEventListener('mouseout', e => { const k = optKey(e.target); if (k === undefined || e.relatedTarget?.closest?.('.snapshot .option')) return; S.preview = null; update() })
+// In C the reasoning drives the pinned diagram: the paragraph you point at, else the one in view.
+const linkPara = i => { if (S.variant !== 'C' || S.linked === i) return; S.linked = i; const p = PARA[i]; paintFlow('talk', p?.st ?? S.talk, p?.hot); $$('.snapshot .prose p').forEach((el, j) => el.classList.toggle('is-linked', j === i)); showState() }
+document.addEventListener('mouseover', e => { const p = e.target.closest('.snapshot .prose p[data-st]'); if (p) linkPara($$('.snapshot .prose p').indexOf(p)) })
+document.addEventListener('mouseover', e => { if (S.variant !== 'D') return; const p = e.target.closest('.snapshot .dp[data-follows]'); if (p) linkD(p) })
+$('.snapshot .messages')?.addEventListener('scroll', () => {
+  if (S.variant !== 'D') return
+  for (const sec of $$('.snapshot .pin-sec')) {
+    const fig = $('.dfig', sec), ps = $$('.dp[data-follows]', sec); if (!fig || !ps.length) continue
+    const line = fig.getBoundingClientRect().bottom + 40
+    const hit = ps.findLast(p => p.getBoundingClientRect().top < line)
+    if (hit) linkD(hit)
+  }
+}, { passive: true })
+$('.snapshot .messages')?.addEventListener('scroll', () => {
+  if (S.variant !== 'C') return
+  const fig = $('[data-fig="talk"]'); if (!fig) return
+  const line = fig.getBoundingClientRect().bottom + 40
+  const ps = $$('.snapshot .prose p[data-st]')
+  const hit = ps.findLast(p => p.getBoundingClientRect().top < line)
+  if (hit) linkPara(ps.indexOf(hit))
+}, { passive: true })
+
+document.addEventListener('click', e => {
+  const t = e.target
+  if (t.closest('.snapshot form, .controls')) { if (t.closest('button[type="submit"]')) e.preventDefault() }
+  const seg = t.closest('[data-seg] button')
+  if (seg && seg.closest('[data-seg]').dataset.seg.startsWith('d:')) {
+    const id = seg.closest('[data-seg]').dataset.seg.slice(2), st = seg.dataset.st
+    if (id === 'q0') { S.pick = st === 'now' ? null : st; S.q = S.pick ?? 'today'; S.preview = null; update(); return }
+    D.focus[id] = null; D.linked = null; $$('.snapshot .dp').forEach(x => x.classList.remove('is-linked')); paintD(id, st); showState(); return
+  }
+  if (t.closest('#d-place')) { D.place = D.place === 'below' ? 'above' : 'below'; render(); return }
+  if (t.closest('#d-qfig')) { D.qfig = D.qfig === 'table' ? 'zones' : 'table'; render(); return }
+  if (t.closest('#d-data')) { $('#layer').innerHTML = showDataHTML(); return }
+  if (seg) {
+    const id = seg.closest('[data-seg]').dataset.seg, st = seg.dataset.st
+    if (id === 'q') { S.q = st; S.pick = st === 'today' ? null : st; S.preview = null; update(); return }
+    S.talk = st; S.linked = null
+    if (S.variant === 'A') paintBoundary('talk', st)
+    if (S.variant === 'C') { paintFlow('talk', st, null); $$('.snapshot .prose p').forEach(el => el.classList.remove('is-linked')) }
+    showState(); return
+  }
+  const k = optKey(t)
+  if (k !== undefined) { S.pick = S.pick === k ? null : k; if (!k) S.pick = null; S.q = S.pick ?? 'today'; update(); return }
+  if (t.closest('.snapshot .why-link')) { $('.snapshot .why-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
+  if (t.closest('[data-open-lb]')) { S.lightbox = true; render(); return }
+  const row = t.closest('.lightbox tr[data-row]')
+  if (row) { S.ask = Number(row.dataset.row); S.lightbox = false; render(); return }
+  if (t.closest('[data-unask]')) { S.ask = null; render(); return }
+  if (t.closest('[data-close]') && (t.matches('[data-close]') || t.closest('button[data-close]'))) { if (S.variant === 'D') { $('#layer').innerHTML = ''; return } S.lightbox = false; render(); return }
+})
+const box = $('.snapshot .messages'); if (box) box.scrollTop = 0
+render()
+</script>
+</body>
+</html>
