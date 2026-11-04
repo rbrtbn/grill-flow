@@ -1,11 +1,14 @@
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import { Command, given, message, model, story } from 'foldkit/story'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
+import { Grill } from './domain'
 import {
   MeasureSidebar,
   Message,
+  PageData,
   SaveSidebarWidths,
   init,
   update,
@@ -14,6 +17,40 @@ import {
 const start = init(
   Option.getOrThrow(Url.fromString('http://127.0.0.1:4317/g/test')),
 ).model
+
+const loaded = {
+  ...start,
+  page: PageData.Success({
+    data: {
+      grill: Schema.decodeUnknownSync(Grill)(
+        JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),
+      ),
+      answers: {},
+      notes: {},
+      own: {},
+      asks: [],
+      revisions: [],
+      sends: [],
+    },
+  }),
+}
+
+describe('folding a question on the page', () => {
+  it("folds and unfolds the question's reasoning in Talk with it", () => {
+    story(
+      update,
+      given(loaded),
+      message(Message.ClickedToggleQuestion({ question: 'Q2', open: true })),
+      model(current => {
+        expect(current.whyOpen['step-q2']).toBe(true)
+      }),
+      message(Message.ClickedToggleQuestion({ question: 'Q2', open: false })),
+      model(current => {
+        expect(current.whyOpen['step-q2']).toBe(false)
+      }),
+    )
+  })
+})
 
 describe('resizing a sidebar', () => {
   it('follows the pointer within its bounds and saves on release', () => {

@@ -774,17 +774,25 @@ export const update = (model: Model, message: Message) =>
 
     CompletedNavigate: () => ({ model }),
 
+    // Talk's reasoning for the question folds with it; ClickedToggleWhy mirrors the other way.
     ClickedToggleQuestion: ({ question, open }) =>
-      withSnapshot(model, snapshot => ({
-        model: modifyFields(
+      withSnapshot(model, snapshot => {
+        const toggled = modifyFields(
           open
             ? openQuestion(model, snapshot, question)
             : modifyFields(forgetAbout(model, [question]), {
                 expanded: Record.set(question, false),
               }),
           { maybeJustAnswered: () => Option.none() },
-        ),
-      })),
+        )
+        return {
+          model: Option.match(stepIdOf(snapshot, question), {
+            onNone: () => toggled,
+            onSome: stepId =>
+              modifyFields(toggled, { whyOpen: Record.set(stepId, open) }),
+          }),
+        }
+      }),
 
     ClickedPeek: ({ key }) => ({
       model: modifyFields(model, {
