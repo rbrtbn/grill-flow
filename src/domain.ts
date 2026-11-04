@@ -804,6 +804,7 @@ export type Segment =
   | Readonly<{ _tag: 'Term'; text: string; term: Term }>
   | Readonly<{ _tag: 'Ref'; text: string; ref: Ref }>
   | Readonly<{ _tag: 'Question'; text: string }>
+  | Readonly<{ _tag: 'Link'; text: string; url: string }>
 
 const escapeRegExp = (text: string): string =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -857,6 +858,31 @@ const splitEntities = (
   )
 }
 
+// http(s) only, so agent text can't hand the page a javascript: href. A bare address leaves
+// trailing punctuation to the sentence.
+const LINK =
+  /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>()]*[^\s<>().,;:!?'"’”])/g
+
+const splitLinks = (
+  text: string,
+  entities: ReadonlyArray<Entity>,
+): ReadonlyArray<Segment> => {
+  const parts: Array<Segment> = []
+  let last = 0
+  for (const match of text.matchAll(LINK)) {
+    const [whole, label, url, bare] = match
+    parts.push(...splitEntities(text.slice(last, match.index), entities))
+    parts.push(
+      bare === undefined
+        ? { _tag: 'Link', text: label ?? whole, url: url ?? whole }
+        : { _tag: 'Link', text: bare, url: bare },
+    )
+    last = match.index + whole.length
+  }
+  parts.push(...splitEntities(text.slice(last), entities))
+  return parts
+}
+
 export const segments = (
   paragraph: string,
   entities: ReadonlyArray<Entity> = [],
@@ -871,7 +897,7 @@ export const segments = (
               onSome: (entity): Segment => ({ _tag: 'Entity', text, entity }),
             }),
           ]
-        : splitEntities(text, entities),
+        : splitLinks(text, entities),
     ),
     Array.filter(segment => segment.text !== ''),
   )

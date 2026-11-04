@@ -165,6 +165,18 @@ const segmentView = (
             )
           : text,
       Ref: ({ text, ref }) => (mode.links ? refView(text, ref, h) : text),
+      Link: ({ text, url }) =>
+        mode.links
+          ? h.a(
+              [
+                h.Class('text-link'),
+                h.Href(url),
+                h.Target('_blank'),
+                h.Rel('noreferrer'),
+              ],
+              [text],
+            )
+          : text,
       Question: ({ text: id }) =>
         mode.links
           ? questionLink(id, grill, mode, h)

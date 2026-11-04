@@ -91,6 +91,9 @@ body {
 a {
   color: var(--link);
 }
+.text-link {
+  overflow-wrap: anywhere;
+}
 :focus-visible {
   outline: 2px solid var(--link);
   outline-offset: 3px;
@@ -1180,9 +1183,11 @@ textarea::placeholder {
   font: 600 0.78rem var(--label);
   color: var(--muted);
 }
+/* Agent text can carry a bare address, path or hash longer than the sidebar is wide. */
 .message-body {
   display: grid;
   gap: 8px;
+  overflow-wrap: anywhere;
 }
 .composer {
   border-top: 1px solid var(--rule);

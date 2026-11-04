@@ -163,6 +163,39 @@ describe('segments', () => {
       segments('sub-agent workers', grill.entities).map(part => part._tag),
     ).toEqual(['Text'])
   })
+
+  it('turns markdown links and bare web addresses into links, leaving code and other schemes alone', () => {
+    const parts = segments(
+      'The [build rule](https://github.com/o/r/blob/abc/SKILL.md#escalate-only-for) says so; see https://example.com/a/b. Not `[x](https://c.d)` or [y](javascript:alert(1)).',
+    )
+    expect(
+      parts.map(part =>
+        part._tag === 'Link'
+          ? [part._tag, part.text, part.url]
+          : [part._tag, part.text],
+      ),
+    ).toEqual([
+      ['Text', 'The '],
+      [
+        'Link',
+        'build rule',
+        'https://github.com/o/r/blob/abc/SKILL.md#escalate-only-for',
+      ],
+      ['Text', ' says so; see '],
+      ['Link', 'https://example.com/a/b', 'https://example.com/a/b'],
+      ['Text', '. Not '],
+      ['Code', '[x](https://c.d)'],
+      ['Text', ' or [y](javascript:alert(1)).'],
+    ])
+  })
+
+  it('keeps a link out of the entity names it contains', () => {
+    expect(
+      segments('[the agent](https://a.b/agent)', grill.entities).map(
+        part => part._tag,
+      ),
+    ).toEqual(['Link'])
+  })
 })
 
 describe('withQuestions', () => {
