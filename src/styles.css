@@ -2262,6 +2262,12 @@ button.plan-title:hover {
   border: 1px solid color-mix(in srgb, var(--link) 30%, transparent);
 }
 
+/* A compare drawn as a diagram already sits in the diagram's frame. */
+.diagram > .compare {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 /* A diagram in agent-written prose. */
 .diagram {
   display: grid;
