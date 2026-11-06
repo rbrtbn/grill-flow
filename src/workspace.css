@@ -1,0 +1,1069 @@
+.f-workspace {
+  --bar: 68px;
+  --preview-bar: 0px;
+  --reading-width: 760px;
+  --question-gutter: 64px;
+  height: calc(100dvh - var(--preview-bar));
+  overflow: hidden;
+}
+.f-workspace button {
+  font-family: var(--label);
+}
+.f-workspace .text-button {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--link);
+  text-decoration: none;
+  cursor: pointer;
+}
+.f-workspace .text-button:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.f-workspace .text-button:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 5px;
+}
+.f-topbar {
+  height: var(--bar);
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(360px, 1fr);
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--rule);
+  font: 600 15px/1.3 var(--label);
+}
+.f-run-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.f-current-question {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.f-topbar nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 24px;
+}
+.f-topbar nav button {
+  white-space: nowrap;
+}
+.f-frame {
+  --nav-safe: clamp(180px, var(--nav-w), 32vw);
+  height: calc(100dvh - var(--bar) - var(--preview-bar));
+  display: grid;
+  grid-template-columns: var(--nav-safe) 0 minmax(0, 1fr);
+  position: relative;
+  overflow: hidden;
+}
+.f-frame.f-with-discussion {
+  grid-template-columns: var(--nav-safe) 0 minmax(260px, 1fr) minmax(
+      320px,
+      min(var(--side-set), 45vw)
+    ) 0;
+}
+
+.f-navigation {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--rule);
+  font: 500 14px/1.35 var(--label);
+  overflow: hidden;
+}
+.f-nav-top {
+  padding: 24px 18px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.f-brand {
+  display: block;
+  margin: 0 6px 24px;
+  color: var(--ink);
+  font: 700 24px/1.25 var(--read);
+  text-decoration: none;
+}
+.f-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0;
+  padding: 12px 6px;
+  color: var(--ink);
+  border: 0;
+  background: none;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+}
+.f-nav-item .hint {
+  max-width: 132px;
+  text-align: right;
+  font-size: 12px;
+}
+.f-nav-item:hover,
+.f-question-item:hover {
+  background: var(--panel);
+}
+.f-question-tools {
+  padding: 18px 18px 10px;
+}
+.f-question-tools > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 3px 12px;
+}
+.f-question-tools input {
+  width: 100%;
+  min-width: 0;
+  font: 500 14px var(--label);
+  padding: 11px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.f-filters {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 12px;
+}
+.f-filters button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  background: none;
+  cursor: pointer;
+}
+.f-filters button.is-active {
+  border-color: var(--rule);
+  background: var(--panel);
+  color: var(--ink);
+}
+.f-question-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 10px 28px;
+  scrollbar-gutter: stable;
+}
+.f-round {
+  margin-bottom: 12px;
+}
+.f-round-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 15px 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.f-round-toggle > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.f-round-toggle > svg.is-open {
+  transform: rotate(90deg);
+}
+.f-round-toggle .hint {
+  margin-left: auto;
+  font-size: 12px;
+}
+.f-question-item {
+  display: grid;
+  grid-template-columns: 14px 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  padding: 11px 9px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.f-question-number {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.f-question-item > span:nth-child(3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.f-question-item.is-current,
+.f-nav-item.is-current {
+  background: var(--link-wash);
+  color: var(--link);
+}
+.f-state {
+  display: inline-flex;
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+}
+.f-state-draft {
+  border-color: var(--link);
+  background: var(--link);
+}
+.f-state-sent {
+  color: var(--olive);
+  border-color: var(--olive);
+}
+.f-state svg {
+  width: 12px;
+  height: 12px;
+}
+.f-main {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  scrollbar-gutter: stable;
+  padding: 0;
+  overflow: hidden;
+}
+#workspace-top {
+  height: 0;
+  outline: none;
+  scroll-margin-top: 0;
+}
+
+.f-question-main {
+  padding: 0;
+  overflow: hidden;
+}
+
+.f-question-layout {
+  position: relative;
+  height: 100%;
+}
+.f-reading-scroller {
+  height: 100%;
+  overflow-y: auto;
+  padding: 106px var(--question-gutter) 60px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.f-arrows {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(var(--question-gutter), 1fr) minmax(
+      0,
+      calc(var(--reading-width) + 8px)
+    ) minmax(var(--question-gutter), 1fr) 8px;
+  pointer-events: none;
+  z-index: 5;
+}
+.f-arrow-previous {
+  grid-column: 1;
+}
+.f-arrow-next {
+  grid-column: 3;
+}
+.f-reading {
+  width: min(100%, var(--reading-width));
+  margin: 0 auto;
+  min-width: 0;
+  padding: 0 0 70px;
+}
+.f-question-title {
+  font: 700 24px/1.42 var(--read);
+  margin: 0 0 22px;
+  text-wrap: pretty;
+}
+.f-question-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin-bottom: 24px;
+  font: 500 13px/1.5 var(--label);
+  color: var(--muted);
+}
+.f-state-label {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.f-scope {
+  margin-bottom: 20px;
+}
+.f-reading .question-body {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.f-reading .question-ask,
+.f-reading .question-links .ref-link,
+.f-reading .question-links .concept-link,
+.f-reading .why-link {
+  display: none;
+}
+.f-reading .question-links {
+  margin: 0 0 16px;
+  gap: 20px;
+}
+.f-reading .options {
+  margin: 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.f-reading .option-pick {
+  padding: 20px 18px;
+  align-items: start;
+}
+.f-reading .option-label {
+  font: 600 18px/1.5 var(--read);
+}
+.f-reading .option-effect {
+  display: block;
+  font: 400 15px/1.65 var(--read);
+  margin-top: 6px;
+  color: var(--muted);
+}
+.f-reading .option-key {
+  font: 500 14px/26px var(--label);
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+}
+.f-reading .option.is-selected {
+  background: var(--link-wash);
+}
+.f-reading .recommended {
+  font: 600 12px/1.5 var(--label);
+  margin-left: 9px;
+}
+.f-saved {
+  margin-top: 16px;
+  text-align: right;
+  font-size: 13px;
+}
+.f-reasoning {
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--rule);
+}
+.f-reasoning h2 {
+  font: 700 21px/1.4 var(--read);
+  margin: 0 0 22px;
+}
+.f-reasoning .prose {
+  font: 400 16px/1.8 var(--read);
+}
+.f-reasoning h3 {
+  font-size: 18px;
+}
+.f-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  margin: 30px 0 0;
+  font: 600 14px/1.5 var(--label);
+}
+.f-arrow {
+  height: 100%;
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  cursor: pointer;
+}
+.f-arrow svg {
+  width: 28px;
+  height: 64px;
+}
+.f-arrow:hover:enabled {
+  background: color-mix(in srgb, var(--panel) 45%, transparent);
+}
+.f-arrow:disabled {
+  color: var(--rule);
+  cursor: default;
+}
+.f-arrow:focus-visible {
+  outline-offset: -6px;
+}
+.f-page,
+.f-page-scroller > .concept-page {
+  width: min(100%, 1000px);
+  margin: 0 auto;
+  padding: 0 0 60px;
+}
+.f-page h1,
+.f-page-scroller > .concept-page .concept-title {
+  margin: 0 0 16px;
+  font: 700 30px/1.4 var(--read);
+}
+.f-page h2 {
+  font: 700 21px/1.5 var(--read);
+  margin: 36px 0 16px;
+}
+.f-page > .prose {
+  margin-bottom: 20px;
+}
+.f-page .hint,
+.f-navigation .hint {
+  color: var(--muted);
+}
+.f-table-scroll {
+  overflow-x: auto;
+}
+.f-table {
+  border-collapse: collapse;
+  width: 100%;
+  font: 500 14px/1.5 var(--label);
+  text-align: left;
+}
+.f-table th {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  font-weight: 500;
+}
+.f-table td {
+  padding: 17px 12px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.f-table td > strong {
+  margin-right: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.f-table td > span + span {
+  display: block;
+  margin-top: 5px;
+}
+.f-table input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--link);
+}
+
+.f-review .f-table-scroll {
+  min-height: 0;
+  overflow: auto;
+  margin-top: 8px;
+  flex: 1;
+  scrollbar-gutter: stable;
+}
+.f-review-summary {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font: 500 14px/1.4 var(--label);
+  margin: 24px 0 8px;
+}
+.f-review-summary strong {
+  margin-right: auto;
+}
+.f-review .f-table td:nth-child(2) {
+  width: 40%;
+}
+.f-review .f-table td:nth-child(3) {
+  width: 45%;
+  font-family: var(--read);
+}
+.f-review .f-table td:last-child {
+  white-space: nowrap;
+}
+.f-review-compose {
+  flex: none;
+  padding: 24px 0 22px;
+  background: var(--paper);
+}
+.f-review-compose label,
+.f-discussion-compose label {
+  font: 500 14px/1.4 var(--label);
+}
+.f-workspace textarea {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  caret-color: var(--link);
+  border-radius: 4px;
+  resize: vertical;
+  width: 100%;
+  padding: 12px;
+  font: 400 15px/1.6 var(--read);
+}
+.f-review-compose textarea {
+  margin-top: 10px;
+  max-height: 180px;
+}
+.f-send-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 12px;
+}
+.f-send-foot .hint {
+  font: 500 12px/1.5 var(--label);
+}
+.f-empty {
+  padding: 24px 0;
+  color: var(--muted);
+}
+.f-empty-nav {
+  padding: 12px;
+}
+.f-needs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule);
+  font: 500 16px/1.6 var(--label);
+}
+.f-needs-row .hint {
+  margin-top: 4px;
+}
+.f-needs-row > button {
+  flex: none;
+}
+.f-run-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 28px 0;
+  font: 500 14px/1.5 var(--label);
+  color: var(--muted);
+}
+.f-run-overview .f-table td:first-child {
+  max-width: 320px;
+}
+.f-reply {
+  border-top: 1px solid var(--rule);
+  padding: 24px 0;
+}
+.f-reply h2 {
+  margin: 0 0 20px;
+}
+.f-discussion {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--rule);
+}
+.f-discussion-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 28px 20px;
+  gap: 8px 18px;
+  padding: 20px 24px 24px;
+  align-items: center;
+}
+.f-discussion-head h2 {
+  font: 700 25px/28px var(--read);
+  margin: 0;
+}
+.f-discussion-head > .hint {
+  font: 500 13px/1.4 var(--label);
+  text-align: right;
+}
+.f-discussion-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 24px;
+  font: 600 14px/20px var(--label);
+}
+.f-discussion-scope {
+  display: flex;
+  gap: 8px;
+  padding: 0 24px 20px;
+  font: 500 14px/1.4 var(--label);
+}
+.f-discussion-scope button {
+  flex: 1;
+}
+.f-discussion-messages {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 24px 24px;
+  scrollbar-gutter: stable;
+}
+.f-discussion-messages .message {
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  padding: 20px 0;
+  border-radius: 0;
+  margin: 0;
+}
+.f-discussion-messages .message-who {
+  font: 600 12px/1.5 var(--label);
+  margin-bottom: 12px;
+}
+.f-discussion-messages .message-body {
+  font: 400 15px/1.75 var(--read);
+}
+.f-discussion-compose {
+  padding: 18px 24px 20px;
+  border-top: 1px solid var(--rule);
+}
+.f-discussion-compose textarea {
+  min-height: 100px;
+  max-height: 200px;
+}
+.f-context {
+  padding: 10px 0 24px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 20px;
+  font: 400 15px/1.75 var(--read);
+}
+.f-context h3 {
+  margin: 0 0 12px;
+  font: 700 19px/1.5 var(--read);
+}
+.f-context details {
+  margin-top: 18px;
+}
+.f-context summary {
+  cursor: pointer;
+  font: 600 14px var(--label);
+}
+.f-context dt {
+  font-weight: 600;
+  margin-top: 16px;
+}
+.f-context dd {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.f-workspace .resize-handle {
+  z-index: 15;
+  width: 9px;
+  margin-left: -4px;
+  background: none;
+}
+.f-workspace .resize-handle::after {
+  opacity: 0;
+}
+.f-workspace .resize-handle:hover::after,
+.f-workspace .resize-handle:focus-visible::after,
+.f-workspace.is-resizing .resize-handle::after {
+  opacity: 1;
+}
+.f-frame > .resize-nav {
+  grid-column: 2;
+  grid-row: 1;
+}
+.f-frame > .resize-side {
+  grid-column: 5;
+  grid-row: 1;
+}
+.f-frame > .f-main {
+  grid-column: 3;
+  grid-row: 1;
+}
+.f-frame > .f-discussion {
+  grid-column: 4;
+  grid-row: 1;
+}
+.f-workspace
+  :is(.f-main, .f-question-list, .f-discussion-messages, .f-table-scroll) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.f-no-highlights :is(.entity, .term) {
+  color: inherit;
+  background: none;
+  border-color: transparent;
+}
+.f-settings {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  z-index: 100;
+}
+.f-settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #0006;
+}
+.f-settings-panel {
+  position: relative;
+  width: min(460px, calc(100% - 40px));
+  margin: max(40px, 15dvh) auto;
+  padding: 28px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 16px 52px #0004;
+}
+.f-settings-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.f-settings-panel h2 {
+  margin: 0;
+  font: 700 24px/1.4 var(--read);
+}
+.f-settings-panel label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 16px var(--label);
+  margin: 24px 0 8px;
+}
+.f-settings-panel input {
+  accent-color: var(--link);
+  width: 16px;
+  height: 16px;
+}
+.f-settings-panel .hint {
+  font: 400 14px/1.6 var(--read);
+  margin-left: 28px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 1200px) {
+  .f-workspace {
+    --question-gutter: 44px;
+  }
+  .f-topbar {
+    gap: 16px;
+    grid-template-columns: minmax(120px, 1fr) auto auto;
+    padding-inline: 18px;
+  }
+  .f-topbar nav {
+    gap: 16px;
+  }
+  .f-frame {
+    --nav-w: 240px;
+  }
+  .f-frame.f-with-discussion {
+    grid-template-columns: var(--nav-safe) 0 minmax(0, 1fr);
+  }
+  .f-frame.f-with-discussion > .f-discussion {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(100% - var(--nav-safe));
+    z-index: 20;
+    box-shadow: -12px 0 36px #0002;
+  }
+  .f-with-discussion .f-main {
+    visibility: hidden;
+  }
+  .f-reading .option-pick {
+    padding: 18px 14px;
+  }
+  .f-question-title {
+    font-size: 22px;
+  }
+}
+@media (max-width: 700px) {
+  .f-workspace {
+    --bar: 112px;
+    --question-gutter: 36px;
+  }
+  .f-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 42px 50px;
+    gap: 0 12px;
+    padding: 10px 14px;
+  }
+  .f-topbar nav {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .f-topbar .send-button,
+  .f-topbar .quiet-button {
+    padding: 9px;
+    font-size: 13px;
+  }
+  .f-frame {
+    display: flex;
+    flex-direction: column;
+  }
+  .f-navigation {
+    flex: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    max-height: 200px;
+  }
+  .f-nav-top {
+    display: flex;
+    padding: 6px 12px;
+    gap: 8px;
+    border: 0;
+  }
+  .f-brand,
+  .f-nav-item .hint,
+  .f-nav-item:last-child {
+    display: none;
+  }
+  .f-nav-item {
+    padding: 9px 0;
+    font-size: 13px;
+  }
+  .f-question-tools {
+    padding: 4px 12px 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .f-question-tools > div:first-child {
+    display: none;
+  }
+  .f-filters {
+    margin: 0;
+  }
+  .f-question-list {
+    max-height: 80px;
+  }
+  .f-round {
+    margin: 0;
+  }
+  .f-round-toggle {
+    padding: 7px;
+  }
+  .f-main {
+    flex: 1;
+    width: 100%;
+  }
+  .f-question-main {
+    padding: 0;
+  }
+
+  .f-reading-scroller {
+    padding-top: 100px;
+  }
+  .f-question-main .f-discuss-action {
+    top: 56px;
+  }
+  .f-question-title {
+    font-size: 20px;
+  }
+  .f-arrow svg {
+    width: 20px;
+    height: 50px;
+  }
+  .f-question-meta {
+    gap: 8px 12px;
+  }
+  .f-reading .option-label {
+    font-size: 16px;
+  }
+  .f-reading .option-effect {
+    font-size: 14px;
+  }
+  .f-reading .option-pick {
+    gap: 10px;
+    padding: 16px 12px;
+  }
+  .f-frame.f-with-discussion > .f-discussion {
+    width: 100%;
+    top: 0;
+  }
+  .f-frame > .resize-handle {
+    display: none;
+  }
+  .f-review {
+    height: 100%;
+  }
+  .f-review-summary {
+    gap: 12px;
+    font-size: 12px;
+  }
+  .f-review-compose {
+    padding-block: 16px;
+  }
+  .f-review-compose textarea {
+    max-height: 110px;
+  }
+  .f-discussion-head {
+    padding-inline: 18px;
+  }
+  .f-discussion-messages,
+  .f-discussion-compose {
+    padding-inline: 18px;
+  }
+}
+.f-conversation-picker {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 8px 24px 24px;
+  font: 500 14px var(--label);
+}
+.f-conversation-picker select {
+  min-width: 0;
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.f-page-scroller {
+  height: 100%;
+  overflow-y: auto;
+  padding: 106px 36px 60px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.f-discuss-action {
+  position: absolute;
+  right: 24px;
+  top: 56px;
+  z-index: 12;
+  height: auto;
+  padding: 0;
+  margin: 0;
+}
+.f-review {
+  height: 100%;
+}
+.f-page-scroller.is-review {
+  padding-bottom: 0;
+}
+.f-page-scroller.is-conversation {
+  padding: 0;
+}
+.f-page-scroller > .f-discussion {
+  max-width: 1100px;
+  height: 100%;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 0;
+}
+.f-frame.f-with-discussion.f-expanded {
+  grid-template-columns: var(--nav-safe) 0 0 minmax(0, 1fr) 0;
+}
+@media (max-width: 700px) {
+  .f-main {
+    padding: 0;
+  }
+  .f-discuss-action {
+    top: 56px;
+  }
+  .f-page-scroller {
+    padding: 100px 18px 40px;
+  }
+  .f-page-scroller.is-review {
+    padding-bottom: 0;
+  }
+  .f-page-scroller.is-conversation {
+    padding: 0;
+  }
+}
+
+.f-save-error {
+  position: fixed;
+  z-index: 45;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 40px);
+  padding: 16px 20px;
+  background: var(--paper);
+  border: 1px solid var(--del-ink);
+  color: var(--del-ink);
+  font: 500 14px/1.5 var(--label);
+}
+.f-save-error button {
+  margin-left: 20px;
+}
+
+.f-expanded.f-with-discussion .f-main {
+  visibility: hidden;
+  pointer-events: none;
+}
+.f-workspace .resize-handle.resize-nav,
+.f-workspace .resize-handle.resize-side {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  height: 100%;
+}
+.f-frame > .resize-side {
+  grid-column: 4;
+  justify-self: start;
+}
+
+body[data-gf-preview] .f-workspace {
+  --preview-bar: 24px;
+  margin-top: 24px;
+}
+.f-preview-notice {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  height: 24px;
+  padding: 4px 16px;
+  background: #24352d;
+  color: #fff;
+  text-align: center;
+  font: 500 12px/16px var(--label);
+}

@@ -14,10 +14,10 @@ export const askMessage = (
 ): string =>
   isWholeTarget(stepId)
     ? [
-        `[grill-flow] Ask on ${grillId}, the whole ${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)} (ask ${askId}): ${text}`,
+        `[grill-flow] Ask on ${grillId}, the whole ${stepId === 'run' ? 'run' : `${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)}`} (ask ${askId}): ${text}`,
         `Answer it on the page: write your reply to a file, then run`,
         `${gf} revise ${grillId} ${stepId} --ask ${askId} --kind comment --file <path>`,
-        `(to rewrite a step's reasoning as well, run the same with that step's id and --kind rewrite).`,
+        `To rewrite a step as well: ${gf} revise ${grillId} <step-id> --kind rewrite --file <path> (omit --ask).`,
       ].join('\n')
     : [
         `[grill-flow] Ask on ${grillId}, step ${stepId} (ask ${askId}): ${text}`,

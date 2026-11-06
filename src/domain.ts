@@ -349,17 +349,19 @@ export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
     (a, b) => a === b,
   )
 
-/** An ask's target that is a whole concept (`part:<id>`) or a whole card (`card:<card>`). */
+/** A conversation about the run, a concept (`part:<id>`) or a card (`card:<card>`). */
 export const isWholeTarget = (target: string): boolean =>
-  target.startsWith('part:') || target.startsWith('card:')
+  target === 'run' || target.startsWith('part:') || target.startsWith('card:')
 
-/** Whether an ask or reply can be about this target: a step, a concept, or a card. */
+/** Whether this grill contains the step, concept, card or whole-run reply target. */
 export const hasTarget = (grill: Grill, target: string): boolean =>
-  target.startsWith('part:')
-    ? grill.parts.some(part => `part:${part.id}` === target)
-    : target.startsWith('card:')
-      ? cardsOf(grill).some(card => `card:${card}` === target)
-      : grill.steps.some(step => step.id === target)
+  target === 'run'
+    ? true
+    : target.startsWith('part:')
+      ? grill.parts.some(part => `part:${part.id}` === target)
+      : target.startsWith('card:')
+        ? cardsOf(grill).some(card => `card:${card}` === target)
+        : grill.steps.some(step => step.id === target)
 
 export const urgencyOf = (question: Question): UrgencyLevel =>
   question.urgency ?? 'unset'
@@ -703,9 +705,10 @@ export const answerLines = (
   answers: Answers,
   notes: Notes,
   own: Notes = {},
+  steps: ReadonlyArray<Step> = roundSteps(grill),
 ): Readonly<Record<string, string>> =>
   Record.fromEntries(
-    Array.flatMap(roundSteps(grill), step => {
+    Array.flatMap(steps, step => {
       const status = statusOf(grill, answers, step.question.id)
       return status._tag === 'Answered'
         ? [

@@ -152,13 +152,14 @@ export const reviseGrill = (
   if (!hasTarget(grill, revision.stepId)) {
     return {
       ok: false,
-      reason: `no step, concept or card ${revision.stepId} in ${grill.id}`,
+      reason: `no step, concept, card or run ${revision.stepId} in ${grill.id}`,
     }
   }
   if (isWholeTarget(revision.stepId) && revision.kind === 'rewrite') {
     return {
       ok: false,
-      reason: 'a concept or card takes a comment; rewrite a step by its own id',
+      reason:
+        'a run, concept or card takes a comment; rewrite a step by its own id',
     }
   }
   if (

@@ -42,6 +42,23 @@ import {
   urgencyOf,
   usesUrgency,
 } from './domain'
+import {
+  CONVERSATIONS,
+  NEEDS,
+  QUESTION_PAGE,
+  QuestionFilter,
+  REPLIES,
+  REVIEW,
+  RUN_TARGET,
+  Workspace,
+  adjacentQuestion,
+  draftQuestions,
+  initialWorkspace,
+  isWorkspacePage,
+  questionOnPage,
+  roundIsCollapsed,
+  workspaceLines,
+} from './workspace'
 
 const POLL_INTERVAL = Duration.seconds(4)
 
@@ -106,6 +123,9 @@ export const clampSidebarWidth = (edge: SidebarEdge, width: number): number =>
 
 export const Model = Schema.Struct({
   page: PageData.schema,
+  workspace: Workspace,
+  pendingEvents: Schema.Number,
+  failedWrites: Schema.Array(Schema.String),
   answers: Schema.Record(Schema.String, Schema.String),
   notes: Schema.Record(Schema.String, Schema.String),
   own: Schema.Record(Schema.String, Schema.String),
@@ -182,7 +202,35 @@ export const Message = defineMessageUnion({
   ClickedClearAnswer: { question: Schema.String },
   UpdatedNote: { question: Schema.String, value: Schema.String },
   BlurredNote: { question: Schema.String },
-  CompletedPostEvent: { result: Schema.Result(Snapshot, Schema.String) },
+  CompletedPostEvent: {
+    result: Schema.Result(Snapshot, Schema.String),
+    body: Schema.optionalKey(Schema.String),
+  },
+  ClickedRetrySaves: {},
+  ClickedWorkspacePage: { page: Schema.String },
+  PressedWorkspaceShortcut: {},
+  ClickedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
+  ChangedQuestionFilter: { filter: QuestionFilter },
+  UpdatedQuestionSearch: { value: Schema.String },
+  ClickedRound: { round: Schema.Number },
+  ClickedSettings: {},
+  ClosedSettings: {},
+  ChangedHighlights: {},
+  ChangedCollapseSentRounds: {},
+  RestoredWorkspaceSettings: {
+    highlightTerms: Schema.Boolean,
+    collapseSentRounds: Schema.Boolean,
+  },
+  CompletedSaveWorkspaceSettings: {},
+  ClickedDiscussion: { target: Schema.String },
+  ClickedCloseDiscussion: {},
+  ClickedExpandDiscussion: {},
+  SelectedDiscussionTarget: { target: Schema.String },
+  ClickedConversationStarter: { target: Schema.String, text: Schema.String },
+  SubmittedWorkspaceDiscussion: { target: Schema.String },
+  ReadWorkspaceDiscussion: { target: Schema.String, text: Schema.String },
+  ToggledReviewAnswer: { question: Schema.String },
+  ClickedSelectReview: { selected: Schema.Boolean },
   ClickedSend: {},
   ClickedConfirmSend: {},
   ClickedCancelSend: {},
@@ -285,7 +333,7 @@ const postEvent = (model: Model, body: Record<string, unknown>): UpdateReturn =>
   Option.match(grillIdOf(model), {
     onNone: () => ({ model }),
     onSome: grillId => ({
-      model,
+      model: modifyFields(model, { pendingEvents: count => count + 1 }),
       commands: [PostEvent({ grillId, body: JSON.stringify(body) })],
     }),
   })
@@ -293,7 +341,8 @@ const postEvent = (model: Model, body: Record<string, unknown>): UpdateReturn =>
 const refreshPage = (model: Model, snapshot: Snapshot): Model =>
   modifyFields(model, {
     page: () => PageData.Success({ data: snapshot }),
-    maybeSaveError: () => Option.none(),
+    maybeSaveError: () =>
+      model.failedWrites.length > 0 ? model.maybeSaveError : Option.none(),
   })
 
 const partOf = (snapshot: Snapshot, question: string): Option.Option<string> =>
@@ -366,6 +415,24 @@ const openAnswer = (
   stepId: string,
 ): Model => {
   const grill = snapshot.grill
+  if (stepId === RUN_TARGET)
+    return modifyFields(model, {
+      side: () => 'Talk',
+      workspace: value =>
+        modifyFields(value, {
+          maybeDiscussionTarget: () => Option.some(RUN_TARGET),
+        }),
+    })
+  if (
+    isWorkspacePage(model.currentPart) &&
+    (stepId.startsWith('part:') || isCardPage(stepId))
+  )
+    return modifyFields(goTo(model, grill, CONVERSATIONS), {
+      workspace: value =>
+        modifyFields(value, {
+          maybeDiscussionTarget: () => Option.some(stepId),
+        }),
+    })
   if (stepId.startsWith('part:') || isCardPage(stepId)) {
     const page = stepId.startsWith('part:') ? stepId.slice(5) : stepId
     return modifyFields(goTo(model, grill, page), {
@@ -386,6 +453,10 @@ const openAnswer = (
         const moved = goTo(openQuestion(model, question), grill, page)
         return modifyFields(moved, {
           side: () => 'Talk',
+          workspace: value =>
+            modifyFields(value, {
+              maybeDiscussionTarget: () => Option.some(step.id),
+            }),
           whyOpen: Record.set(step.id, true),
           maybeTalkPart: () => Option.some(step.part),
           talkAbout: Record.set(talkKeyOf(page, step.part), question),
@@ -459,6 +530,179 @@ const unpicked = (model: Model, question: string): UpdateReturn =>
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
     CompletedLoadGrill: ({ result }) => settleLoad(model, result),
+
+    ClickedWorkspacePage: ({ page }) => workspaceNavigate(model, page),
+    PressedWorkspaceShortcut: () =>
+      model.currentPart === REVIEW
+        ? { model, commands: [ReadSendBoxCommand()] }
+        : model.currentPart.startsWith(QUESTION_PAGE)
+          ? workspaceNavigate(model, REVIEW)
+          : { model },
+    ClickedQuestionArrow: ({ direction }) =>
+      withSnapshot(model, snapshot => {
+        return Option.match(
+          adjacentQuestion(
+            model.workspace,
+            snapshot,
+            model.answers,
+            model.notes,
+            model.own,
+            model.currentPart,
+            direction,
+          ),
+          {
+            onNone: () => ({ model }),
+            onSome: step =>
+              workspaceNavigate(model, `${QUESTION_PAGE}${step.question.id}`),
+          },
+        )
+      }),
+    ChangedQuestionFilter: ({ filter }) => ({
+      model: modifyFields(model, {
+        workspace: value => modifyFields(value, { filter: () => filter }),
+      }),
+    }),
+    UpdatedQuestionSearch: ({ value }) => ({
+      model: modifyFields(model, {
+        workspace: workspace =>
+          modifyFields(workspace, { search: () => value }),
+      }),
+    }),
+    ClickedRound: ({ round }) =>
+      withSnapshot(model, snapshot => {
+        const collapsed = roundIsCollapsed(
+          model.workspace,
+          snapshot,
+          round,
+          model.answers,
+          model.notes,
+          model.own,
+        )
+        return {
+          model: modifyFields(model, {
+            workspace: value =>
+              modifyFields(value, {
+                foldedRounds: rounds =>
+                  collapsed
+                    ? rounds.filter(item => item !== round)
+                    : Array.append(rounds, round),
+                expandedRounds: rounds =>
+                  collapsed
+                    ? Array.append(rounds, round)
+                    : rounds.filter(item => item !== round),
+              }),
+          }),
+        }
+      }),
+    ClickedSettings: () => ({
+      model: modifyFields(model, {
+        workspace: value => modifyFields(value, { isSettingsOpen: () => true }),
+      }),
+      commands: [OpenWorkspaceSettings()],
+    }),
+    ClosedSettings: () => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, { isSettingsOpen: () => false }),
+      }),
+      commands: [CloseWorkspaceSettings()],
+    }),
+    ChangedHighlights: () => saveWorkspaceSetting(model, 'highlightTerms'),
+    ChangedCollapseSentRounds: () =>
+      saveWorkspaceSetting(model, 'collapseSentRounds'),
+    RestoredWorkspaceSettings: ({ highlightTerms, collapseSentRounds }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            highlightTerms: () => highlightTerms,
+            collapseSentRounds: () => collapseSentRounds,
+          }),
+      }),
+    }),
+    CompletedSaveWorkspaceSettings: () => ({ model }),
+    ClickedDiscussion: ({ target }) => ({
+      model: modifyFields(model, {
+        side: () => 'Talk',
+        workspace: value =>
+          modifyFields(value, {
+            maybeDiscussionTarget: () => Option.some(target),
+          }),
+      }),
+      commands: [FocusTalkBox()],
+    }),
+    ClickedCloseDiscussion: () => ({
+      model: modifyFields(model, { side: () => 'None' }),
+    }),
+    ClickedExpandDiscussion: () => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            isDiscussionExpanded: current => !current,
+          }),
+      }),
+    }),
+    SelectedDiscussionTarget: ({ target }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            maybeDiscussionTarget: () => Option.some(target),
+          }),
+      }),
+    }),
+    ClickedConversationStarter: ({ target, text }) => ({
+      model: modifyFields(model, {
+        side: () => 'Talk',
+        talkGeneration: count => count + 1,
+        talkDrafts: Record.set(threadDraftKey(target), text),
+        workspace: value =>
+          modifyFields(value, {
+            maybeDiscussionTarget: () => Option.some(target),
+          }),
+      }),
+      commands: [FocusTalkBox()],
+    }),
+    SubmittedWorkspaceDiscussion: ({ target }) => ({
+      model,
+      commands: [ReadWorkspaceDiscussionBox({ target })],
+    }),
+    ReadWorkspaceDiscussion: ({ target, text }) =>
+      text.trim() === ''
+        ? { model }
+        : postEvent(
+            modifyFields(model, {
+              talkDrafts: Record.remove(threadDraftKey(target)),
+              talkGeneration: count => count + 1,
+            }),
+            { kind: 'asked', stepId: target, text: text.trim() },
+          ),
+    ToggledReviewAnswer: ({ question }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            excluded: ids =>
+              ids.includes(question)
+                ? ids.filter(id => id !== question)
+                : Array.append(ids, question),
+          }),
+      }),
+    }),
+    ClickedSelectReview: ({ selected }) =>
+      withSnapshot(model, snapshot => ({
+        model: modifyFields(model, {
+          workspace: value =>
+            modifyFields(value, {
+              excluded: () =>
+                selected
+                  ? []
+                  : draftQuestions(
+                      snapshot,
+                      model.answers,
+                      model.notes,
+                      model.own,
+                    ).map(step => step.question.id),
+            }),
+        }),
+      })),
 
     TickedPoll: () => ({ model, commands: [LoadGrill(), CheckBuild()] }),
 
@@ -577,12 +821,30 @@ export const update = (model: Model, message: Message) =>
         text: Option.getOrElse(Record.get(model.notes, question), () => ''),
       }),
 
-    CompletedPostEvent: ({ result }) => settleWrite(model, result),
+    CompletedPostEvent: ({ result, body }) => settleWrite(model, result, body),
+    ClickedRetrySaves: () =>
+      Option.match(grillIdOf(model), {
+        onNone: () => ({ model }),
+        onSome: grillId =>
+          model.pendingEvents > 0
+            ? { model }
+            : {
+                model: modifyFields(model, {
+                  pendingEvents: count => count + model.failedWrites.length,
+                }),
+                commands: model.failedWrites.map(body =>
+                  PostEvent({ grillId, body }),
+                ),
+              },
+      }),
 
-    ClickedSend: () => ({
-      model: modifyFields(model, { isSendOpen: () => true }),
-      commands: [FocusSendBox()],
-    }),
+    ClickedSend: () =>
+      isWorkspacePage(model.currentPart)
+        ? workspaceNavigate(model, REVIEW)
+        : {
+            model: modifyFields(model, { isSendOpen: () => true }),
+            commands: [FocusSendBox()],
+          },
 
     ClickedCancelSend: () => ({
       model: modifyFields(model, { isSendOpen: () => false }),
@@ -598,16 +860,45 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ReadSendBox: ({ text }) =>
-      Option.match(grillIdOf(model), {
-        onNone: () => ({ model }),
-        onSome: grillId => ({
+      withSnapshot(model, snapshot => {
+        if (
+          model.send === 'Sending' ||
+          model.pendingEvents > 0 ||
+          Option.isSome(model.maybeSaveError)
+        )
+          return { model }
+        const isWorkspace = isWorkspacePage(model.currentPart)
+        const questions = draftQuestions(
+          snapshot,
+          model.answers,
+          model.notes,
+          model.own,
+        )
+          .filter(step => !model.workspace.excluded.includes(step.question.id))
+          .map(step => step.question.id)
+        if (isWorkspace && questions.length === 0) return { model }
+        return {
           model: modifyFields(model, {
-            send: () => 'Sending' as const,
+            send: () => 'Sending',
             sendDetail: () => '',
             sendMessage: () => text,
           }),
-          commands: [SendAnswers({ grillId, message: text })],
-        }),
+          commands: [
+            SendAnswers({
+              grillId: snapshot.grill.id,
+              message: text,
+              maybeQuestions: isWorkspace
+                ? Option.some(questions)
+                : Option.none(),
+              expectedLines: workspaceLines(
+                snapshot,
+                model.answers,
+                model.notes,
+                model.own,
+              ),
+            }),
+          ],
+        }
       }),
 
     CompletedFillBox: () => ({ model }),
@@ -637,7 +928,9 @@ export const update = (model: Model, message: Message) =>
             model: modifyFields(refreshPage(model, result.success), {
               send: () => latestSendState(result.success),
               sendDetail: () => latestSendDetail(result.success),
-              isSendOpen: () => latestSendState(result.success) !== 'Sent',
+              isSendOpen: () =>
+                !isWorkspacePage(model.currentPart) &&
+                latestSendState(result.success) !== 'Sent',
               sendMessage: message =>
                 latestSendState(result.success) === 'Sent' ? '' : message,
             }),
@@ -782,6 +1075,14 @@ export const update = (model: Model, message: Message) =>
           : {
               model: modifyFields(goTo(model, snapshot.grill, page), {
                 maybeJustAnswered: () => Option.none(),
+                workspace: value =>
+                  modifyFields(value, {
+                    maybeDiscussionTarget: () =>
+                      Option.map(
+                        questionOnPage(snapshot, page),
+                        step => step.id,
+                      ),
+                  }),
               }),
               commands: [ScrollToTop()],
             }
@@ -1005,6 +1306,17 @@ export const update = (model: Model, message: Message) =>
           Option.isNone(maybeMessage) ||
           maybeMessage.value.kind === 'reply'
         ) {
+          if (isWorkspacePage(model.currentPart)) {
+            const moved = workspaceNavigate(read.model, REPLIES)
+            return {
+              model: modifyFields(moved.model, { side: () => 'None' }),
+              commands: [
+                ...(read.commands ?? []),
+                ...(moved.commands ?? []),
+                ScrollToAgent({ selector: `#agent-${id}` }),
+              ],
+            }
+          }
           return {
             model: modifyFields(read.model, { side: () => 'Replies' }),
             commands: [
@@ -1104,27 +1416,43 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedShowChanges: ({ question, stepId }) =>
-      withSnapshot(model, snapshot => {
-        const next = modifyFields(
-          goTo(
-            openQuestion(model, question),
-            snapshot.grill,
-            pageForQuestion(model, snapshot, question),
-          ),
-          {
-            side: () => 'Talk',
-            diffShown: Record.set(stepId, true),
-            whyOpen: Record.set(stepId, true),
-          },
-        )
-        return {
-          model: next,
-          commands: [
-            ...pushIfMoved(model, next, snapshot.grill),
-            ScrollToWhy({ stepId }),
-          ],
-        }
-      }),
+      isWorkspacePage(model.currentPart)
+        ? (() => {
+            const moved = workspaceNavigate(
+              model,
+              `${QUESTION_PAGE}${question}`,
+            )
+            return {
+              model: modifyFields(moved.model, {
+                diffShown: Record.set(stepId, true),
+              }),
+              commands: [
+                ...(moved.commands ?? []),
+                ScrollToAgent({ selector: '#workspace-reasoning' }),
+              ],
+            }
+          })()
+        : withSnapshot(model, snapshot => {
+            const next = modifyFields(
+              goTo(
+                openQuestion(model, question),
+                snapshot.grill,
+                pageForQuestion(model, snapshot, question),
+              ),
+              {
+                side: () => 'Talk',
+                diffShown: Record.set(stepId, true),
+                whyOpen: Record.set(stepId, true),
+              },
+            )
+            return {
+              model: next,
+              commands: [
+                ...pushIfMoved(model, next, snapshot.grill),
+                ScrollToWhy({ stepId }),
+              ],
+            }
+          }),
 
     HoveredMapNode: ({ question }) => ({
       model: modifyFields(model, { maybeHover: () => Option.some(question) }),
@@ -1135,20 +1463,22 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedMapNode: ({ question }) =>
-      withSnapshot(model, snapshot => {
-        const next = goTo(
-          openQuestion(model, question),
-          snapshot.grill,
-          pageForQuestion(model, snapshot, question),
-        )
-        return {
-          model: next,
-          commands: [
-            ...pushIfMoved(model, next, snapshot.grill),
-            ScrollToQuestion({ question }),
-          ],
-        }
-      }),
+      isWorkspacePage(model.currentPart)
+        ? workspaceNavigate(model, `${QUESTION_PAGE}${question}`)
+        : withSnapshot(model, snapshot => {
+            const next = goTo(
+              openQuestion(model, question),
+              snapshot.grill,
+              pageForQuestion(model, snapshot, question),
+            )
+            return {
+              model: next,
+              commands: [
+                ...pushIfMoved(model, next, snapshot.grill),
+                ScrollToQuestion({ question }),
+              ],
+            }
+          }),
 
     // Unlike ClickedMapNode, this leaves a page that lists the question for its concept's own.
     ClickedOpenInConcept: ({ question }) =>
@@ -1210,16 +1540,50 @@ const latestSendDetail = (snapshot: Snapshot): string =>
 
 type SnapshotResult = Result.Result<Snapshot, string>
 
-const settleWrite = (model: Model, result: SnapshotResult): UpdateReturn =>
-  result._tag === 'Success'
-    ? { model: refreshPage(model, result.success) }
-    : {
-        model: modifyFields(model, {
-          maybeSaveError: () => Option.some(result.failure),
-        }),
-      }
+const writeKey = (body: string): string => {
+  const parsed: unknown = JSON.parse(body)
+  const decoded = Schema.decodeUnknownResult(
+    Schema.Struct({
+      kind: Schema.String,
+      question: Schema.optionalKey(Schema.String),
+    }),
+  )(parsed)
+  if (decoded._tag === 'Failure' || decoded.success.question === undefined)
+    return body
+  const kind = decoded.success.kind
+  return `${kind === 'answered' || kind === 'cleared' ? 'answer' : kind}:${decoded.success.question}`
+}
 
-// The first concept that still has something open, so a fresh page starts where work is left.
+const settleWrite = (
+  model: Model,
+  result: SnapshotResult,
+  body?: string,
+): UpdateReturn => {
+  const pending = modifyFields(model, {
+    pendingEvents: count => Math.max(0, count - 1),
+  })
+  if (result._tag === 'Failure')
+    return {
+      model: modifyFields(pending, {
+        maybeSaveError: () => Option.some(result.failure),
+        failedWrites: writes =>
+          body === undefined || writes.includes(body)
+            ? writes
+            : Array.append(writes, body),
+      }),
+    }
+  const failed = model.failedWrites.filter(
+    write => body === undefined || writeKey(write) !== writeKey(body),
+  )
+  return {
+    model: modifyFields(refreshPage(pending, result.success), {
+      failedWrites: () => failed,
+      maybeSaveError: () =>
+        failed.length === 0 ? Option.none() : model.maybeSaveError,
+    }),
+  }
+}
+
 // NAVIGATION
 
 /**
@@ -1284,15 +1648,18 @@ const pageForQuestion = (
   snapshot: Snapshot,
   question: string,
 ): string =>
-  pageQuestions(snapshot.grill, model.currentPart).some(
-    step => step.question.id === question,
-  )
-    ? model.currentPart
-    : Option.getOrElse(partOf(snapshot, question), () => model.currentPart)
+  isWorkspacePage(model.currentPart)
+    ? `${QUESTION_PAGE}${question}`
+    : pageQuestions(snapshot.grill, model.currentPart).some(
+          step => step.question.id === question,
+        )
+      ? model.currentPart
+      : Option.getOrElse(partOf(snapshot, question), () => model.currentPart)
 
 // Each page has its own address under /g/<grill id>, so the browser's back and forward walk the
 // pages read; the server serves the page for every such path.
 const PAGE_PATHS: ReadonlyArray<readonly [string, string]> = [
+  [QUESTION_PAGE, 'question/'],
   [CARD_PAGE, 'card/'],
   [ISSUE_PAGE, 'issue/'],
   [URGENCY_PAGE, 'urgency/'],
@@ -1305,7 +1672,8 @@ export const pathOfPage = (grillId: string, page: string): string => {
     page === OVERVIEW ||
     page === PLAN ||
     page === STATUS ||
-    page === DECIDED
+    page === DECIDED ||
+    [REVIEW, CONVERSATIONS, REPLIES, NEEDS].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
   }
@@ -1326,8 +1694,9 @@ export const pageOfPath = (pathname: string): string => {
   return kind === OVERVIEW ||
     kind === PLAN ||
     kind === STATUS ||
-    kind === DECIDED
-    ? kind
+    kind === DECIDED ||
+    [REVIEW, CONVERSATIONS, REPLIES, NEEDS].includes(kind ?? '')
+    ? (kind ?? '')
     : kind === 'concept'
       ? decoded
       : Option.getOrElse(
@@ -1381,7 +1750,7 @@ const startingPart = (snapshot: Snapshot): string =>
             snapshot.grill.steps,
             step => !Record.has(snapshot.answers, step.question.id),
           ),
-          Option.map(step => step.part),
+          Option.map(step => `${QUESTION_PAGE}${step.question.id}`),
         ),
         () => OVERVIEW,
       )
@@ -1446,11 +1815,56 @@ const saveSidebarWidths = (model: Model) =>
     }),
   })
 
+const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    const moved = goTo(model, snapshot.grill, page)
+    const question = questionOnPage(snapshot, page)
+    const next = modifyFields(moved, {
+      workspace: value =>
+        modifyFields(value, {
+          maybeDiscussionTarget: current =>
+            page === CONVERSATIONS
+              ? Option.orElse(current, () =>
+                  Option.map(
+                    questionOnPage(snapshot, model.currentPart),
+                    step => step.id,
+                  ),
+                )
+              : Option.map(question, step => step.id),
+        }),
+    })
+    return {
+      model: next,
+      commands: [...pushIfMoved(model, next, snapshot.grill), ScrollToTop()],
+    }
+  })
+
+const saveWorkspaceSetting = (
+  model: Model,
+  key: 'highlightTerms' | 'collapseSentRounds',
+): UpdateReturn => {
+  const next = modifyFields(model, {
+    workspace: value =>
+      key === 'highlightTerms'
+        ? modifyFields(value, { highlightTerms: current => !current })
+        : modifyFields(value, { collapseSentRounds: current => !current }),
+  })
+  return {
+    model: next,
+    commands: [
+      SaveWorkspaceSettings({ settings: JSON.stringify(next.workspace) }),
+    ],
+  }
+}
+
 // INIT
 
 export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
   model: {
     page: PageData.Loading(),
+    workspace: initialWorkspace,
+    pendingEvents: 0,
+    failedWrites: [],
     answers: {},
     notes: {},
     own: {},
@@ -1477,7 +1891,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeSaveError: Option.none(),
     maybeBuild: Option.none(),
     currentPart: pageOfPath(url.pathname),
-    side: 'Talk',
+    side: 'None',
     maybePrevious: Option.none(),
     now: 0,
     skipped: [],
@@ -1493,10 +1907,90 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     RestoreDrafts(),
     RestoreNavFolded(),
     RestoreSidebarWidths(),
+    RestoreWorkspaceSettings(),
   ],
 })
 
 // COMMAND
+
+const WORKSPACE_SETTINGS_KEY = 'grill-flow:workspace-settings'
+
+export const SaveWorkspaceSettings = Command.define('SaveWorkspaceSettings', {
+  args: { settings: Schema.String },
+  messages: [Message.CompletedSaveWorkspaceSettings],
+  execute: ({ settings }) =>
+    Effect.sync(() =>
+      localStorage.setItem(WORKSPACE_SETTINGS_KEY, settings),
+    ).pipe(
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedSaveWorkspaceSettings()),
+    ),
+})
+
+export const RestoreWorkspaceSettings = Command.define(
+  'RestoreWorkspaceSettings',
+  {
+    messages: [Message.RestoredWorkspaceSettings],
+    execute: Effect.sync(() => {
+      const raw: unknown = JSON.parse(
+        localStorage.getItem(WORKSPACE_SETTINGS_KEY) ?? '{}',
+      )
+      const settings = Schema.decodeUnknownSync(
+        Schema.Struct({
+          highlightTerms: Schema.optionalKey(Schema.Boolean),
+          collapseSentRounds: Schema.optionalKey(Schema.Boolean),
+        }),
+      )(raw)
+      return Message.RestoredWorkspaceSettings({
+        highlightTerms: settings.highlightTerms ?? true,
+        collapseSentRounds: settings.collapseSentRounds ?? true,
+      })
+    }).pipe(
+      Effect.catch(() =>
+        Effect.succeed(
+          Message.RestoredWorkspaceSettings({
+            highlightTerms: true,
+            collapseSentRounds: true,
+          }),
+        ),
+      ),
+    ),
+  },
+)
+
+export const OpenWorkspaceSettings = Command.define('OpenWorkspaceSettings', {
+  messages: [Message.CompletedFocus],
+  execute: Effect.sleep(Duration.millis(20)).pipe(
+    Effect.flatMap(() =>
+      Dom.showDialog('#workspace-settings', {
+        isModal: true,
+        focusSelector: '#workspace-settings-close',
+      }),
+    ),
+    Effect.catch(() => Effect.void),
+    Effect.map(() => Message.CompletedFocus()),
+  ),
+})
+
+export const CloseWorkspaceSettings = Command.define('CloseWorkspaceSettings', {
+  messages: [Message.CompletedFocus],
+  execute: Dom.closeDialog('#workspace-settings').pipe(
+    Effect.catch(() => Effect.void),
+    Effect.map(() => Message.CompletedFocus()),
+  ),
+})
+
+export const ReadWorkspaceDiscussionBox = Command.define(
+  'ReadWorkspaceDiscussionBox',
+  {
+    args: { target: Schema.String },
+    messages: [Message.ReadWorkspaceDiscussion],
+    execute: ({ target }) =>
+      Effect.sync(() =>
+        Message.ReadWorkspaceDiscussion({ target, text: boxText('talk-box') }),
+      ),
+  },
+)
 
 const SnapshotFromJson = Schema.decodeUnknownEffect(Snapshot)
 
@@ -1550,19 +2044,29 @@ export const PostEvent = Command.define('PostEvent', {
         headers: { 'content-type': 'application/json' },
         body,
       }),
-      Effect.map(result => Message.CompletedPostEvent({ result })),
+      Effect.map(result => Message.CompletedPostEvent({ result, body })),
     ),
 })
 
 export const SendAnswers = Command.define('SendAnswers', {
-  args: { grillId: Schema.String, message: Schema.String },
+  args: {
+    grillId: Schema.String,
+    message: Schema.String,
+    maybeQuestions: Schema.Option(Schema.Array(Schema.String)),
+    expectedLines: Schema.Record(Schema.String, Schema.String),
+  },
   messages: [Message.CompletedSendAnswers],
-  execute: ({ grillId, message }) =>
+  execute: ({ grillId, message, maybeQuestions, expectedLines }) =>
     pipe(
       requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/send`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify(
+          Option.match(maybeQuestions, {
+            onNone: () => ({ message }),
+            onSome: questions => ({ message, questions, expectedLines }),
+          }),
+        ),
       }),
       Effect.map(result => Message.CompletedSendAnswers({ result })),
     ),
@@ -1636,7 +2140,8 @@ export const isWhyOpen = (
 export const ScrollToTop = Command.define('ScrollToTop', {
   messages: [Message.CompletedScroll],
   execute: pipe(
-    Effect.sync(() => window.scrollTo({ top: 0 })),
+    Dom.scrollIntoViewAfterPaint('#workspace-top'),
+    Effect.catch(() => Effect.sync(() => window.scrollTo({ top: 0 }))),
     Effect.map(() => Message.CompletedScroll()),
   ),
 })
@@ -2074,8 +2579,8 @@ export const RestoreSidebarWidths = Command.define('RestoreSidebarWidths', {
 })
 
 const SIDEBAR_SELECTOR: Readonly<Record<SidebarEdge, string>> = {
-  Nav: '.concepts',
-  Side: '.side',
+  Nav: '.f-navigation, .concepts',
+  Side: '.f-discussion, .side',
 }
 
 // A key press steps from the width on screen, which is the layout's own until the first drag.
@@ -2198,7 +2703,9 @@ const onScreenAgent = (ids: ReadonlyArray<string>): ReadonlyArray<string> =>
       }
       const box = element.getBoundingClientRect()
       const frame = (
-        element.closest('.messages, .replies-list') ?? document.body
+        element.closest(
+          '.messages, .replies-list, .f-discussion-messages, .f-page-scroller',
+        ) ?? document.body
       ).getBoundingClientRect()
       const top = Math.max(box.top, frame.top, 0)
       const bottom = Math.min(box.bottom, frame.bottom, window.innerHeight)
@@ -2213,7 +2720,8 @@ const isConceptPage = (page: string): boolean =>
   page !== DECIDED &&
   !page.startsWith(URGENCY_PAGE) &&
   !page.startsWith(ISSUE_PAGE) &&
-  !page.startsWith(CARD_PAGE)
+  !page.startsWith(CARD_PAGE) &&
+  !isWorkspacePage(page)
 
 /** Pages that list questions from several concepts. */
 const isMixedPage = (page: string): boolean =>
@@ -2222,6 +2730,36 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  workspaceShortcut: entry(
+    { page: Schema.String },
+    {
+      modelToDependencies: model => ({
+        page:
+          !model.workspace.isSettingsOpen &&
+          (model.currentPart === REVIEW ||
+            model.currentPart.startsWith(QUESTION_PAGE))
+            ? model.currentPart
+            : '',
+      }),
+      dependenciesToStream: ({ page }) =>
+        page === ''
+          ? Stream.empty
+          : Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event =>
+                event.key !== 'Enter' ||
+                !(event.metaKey || event.ctrlKey) ||
+                event.repeat ||
+                event.isComposing ||
+                event.defaultPrevented ||
+                (event.target instanceof Element &&
+                  event.target.closest('.f-discussion') !== null)
+                  ? Option.none()
+                  : Option.some(Message.PressedWorkspaceShortcut()),
+            }),
+    },
+  ),
   // While a sidebar edge is held, the pointer sets its width; the left list starts at the
   // window's left edge and the right sidebar ends at its right one.
   resizeSidebar: entry(

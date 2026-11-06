@@ -87,6 +87,8 @@ import {
   threadDraftKey,
   unreadMessagesOf,
 } from './main'
+import { isWorkspacePage } from './workspace'
+import { workspaceView } from './workspaceView'
 
 type H = HtmlBuilder<MessageType>
 
@@ -739,6 +741,61 @@ const toSession = (grill: Grill): string =>
 
 const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
+  if (isWorkspacePage(model.currentPart)) {
+    return workspaceView(
+      model,
+      snapshot,
+      {
+        source: (step, builder) =>
+          step.question.from === undefined
+            ? builder.span(
+                [],
+                [grill.session === '' ? 'Agent' : `Session ${grill.session}`],
+              )
+            : fromView(model, grill, step, builder),
+        heading: (text, builder) =>
+          withRefs(
+            withTerms(
+              withEmphasis(segments(text, grill.entities), grill.entities),
+              grill.terms,
+            ),
+            grill.refs,
+          ).map(segment =>
+            segmentView(segment, grill, { tips: true, links: true }, builder),
+          ),
+        inline: (text, builder) => inline(text, grill, builder),
+        prose: (text, builder) =>
+          h.div(
+            [h.Class('prose')],
+            richProse(
+              model,
+              grill,
+              splitParagraphs(text),
+              'workspace',
+              Option.none(),
+              builder,
+            ),
+          ),
+        question: (step, builder) =>
+          questionBodyView(model, snapshot, step, builder, true),
+        reasoning: (step, builder) =>
+          reasoningView(model, snapshot, step, builder),
+        thread: (target, builder) =>
+          saidOn(
+            model,
+            snapshot,
+            target,
+            grill.steps.find(step => step.id === target)?.question.id ?? target,
+            builder,
+          ).map(message => saidView(message, builder)),
+        overview: builder => overviewView(model, snapshot, builder),
+        decided: builder => decidedPageView(model, snapshot, builder),
+        resize: (edge, builder) => resizeHandleView(model, edge, builder),
+        notices: builder => toastsView(model, snapshot, builder),
+      },
+      h,
+    )
+  }
   const maybePart = currentPartOf(model, grill)
   const side =
     model.side === 'Map'
@@ -2274,6 +2331,7 @@ const questionBodyView = (
   snapshot: Snapshot,
   step: Step,
   h: H,
+  focused = false,
 ): Html => {
   const grill = snapshot.grill
   const question = step.question
@@ -2292,11 +2350,11 @@ const questionBodyView = (
       h.div(
         [h.Class('question-links')],
         [
-          question.issue === undefined
+          question.issue === undefined || focused
             ? h.empty
             : refOrKey(grill, question.issue, h),
-          conceptLink(model, grill, step, h),
-          whyLink(step, h),
+          focused ? h.empty : conceptLink(model, grill, step, h),
+          focused ? h.empty : whyLink(step, h),
           status._tag === 'Open' && !Array.contains(model.skipped, id)
             ? h.button(
                 [
@@ -2317,10 +2375,12 @@ const questionBodyView = (
             : h.empty,
         ],
       ),
-      h.p(
-        [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
-        inline(question.ask, grill, h),
-      ),
+      focused
+        ? h.empty
+        : h.p(
+            [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
+            inline(question.ask, grill, h),
+          ),
       h.div(
         [
           h.Class('options'),
@@ -2395,13 +2455,13 @@ const questionBodyView = (
             grill.entities,
             h,
           ),
-      question.from === undefined && !hasOutside(snapshot, step)
+      (focused || question.from === undefined) && !hasOutside(snapshot, step)
         ? h.empty
         : h.div(
             [h.Class('question-meta')],
             [
               outsideView(model, snapshot, step, h),
-              fromView(model, grill, step, h),
+              focused ? h.empty : fromView(model, grill, step, h),
             ],
           ),
     ],
