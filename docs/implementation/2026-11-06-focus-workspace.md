@@ -25,8 +25,13 @@ The independent teaching session is Herdr `t9s`, UI Language Lab; it does not ow
 - Failed writes keep local answers and offer Retry saving. Sending waits for saves to finish.
 - Settings retain highlighting and round-collapse preferences; Escape, Close and outside clicks
   close the accessible dialog and return focus to its trigger.
-- Overview uses the grill's introduction and concept map. Run overview tabulates supplied plan
-  issues and sessions. Needs you derives its list from actual question dependencies.
+- Run overview restores Current work, Completed, Later, Sessions and Dependencies tabs. Squad
+  overview lists supplied runs; Your grills groups the existing catalog by machine and archives
+  fully sent sessions. Needs you separates open decisions, drafts and waiting dependencies.
+- Question typography, reading width, answer controls, collapsed notes, visible explanation
+  headings and the discussion layout follow the chosen prototype. Review has search and inline
+  details; its answer table scrolls while the message box and Send stay visible.
+- Keyboard review saves edited custom text and notes before removing their focused editors.
 
 ## Data boundary
 
@@ -62,12 +67,14 @@ and whole-run asks/comments. The full repository lint command has pre-existing f
 legacy casts, record spreads and Command names. The baseline and implementation each report
 the same 27 lint findings; the new workspace files pass lint. Wrapcheck reports only earlier
 research-file findings, with no findings in this implementation.
-131 tests pass (103 client, 28 server), both type checks pass, and the build passes.
+135 tests pass (107 client, 28 server), both type checks pass, and the build passes.
 The isolated HTTP smoke passed: per-port cookie, rejected unauthorized write, selected-answer
 send, retained unchecked draft after reload, stale/empty-selection rejection, and a whole-run
 ask answered through the CLI. No session delivery or remote polling ran in the preview.
-Browser and native CUA access were unavailable in this session. The page was opened in Chrome,
-but visual verification remains unperformed; do not treat the state/view tests as pixel checks.
+Playwright 1.60 with isolated Chrome contexts verifies the rendered implementation against the
+chosen prototype. The fidelity check passes 48 assertions, including matching question metrics,
+30/60 question lists, narrow viewports, discussion navigation, custom-answer persistence and
+selected delivery. See [the comparison](./2026-11-06-prototype-fidelity.md) for evidence and limits.
 
 ## Deferred design artifacts
 

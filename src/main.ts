@@ -44,12 +44,16 @@ import {
 } from './domain'
 import {
   CONVERSATIONS,
+  CatalogData,
+  GRILLS,
   NEEDS,
   QUESTION_PAGE,
   QuestionFilter,
   REPLIES,
   REVIEW,
   RUN_TARGET,
+  SQUAD,
+  WorkSection,
   Workspace,
   adjacentQuestion,
   draftQuestions,
@@ -209,6 +213,14 @@ export const Message = defineMessageUnion({
   ClickedRetrySaves: {},
   ClickedWorkspacePage: { page: Schema.String },
   PressedWorkspaceShortcut: {},
+  ClickedQuestionNote: { question: Schema.String },
+  UpdatedReviewQuery: { value: Schema.String },
+  ClickedReviewDetail: { question: Schema.String },
+  SelectedWorkSection: { section: WorkSection },
+  ClickedRefreshCatalog: {},
+  CompletedLoadCatalog: {
+    result: Schema.Result(Schema.Array(Snapshot), Schema.String),
+  },
   ClickedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   ChangedQuestionFilter: { filter: QuestionFilter },
   UpdatedQuestionSearch: { value: Schema.String },
@@ -225,6 +237,7 @@ export const Message = defineMessageUnion({
   ClickedDiscussion: { target: Schema.String },
   ClickedCloseDiscussion: {},
   ClickedExpandDiscussion: {},
+  ClickedReturnConversation: { open: Schema.Boolean },
   SelectedDiscussionTarget: { target: Schema.String },
   ClickedConversationStarter: { target: Schema.String, text: Schema.String },
   SubmittedWorkspaceDiscussion: { target: Schema.String },
@@ -532,11 +545,62 @@ export const update = (model: Model, message: Message) =>
     CompletedLoadGrill: ({ result }) => settleLoad(model, result),
 
     ClickedWorkspacePage: ({ page }) => workspaceNavigate(model, page),
+    ClickedQuestionNote: ({ question }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            noteOpen: ids =>
+              ids.includes(question)
+                ? ids.filter(id => id !== question)
+                : Array.append(ids, question),
+          }),
+      }),
+    }),
+    UpdatedReviewQuery: ({ value }) => ({
+      model: modifyFields(model, {
+        workspace: workspace =>
+          modifyFields(workspace, { reviewQuery: () => value }),
+      }),
+    }),
+    ClickedReviewDetail: ({ question }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            reviewExpanded: ids =>
+              ids.includes(question)
+                ? ids.filter(id => id !== question)
+                : Array.append(ids, question),
+          }),
+      }),
+    }),
+    SelectedWorkSection: ({ section }) => ({
+      model: modifyFields(model, {
+        workspace: value => modifyFields(value, { workSection: () => section }),
+      }),
+    }),
+    ClickedRefreshCatalog: () => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, { catalog: () => CatalogData.Loading() }),
+      }),
+      commands: [LoadWorkspaceCatalog()],
+    }),
+    CompletedLoadCatalog: ({ result }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            catalog: () =>
+              result._tag === 'Success'
+                ? CatalogData.Success({ data: result.success })
+                : CatalogData.Failure({ error: result.failure }),
+          }),
+      }),
+    }),
     PressedWorkspaceShortcut: () =>
       model.currentPart === REVIEW
         ? { model, commands: [ReadSendBoxCommand()] }
         : model.currentPart.startsWith(QUESTION_PAGE)
-          ? workspaceNavigate(model, REVIEW)
+          ? reviewFromQuestion(model)
           : { model },
     ClickedQuestionArrow: ({ direction }) =>
       withSnapshot(model, snapshot => {
@@ -633,6 +697,31 @@ export const update = (model: Model, message: Message) =>
     ClickedCloseDiscussion: () => ({
       model: modifyFields(model, { side: () => 'None' }),
     }),
+    ClickedReturnConversation: ({ open }) =>
+      withSnapshot(model, snapshot => {
+        const step = snapshot.grill.steps.find(item =>
+          Option.contains(model.workspace.maybeDiscussionTarget, item.id),
+        )
+        const page =
+          step === undefined
+            ? Option.getOrElse(
+                Option.filter(
+                  model.maybePrevious,
+                  value => value !== CONVERSATIONS,
+                ),
+                () => OVERVIEW,
+              )
+            : `${QUESTION_PAGE}${step.question.id}`
+        const moved = workspaceNavigate(model, page)
+        return {
+          model: modifyFields(moved.model, {
+            side: () => (open ? 'Talk' : 'None'),
+            workspace: value =>
+              modifyFields(value, { isDiscussionExpanded: () => false }),
+          }),
+          commands: moved.commands ?? [],
+        }
+      }),
     ClickedExpandDiscussion: () => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -1092,9 +1181,11 @@ export const update = (model: Model, message: Message) =>
     RequestedUrl: ({ request }) =>
       withSnapshot(model, snapshot =>
         request._tag === 'Internal' &&
-        request.url.pathname.startsWith(
-          `/g/${encodeURIComponent(snapshot.grill.id)}`,
-        )
+        (request.url.pathname ===
+          `/g/${encodeURIComponent(snapshot.grill.id)}` ||
+          request.url.pathname.startsWith(
+            `/g/${encodeURIComponent(snapshot.grill.id)}/`,
+          ))
           ? { model, commands: [PushPage({ url: Url.toString(request.url) })] }
           : {
               model,
@@ -1141,32 +1232,60 @@ export const update = (model: Model, message: Message) =>
     }),
 
     ClickedSkip: ({ question }) =>
-      withSnapshot(model, snapshot => {
-        const skipped = Array.dedupe(Array.append(model.skipped, question))
-        const partId = Option.getOrElse(partOf(snapshot, question), () => '')
-        const skippedModel = modifyFields(model, {
-          skipped: () => skipped,
-          expanded: Record.set(question, false),
-          maybeJustAnswered: () => Option.none(),
-        })
-        return Option.match(
-          Array.findFirst(
-            questionsIn(snapshot, partId),
-            id =>
-              id !== question &&
-              !Array.contains(skipped, id) &&
-              statusOf(snapshot.grill, model.answers, id, skipped)._tag ===
-                'Open',
-          ),
-          {
-            onNone: () => ({ model: skippedModel }),
-            onSome: next => ({
-              model: openQuestion(skippedModel, next),
-              commands: [ScrollToQuestion({ question: next })],
-            }),
-          },
-        )
-      }),
+      isWorkspacePage(model.currentPart)
+        ? withSnapshot(model, snapshot => {
+            const skipped = modifyFields(model, {
+              skipped: ids => Array.dedupe(Array.append(ids, question)),
+            })
+            return Option.match(
+              adjacentQuestion(
+                skipped.workspace,
+                snapshot,
+                skipped.answers,
+                skipped.notes,
+                skipped.own,
+                skipped.currentPart,
+                'Next',
+              ),
+              {
+                onNone: () => ({ model: skipped }),
+                onSome: step =>
+                  workspaceNavigate(
+                    skipped,
+                    `${QUESTION_PAGE}${step.question.id}`,
+                  ),
+              },
+            )
+          })
+        : withSnapshot(model, snapshot => {
+            const skipped = Array.dedupe(Array.append(model.skipped, question))
+            const partId = Option.getOrElse(
+              partOf(snapshot, question),
+              () => '',
+            )
+            const skippedModel = modifyFields(model, {
+              skipped: () => skipped,
+              expanded: Record.set(question, false),
+              maybeJustAnswered: () => Option.none(),
+            })
+            return Option.match(
+              Array.findFirst(
+                questionsIn(snapshot, partId),
+                id =>
+                  id !== question &&
+                  !Array.contains(skipped, id) &&
+                  statusOf(snapshot.grill, model.answers, id, skipped)._tag ===
+                    'Open',
+              ),
+              {
+                onNone: () => ({ model: skippedModel }),
+                onSome: next => ({
+                  model: openQuestion(skippedModel, next),
+                  commands: [ScrollToQuestion({ question: next })],
+                }),
+              },
+            )
+          }),
 
     ClickedUnskip: ({ question }) => ({
       model: modifyFields(model, {
@@ -1673,7 +1792,7 @@ export const pathOfPage = (grillId: string, page: string): string => {
     page === PLAN ||
     page === STATUS ||
     page === DECIDED ||
-    [REVIEW, CONVERSATIONS, REPLIES, NEEDS].includes(page)
+    [REVIEW, CONVERSATIONS, REPLIES, NEEDS, SQUAD, GRILLS].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
   }
@@ -1695,7 +1814,7 @@ export const pageOfPath = (pathname: string): string => {
     kind === PLAN ||
     kind === STATUS ||
     kind === DECIDED ||
-    [REVIEW, CONVERSATIONS, REPLIES, NEEDS].includes(kind ?? '')
+    [REVIEW, CONVERSATIONS, REPLIES, NEEDS, SQUAD, GRILLS].includes(kind ?? '')
     ? (kind ?? '')
     : kind === 'concept'
       ? decoded
@@ -1790,6 +1909,9 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
         : []),
       RestoreRead({ grillId: snapshot.grill.id }),
       RestoreClosedLine({ grillId: snapshot.grill.id }),
+      ...([SQUAD, GRILLS].includes(next.currentPart)
+        ? [LoadWorkspaceCatalog()]
+        : []),
     ],
   }
 }
@@ -1835,7 +1957,48 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
     })
     return {
       model: next,
-      commands: [...pushIfMoved(model, next, snapshot.grill), ScrollToTop()],
+      commands: [
+        ...pushIfMoved(model, next, snapshot.grill),
+        ScrollToTop(),
+        ...([SQUAD, GRILLS].includes(page) &&
+        !AsyncData.hasData(model.workspace.catalog)
+          ? [LoadWorkspaceCatalog()]
+          : []),
+      ],
+    }
+  })
+
+// Removing a focused editor does not fire blur, so keyboard review must save it explicitly.
+const reviewFromQuestion = (model: Model): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    const step = questionOnPage(snapshot, model.currentPart)
+    if (Option.isNone(step)) return workspaceNavigate(model, REVIEW)
+    const question = step.value.question.id
+    const own = model.own[question] ?? ''
+    const note = model.notes[question] ?? ''
+    const bodies: ReadonlyArray<Record<string, unknown>> = [
+      ...(model.answers[question] === OWN &&
+      own !== (snapshot.own[question] ?? '')
+        ? [{ kind: 'answered', question, key: OWN, text: own }]
+        : []),
+      ...(note !== (snapshot.notes[question] ?? '')
+        ? [{ kind: 'noted', question, text: note }]
+        : []),
+    ]
+    const saved = bodies.reduce<UpdateReturn>(
+      (pending, body) => {
+        const write = postEvent(pending.model, body)
+        return {
+          model: write.model,
+          commands: [...(pending.commands ?? []), ...(write.commands ?? [])],
+        }
+      },
+      { model },
+    )
+    const moved = workspaceNavigate(saved.model, REVIEW)
+    return {
+      model: moved.model,
+      commands: [...(saved.commands ?? []), ...(moved.commands ?? [])],
     }
   })
 
@@ -1942,14 +2105,14 @@ export const RestoreWorkspaceSettings = Command.define(
         }),
       )(raw)
       return Message.RestoredWorkspaceSettings({
-        highlightTerms: settings.highlightTerms ?? true,
+        highlightTerms: settings.highlightTerms ?? false,
         collapseSentRounds: settings.collapseSentRounds ?? true,
       })
     }).pipe(
       Effect.catch(() =>
         Effect.succeed(
           Message.RestoredWorkspaceSettings({
-            highlightTerms: true,
+            highlightTerms: false,
             collapseSentRounds: true,
           }),
         ),
@@ -2020,6 +2183,44 @@ const requestSnapshot = (input: string, init?: RequestInit) =>
     ),
     Effect.result,
   )
+
+export const LoadWorkspaceCatalog = Command.define('LoadWorkspaceCatalog', {
+  messages: [Message.CompletedLoadCatalog],
+  execute: Effect.tryPromise(async () => {
+    const response = await fetch('/api/grills', { credentials: 'same-origin' })
+    if (!response.ok)
+      throw new Error('The list of grills could not be loaded. Try Refresh.')
+    const raw: unknown = await response.json()
+    return Schema.decodeUnknownSync(
+      Schema.Array(Schema.Struct({ id: Schema.String })),
+    )(raw)
+  }).pipe(
+    Effect.flatMap(rows =>
+      Effect.forEach(
+        rows,
+        row => requestSnapshot(`/api/grills/${encodeURIComponent(row.id)}`),
+        { concurrency: 4 },
+      ),
+    ),
+    Effect.flatMap(results => {
+      const failed = results.find(result => result._tag === 'Failure')
+      return failed?._tag === 'Failure'
+        ? Effect.fail(failed.failure)
+        : Effect.succeed(
+            results.flatMap(result =>
+              result._tag === 'Success' ? [result.success] : [],
+            ),
+          )
+    }),
+    Effect.mapError(error =>
+      error instanceof Error
+        ? error.message
+        : 'Grills could not be loaded. Try Refresh.',
+    ),
+    Effect.result,
+    Effect.map(result => Message.CompletedLoadCatalog({ result })),
+  ),
+})
 
 export const LoadGrill = Command.define('LoadGrill', {
   messages: [Message.CompletedLoadGrill],

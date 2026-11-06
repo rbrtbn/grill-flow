@@ -1,8 +1,11 @@
 import { Array, Option } from 'effect'
+import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import {
   FORMAT_VERSION,
+  OWN,
+  type PlanIssue,
   type Snapshot,
   type Step,
   agentMessagesOf,
@@ -18,11 +21,13 @@ import {
 } from './main'
 import {
   CONVERSATIONS,
+  GRILLS,
   NEEDS,
   QUESTION_PAGE,
   REPLIES,
   REVIEW,
   RUN_TARGET,
+  SQUAD,
   adjacentQuestion,
   answerLabel,
   draftQuestions,
@@ -39,7 +44,10 @@ type Reading = Readonly<{
   heading: (text: string, h: H) => ReadonlyArray<Html | string>
   inline: (text: string, h: H) => ReadonlyArray<Html | string>
   prose: (text: string, h: H) => Html
-  question: (step: Step, h: H) => Html
+  answer: (text: string, h: H) => ReadonlyArray<Html | string>
+  status: (step: Step, h: H) => Html
+  comparison: (step: Step, h: H) => Html
+  related: (step: Step, h: H) => Html
   reasoning: (step: Step, h: H) => Html
   thread: (target: string, h: H) => ReadonlyArray<Html>
   overview: (h: H) => Html
@@ -156,27 +164,31 @@ export const workspaceView = (
   const expanded =
     model.workspace.isDiscussionExpanded || model.currentPart === CONVERSATIONS
   const styles = {
-    '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 284)}px`,
-    '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 430)}px`,
+    '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 276)}px`,
+    '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
   }
   const content =
-    model.currentPart === REVIEW
-      ? reviewView(model, snapshot, reading, h)
-      : model.currentPart === REPLIES
-        ? repliesView(model, snapshot, reading, h)
-        : model.currentPart === NEEDS
-          ? needsView(model, snapshot, reading, h)
-          : model.currentPart === 'plan' || model.currentPart === 'status'
-            ? runView(model, snapshot, reading, h)
-            : model.currentPart === 'decided'
-              ? reading.decided(h)
-              : model.currentPart === CONVERSATIONS
-                ? discussionView(model, snapshot, reading, true, h)
-                : Option.match(question, {
-                    onSome: step =>
-                      questionView(model, snapshot, step, reading, h),
-                    onNone: () => reading.overview(h),
-                  })
+    model.currentPart === SQUAD
+      ? squadView(model, snapshot, reading, h)
+      : model.currentPart === GRILLS
+        ? grillsView(model, snapshot, h)
+        : model.currentPart === REVIEW
+          ? reviewView(model, snapshot, reading, h)
+          : model.currentPart === REPLIES
+            ? repliesView(model, snapshot, reading, h)
+            : model.currentPart === NEEDS
+              ? needsView(model, snapshot, reading, h)
+              : model.currentPart === 'plan' || model.currentPart === 'status'
+                ? runView(model, snapshot, reading, h)
+                : model.currentPart === 'decided'
+                  ? reading.decided(h)
+                  : model.currentPart === CONVERSATIONS
+                    ? conversationPage(model, snapshot, reading, h)
+                    : Option.match(question, {
+                        onSome: step =>
+                          questionView(model, snapshot, step, reading, h),
+                        onNone: () => reading.overview(h),
+                      })
   return h.div(
     [
       h.Class(
@@ -208,14 +220,27 @@ export const workspaceView = (
             [
               Option.match(question, {
                 onSome: step => step.question.id,
-                onNone: () => '',
+                onNone: () => workspacePageName(model.currentPart),
               }),
             ],
           ),
           h.nav(
             [h.AriaLabel('Run actions')],
             [
-              pageLink('Conversations', CONVERSATIONS, h),
+              h.button(
+                [
+                  h.Class(
+                    `text-button${model.currentPart === CONVERSATIONS ? ' is-active' : ''}`,
+                  ),
+                  h.AriaCurrent(
+                    model.currentPart === CONVERSATIONS ? 'page' : 'false',
+                  ),
+                  h.OnClick(
+                    Message.ClickedWorkspacePage({ page: CONVERSATIONS }),
+                  ),
+                ],
+                ['Conversations'],
+              ),
               pageLink(
                 `Replies${agentMessagesOf(snapshot).filter(message => !model.readIds.includes(message.id) && message.at > Option.getOrElse(model.readSince, () => Infinity)).length > 0 ? ' · new' : ''}`,
                 REPLIES,
@@ -265,7 +290,7 @@ export const workspaceView = (
                     [h.Class('f-discuss-action')],
                     [
                       link(
-                        'Discuss',
+                        discussLabel(model),
                         Message.ClickedDiscussion({
                           target: Option.match(question, {
                             onSome: step => step.id,
@@ -345,14 +370,26 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
         [h.Class('f-nav-top')],
         [
           h.a([h.Href('/'), h.Class('f-brand')], ['grill-flow']),
-          item('Needs you', `${open.length} open`, NEEDS),
           item(
-            'Overview',
-            grill.session === ''
-              ? 'Independent grill'
-              : `Session ${grill.session}`,
-            'overview',
+            'Needs you',
+            `${open.length + draftQuestions(snapshot, model.answers, model.notes, model.own).length} questions`,
+            NEEDS,
           ),
+          grill.kind === 'squad'
+            ? item(
+                'Squad overview',
+                AsyncData.hasData(model.workspace.catalog)
+                  ? `${catalogSnapshots(model, snapshot).filter(state => state.grill.kind === 'squad').length} runs`
+                  : 'Runs and work',
+                SQUAD,
+              )
+            : item(
+                'Overview',
+                grill.session === ''
+                  ? 'Independent grill'
+                  : `Session ${grill.session}`,
+                'overview',
+              ),
           ...(grill.plan === undefined
             ? []
             : [
@@ -362,12 +399,12 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   'plan',
                 ),
               ]),
-          h.a(
-            [h.Href('/'), h.Class('f-nav-item')],
-            [
-              h.span([], ['Your grills']),
-              h.span([h.Class('hint')], ['All machines']),
-            ],
+          item(
+            'Your grills',
+            AsyncData.hasData(model.workspace.catalog)
+              ? `${catalogSnapshots(model, snapshot).length} grills`
+              : 'All machines',
+            GRILLS,
           ),
         ],
       ),
@@ -470,8 +507,17 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                         ]),
                       ],
                     ),
-                    `Round ${round}`,
-                    h.span([h.Class('hint')], [`${sent}/${steps.length} sent`]),
+                    steps.every(step => step.question.round === undefined)
+                      ? 'No round'
+                      : `Round ${round}`,
+                    h.span(
+                      [
+                        h.Class(
+                          `hint${sent === steps.length ? ' is-complete' : ''}`,
+                        ),
+                      ],
+                      [`${sent}/${steps.length} sent`],
+                    ),
                   ],
                 ),
                 ...(collapsed
@@ -532,7 +578,7 @@ const questionView = (
   reading: Reading,
   h: H,
 ): Html => {
-  const question = step.question
+  const q = step.question
   const state = questionState(
     snapshot,
     step,
@@ -593,73 +639,79 @@ const questionView = (
         [
           h.div([h.Id('workspace-top'), h.Tabindex(-1)]),
           h.div(
-            [h.Class('f-reading'), h.Id(`q-${question.id}`)],
+            [h.Class('f-reading'), h.Id(`q-${q.id}`)],
             [
-              h.h1(
-                [h.Class('f-question-title'), h.Id(`ask-text-${question.id}`)],
-                reading.heading(question.ask, h),
-              ),
-              h.div(
-                [h.Class('f-question-meta')],
+              h.header(
+                [h.Class('f-question-reference')],
                 [
-                  h.span([], [question.id]),
-                  question.issue === undefined
-                    ? h.empty
-                    : h.span([], reading.inline(question.issue, h)),
-                  reading.source(step, h),
-                  h.span([], [`Round ${question.round ?? 1}`]),
-                  h.span(
-                    [h.Class('f-state-label')],
-                    [stateMark(state, h), state],
+                  h.h1(
+                    [h.Class('f-question-title'), h.Id(`ask-text-${q.id}`)],
+                    reading.heading(q.ask, h),
+                  ),
+                  h.div(
+                    [h.Class('f-question-meta')],
+                    [
+                      h.span([], [q.id]),
+                      issueLink(snapshot, q.issue, h),
+                      h.span([], [recipientName(snapshot)]),
+                      h.span(
+                        [],
+                        [
+                          q.round === undefined
+                            ? 'No round'
+                            : `Round ${q.round}`,
+                        ],
+                      ),
+                      h.span(
+                        [h.Class('f-state-label')],
+                        [stateMark(state, h), state],
+                      ),
+                    ],
                   ),
                 ],
               ),
-              question.scope === ''
-                ? h.empty
-                : h.p([h.Class('f-scope hint')], [question.scope]),
-              reading.question(step, h),
-              h.p(
-                [h.Class('f-saved hint'), h.AriaLive('polite')],
+              h.div(
+                [h.Class('f-question-body')],
                 [
-                  Option.match(model.maybeSaveError, {
-                    onSome: error =>
-                      `Could not save: ${error}. Your answer is still in this tab.`,
-                    onNone: () =>
-                      model.pendingEvents > 0
-                        ? 'Saving…'
-                        : state === 'Draft'
-                          ? 'Draft saved · not sent'
-                          : state === 'Sent'
-                            ? 'Sent to the agent'
-                            : 'Choose an answer to save a draft',
-                  }),
-                ],
-              ),
-              h.section(
-                [h.Class('f-reasoning'), h.Id('workspace-reasoning')],
-                [
-                  h.h2([], ['Why this question']),
-                  reading.reasoning(step, h),
-                  h.div(
-                    [h.Class('f-starters')],
+                  reading.status(step, h),
+                  answersView(model, snapshot, step, reading, h),
+                  reading.comparison(step, h),
+                  h.section(
+                    [h.Class('f-reasoning'), h.Id('workspace-reasoning')],
                     [
-                      'Contextualize this for me',
-                      'Give me an example',
-                      'Compare the choices',
-                      'Ask for a clearer rewrite',
-                    ].map(text =>
-                      link(
-                        text,
-                        Message.ClickedConversationStarter({
-                          target: step.id,
-                          text:
-                            text === 'Ask for a clearer rewrite'
-                              ? 'Please rewrite this question and its reasoning more clearly.'
-                              : `${text}.`,
-                        }),
-                        h,
+                      h.h2([], ['Why this question']),
+                      reading.reasoning(step, h),
+                      h.div(
+                        [h.Class('f-starters')],
+                        [
+                          'Contextualize this for me',
+                          'Give me an example',
+                          'Compare the choices',
+                          'Ask for a clearer rewrite',
+                        ].map(text =>
+                          link(
+                            text,
+                            Message.ClickedConversationStarter({
+                              target: step.id,
+                              text:
+                                text === 'Ask for a clearer rewrite'
+                                  ? 'Please rewrite this question and its reasoning more clearly.'
+                                  : `${text}.`,
+                            }),
+                            h,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                  reading.related(step, h),
+                  h.details(
+                    [h.Class('f-question-source')],
+                    [
+                      h.summary([], ['Scope and source details']),
+                      h.p([], [q.scope]),
+                      reading.source(step, h),
+                    ],
                   ),
                 ],
               ),
@@ -678,6 +730,177 @@ const questionView = (
   )
 }
 
+const issueLink = (
+  snapshot: Snapshot,
+  issue: string | undefined,
+  h: H,
+): Html => {
+  if (issue === undefined) return h.empty
+  const ref = snapshot.grill.refs?.[issue]
+  return ref?.url === undefined
+    ? h.span([], [issue])
+    : h.a(
+        [
+          h.Href(ref.url),
+          h.Target('_blank'),
+          h.Rel('noreferrer'),
+          h.Title([issue, ref.state, ref.text].filter(Boolean).join(' · ')),
+        ],
+        [issue],
+      )
+}
+
+const recipientName = (snapshot: Snapshot): string =>
+  snapshot.grill.session === ''
+    ? 'Asking agent'
+    : `${snapshot.grill.kind === 'squad' ? 'Run orchestrator' : 'Asking agent'} · ${snapshot.grill.session}`
+const workspacePageName = (page: string): string =>
+  ({
+    [REVIEW]: 'Review & send',
+    [NEEDS]: 'Needs you',
+    [SQUAD]: 'Squad overview',
+    [GRILLS]: 'Your grills',
+    [CONVERSATIONS]: 'Conversations',
+    [REPLIES]: 'Replies & decisions',
+    plan: 'Run overview',
+    status: 'Run overview',
+    overview: 'Overview',
+  })[page] ?? ''
+const discussLabel = (model: Model): string =>
+  model.currentPart.startsWith(QUESTION_PAGE) ||
+  [REVIEW, REPLIES].includes(model.currentPart)
+    ? 'Discuss'
+    : 'Ask about run'
+
+const answersView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  reading: Reading,
+  h: H,
+): Html => {
+  const q = step.question
+  const selected = model.answers[q.id]
+  const state = statusOf(snapshot.grill, model.answers, q.id, model.skipped)
+  const blocked = state._tag === 'Waiting' || state._tag === 'NotNeeded'
+  const pick = (
+    key: string,
+    label: string,
+    effect: string,
+    recommended: boolean,
+  ) =>
+    h.button(
+      [
+        h.Type('button'),
+        h.Class(`f-option${selected === key ? ' is-selected' : ''}`),
+        h.Role('radio'),
+        h.AriaChecked(selected === key),
+        h.Disabled(blocked),
+        h.OnClick(
+          key === OWN
+            ? Message.SelectedOwnAnswer({ question: q.id })
+            : Message.SelectedOption({ question: q.id, key }),
+        ),
+      ],
+      [
+        h.span([h.Class('f-option-key')], [key === OWN ? '?' : key]),
+        h.div(
+          [],
+          [
+            h.div(
+              [h.Class('f-option-label')],
+              [
+                h.b([], reading.answer(label, h)),
+                recommended
+                  ? h.span([h.Class('f-recommended')], ['Recommended'])
+                  : h.empty,
+              ],
+            ),
+            h.p([h.Class('f-option-effect')], reading.answer(effect, h)),
+          ],
+        ),
+      ],
+    )
+  const saved =
+    model.pendingEvents > 0
+      ? 'Saving…'
+      : questionState(snapshot, step, model.answers, model.notes, model.own) ===
+          'Sent'
+        ? 'Sent'
+        : selected === undefined
+          ? 'Nothing sent yet'
+          : 'Draft saved · not sent'
+  return h.section(
+    [h.Class('f-answer-section')],
+    [
+      h.div(
+        [
+          h.Class('f-options'),
+          h.Role('radiogroup'),
+          h.AriaLabelledBy(`ask-text-${q.id}`),
+        ],
+        [
+          ...q.options.map(option =>
+            pick(option.key, option.label, option.effect, option.recommended),
+          ),
+          pick(
+            OWN,
+            'My own answer',
+            'A different choice, in your words.',
+            false,
+          ),
+        ],
+      ),
+      selected === OWN
+        ? h.textarea([
+            h.Id(`own-${q.id}`),
+            h.Rows(3),
+            h.AriaLabel('Your own answer'),
+            h.OnMount(FillBox({ text: model.own[q.id] ?? '' })),
+            h.OnInput(value =>
+              Message.UpdatedOwnAnswer({ question: q.id, value }),
+            ),
+            h.OnBlur(Message.BlurredOwnAnswer({ question: q.id })),
+          ])
+        : h.empty,
+      h.div(
+        [h.Class('f-answer-actions')],
+        [
+          link(
+            'Add a note',
+            Message.ClickedQuestionNote({ question: q.id }),
+            h,
+          ),
+          link('Skip for now', Message.ClickedSkip({ question: q.id }), h),
+          selected === undefined
+            ? h.empty
+            : link(
+                'Clear answer',
+                Message.ClickedClearAnswer({ question: q.id }),
+                h,
+              ),
+          h.span([h.Class('f-saved'), h.Role('status')], [saved]),
+        ],
+      ),
+      model.workspace.noteOpen.includes(q.id) ||
+      (model.notes[q.id] ?? '') !== ''
+        ? h.textarea([
+            h.Class('f-note'),
+            h.Id(`note-${q.id}`),
+            h.Rows(2),
+            h.AriaLabel('Note with this answer'),
+            h.Placeholder(
+              'Conditions, reservations or details to keep with your answer…',
+            ),
+            h.OnMount(FillBox({ text: model.notes[q.id] ?? '' })),
+            h.OnInput(value => Message.UpdatedNote({ question: q.id, value })),
+            h.OnBlur(Message.BlurredNote({ question: q.id })),
+          ])
+        : h.empty,
+    ],
+  )
+}
+
 const reviewView = (
   model: Model,
   snapshot: Snapshot,
@@ -688,144 +911,241 @@ const reviewView = (
   const selected = drafts.filter(
     step => !model.workspace.excluded.includes(step.question.id),
   )
+  const query = model.workspace.reviewQuery.trim().toLocaleLowerCase()
+  const visible = drafts.filter(step =>
+    [
+      step.question.id,
+      step.question.title,
+      step.question.ask,
+      step.question.issue ?? '',
+      answerLabel(step, model.answers, model.own),
+    ]
+      .join(' ')
+      .toLocaleLowerCase()
+      .includes(query),
+  )
   return h.section(
     [h.Class('f-page f-review')],
     [
       h.h1([], ['Review & send']),
       h.p(
-        [h.Class('hint')],
-        [
-          'Select the answers you want to send. Unselected answers stay as drafts.',
-        ],
-      ),
-      h.div(
         [h.Class('f-review-summary')],
         [
-          h.strong(
-            [],
-            [`${selected.length} of ${drafts.length} drafts selected`],
-          ),
-          link(
-            'Select all',
-            Message.ClickedSelectReview({ selected: true }),
-            h,
-          ),
-          link(
-            'Clear selection',
-            Message.ClickedSelectReview({ selected: false }),
-            h,
-          ),
+          `${drafts.length} drafts · ${selected.length} selected · to ${recipientName(snapshot)}`,
         ],
       ),
       h.div(
-        [h.Class('f-table-scroll')],
+        [h.Class('f-review-tools')],
+        [
+          h.label(
+            [],
+            [
+              h.input([
+                h.Type('checkbox'),
+                h.Checked(
+                  selected.length === drafts.length && drafts.length > 0,
+                ),
+                h.AriaLabel('Select all drafts'),
+                h.OnClick(
+                  Message.ClickedSelectReview({
+                    selected: selected.length !== drafts.length,
+                  }),
+                ),
+              ]),
+              `Select all ${drafts.length}`,
+            ],
+          ),
+          h.input([
+            h.Type('search'),
+            h.Placeholder('Find a question or answer…'),
+            h.AriaLabel('Find a question or answer'),
+            h.Value(model.workspace.reviewQuery),
+            h.OnInput(value => Message.UpdatedReviewQuery({ value })),
+          ]),
+        ],
+      ),
+      h.div(
+        [h.Class('f-table-scroll f-review-table-scroll')],
         [
           h.table(
-            [h.Class('f-table')],
+            [h.Class('f-table f-review-table')],
             [
               h.thead(
                 [],
                 [
                   h.tr(
                     [],
-                    [
-                      h.th([h.Scope('col')], ['Send']),
-                      h.th([h.Scope('col')], ['Question']),
-                      h.th([h.Scope('col')], ['Your answer']),
-                      h.th([h.Scope('col')], ['']),
-                    ],
+                    ['Send', 'Question', 'Your answer', ''].map(label =>
+                      h.th([h.Scope('col')], [label]),
+                    ),
                   ),
                 ],
               ),
               h.tbody(
                 [],
-                drafts.map(step =>
-                  h.keyed('tr')(
-                    step.id,
-                    [],
-                    [
-                      h.td(
-                        [],
-                        [
-                          h.input([
-                            h.Type('checkbox'),
-                            h.Checked(
-                              !model.workspace.excluded.includes(
-                                step.question.id,
+                visible.flatMap(step => {
+                  const id = step.question.id
+                  const expanded = model.workspace.reviewExpanded.includes(id)
+                  return [
+                    h.keyed('tr')(
+                      step.id,
+                      [
+                        h.Class(
+                          model.workspace.excluded.includes(id)
+                            ? 'is-excluded'
+                            : '',
+                        ),
+                      ],
+                      [
+                        h.td(
+                          [],
+                          [
+                            h.input([
+                              h.Type('checkbox'),
+                              h.Checked(!model.workspace.excluded.includes(id)),
+                              h.AriaLabel(`Send ${id}`),
+                              h.OnClick(
+                                Message.ToggledReviewAnswer({ question: id }),
+                              ),
+                            ]),
+                          ],
+                        ),
+                        h.td(
+                          [],
+                          [
+                            h.b(
+                              [h.Title(step.question.ask)],
+                              [step.question.title],
+                            ),
+                            h.small(
+                              [],
+                              [
+                                `${id}${step.question.issue === undefined ? '' : ` · ${step.question.issue}`}`,
+                              ],
+                            ),
+                          ],
+                        ),
+                        h.td(
+                          [],
+                          [
+                            h.p(
+                              [
+                                h.Title(
+                                  answerLabel(step, model.answers, model.own),
+                                ),
+                              ],
+                              reading.answer(
+                                answerLabel(step, model.answers, model.own),
+                                h,
                               ),
                             ),
-                            h.AriaLabel(`Send ${step.question.id}`),
-                            h.OnClick(
-                              Message.ToggledReviewAnswer({
-                                question: step.question.id,
-                              }),
+                            (model.notes[id] ?? '') === ''
+                              ? h.empty
+                              : h.small([], ['Has a note']),
+                          ],
+                        ),
+                        h.td(
+                          [],
+                          [
+                            h.button(
+                              [
+                                h.Class('text-button'),
+                                h.AriaLabel(
+                                  `${expanded ? 'Hide' : 'Show'} details for ${id}`,
+                                ),
+                                h.AriaExpanded(expanded),
+                                h.OnClick(
+                                  Message.ClickedReviewDetail({ question: id }),
+                                ),
+                              ],
+                              [expanded ? 'Less' : 'Details'],
                             ),
-                          ]),
-                        ],
-                      ),
-                      h.td(
-                        [],
-                        [
-                          h.strong([], [step.question.id]),
-                          h.span([], [step.question.title]),
-                        ],
-                      ),
-                      h.td(
-                        [],
-                        [
-                          h.span(
+                          ],
+                        ),
+                      ],
+                    ),
+                    ...(expanded
+                      ? [
+                          h.keyed('tr')(
+                            `detail-${step.id}`,
                             [],
-                            reading.inline(
-                              answerLabel(step, model.answers, model.own),
-                              h,
-                            ),
-                          ),
-                          (model.notes[step.question.id] ?? '').trim() === ''
-                            ? h.empty
-                            : h.p(
-                                [h.Class('hint')],
-                                [model.notes[step.question.id] ?? ''],
+                            [
+                              h.td(
+                                [h.Colspan(4)],
+                                [
+                                  h.div(
+                                    [h.Class('f-review-detail')],
+                                    [
+                                      h.h3(
+                                        [],
+                                        reading.heading(step.question.ask, h),
+                                      ),
+                                      h.p(
+                                        [],
+                                        reading.answer(
+                                          answerLabel(
+                                            step,
+                                            model.answers,
+                                            model.own,
+                                          ),
+                                          h,
+                                        ),
+                                      ),
+                                      (model.notes[id] ?? '') === ''
+                                        ? h.empty
+                                        : h.p([], [model.notes[id] ?? '']),
+                                      h.div(
+                                        [h.Class('f-actions')],
+                                        [
+                                          pageLink(
+                                            'Edit answer',
+                                            `${QUESTION_PAGE}${id}`,
+                                            h,
+                                          ),
+                                          link(
+                                            'Discuss',
+                                            Message.ClickedDiscussion({
+                                              target: step.id,
+                                            }),
+                                            h,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                        ],
-                      ),
-                      h.td(
-                        [],
-                        [
-                          pageLink(
-                            'Edit',
-                            `${QUESTION_PAGE}${step.question.id}`,
-                            h,
+                            ],
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                        ]
+                      : []),
+                  ]
+                }),
               ),
             ],
           ),
+          visible.length === 0
+            ? h.p(
+                [h.Class('f-empty')],
+                [
+                  drafts.length === 0
+                    ? 'No drafts to send. Choose an answer on a question page; it will appear here.'
+                    : 'No drafts match this search.',
+                ],
+              )
+            : h.empty,
         ],
       ),
-      Array.isReadonlyArrayEmpty(drafts)
-        ? h.p(
-            [h.Class('f-empty')],
-            [
-              'No drafts to send. Choose an answer on a question page; it will appear here.',
-            ],
-          )
-        : h.empty,
       h.div(
         [h.Class('f-review-compose')],
         [
-          h.label(
-            [h.For('send-message')],
-            ['A message with your answers (optional)'],
-          ),
+          h.label([h.For('send-message')], ['Message with these answers']),
           h.textarea([
             h.Id('send-message'),
-            h.Rows(3),
+            h.Value(model.sendMessage),
+            h.Rows(2),
             h.OnMount(FillBox({ text: model.sendMessage })),
-            h.Placeholder('Anything the agent should know'),
+            h.Placeholder('Anything else the agent should know…'),
             h.OnInput(value => Message.UpdatedSendMessage({ value })),
           ]),
           h.div(
@@ -836,9 +1156,9 @@ const reviewView = (
                 [
                   model.send === 'Failed'
                     ? `Not sent: ${model.sendDetail}`
-                    : model.send === 'Sent'
+                    : model.send === 'Sent' && drafts.length === 0
                       ? model.sendDetail
-                      : '⌘ / Ctrl + Enter sends the selection',
+                      : `${selected.length} selected · ${drafts.length - selected.length} drafts stay here · ⌘ / Ctrl + Enter to send`,
                 ],
               ),
               h.button(
@@ -873,7 +1193,13 @@ const discussionView = (
   expanded: boolean,
   h: H,
 ): Html => {
-  const onQuestion = questionOnPage(snapshot, model.currentPart)
+  const onQuestion = Option.orElse(
+    questionOnPage(snapshot, model.currentPart),
+    () =>
+      Option.flatMap(model.maybePrevious, page =>
+        questionOnPage(snapshot, page),
+      ),
+  )
   const target = Option.getOrElse(model.workspace.maybeDiscussionTarget, () =>
     Option.match(onQuestion, {
       onSome: step => step.id,
@@ -895,6 +1221,7 @@ const discussionView = (
       : h.div(
           [h.Class('f-context')],
           [
+            expanded ? h.h2([], ['Context for this conversation']) : h.empty,
             h.h3([], [`${step.question.id} · ${step.question.title}`]),
             h.p([], reading.heading(step.question.ask, h)),
             h.details(
@@ -910,6 +1237,7 @@ const discussionView = (
                 ),
               ],
             ),
+            expanded ? reading.reasoning(step, h) : h.empty,
           ],
         )
   return h.aside(
@@ -936,20 +1264,21 @@ const discussionView = (
               model.currentPart === CONVERSATIONS
                 ? h.empty
                 : link(
-                    expanded ? 'Reduce' : 'Expand',
+                    expanded ? 'Back' : 'Expand',
                     Message.ClickedExpandDiscussion(),
                     h,
                   ),
               model.currentPart === CONVERSATIONS
-                ? pageLink(
+                ? link(
+                    'Back',
+                    Message.ClickedReturnConversation({ open: true }),
+                    h,
+                  )
+                : h.empty,
+              model.currentPart === CONVERSATIONS
+                ? link(
                     'Close',
-                    Option.getOrElse(
-                      Option.filter(
-                        model.maybePrevious,
-                        page => page !== CONVERSATIONS,
-                      ),
-                      () => 'overview',
-                    ),
+                    Message.ClickedReturnConversation({ open: false }),
                     h,
                   )
                 : link('Close', Message.ClickedCloseDiscussion(), h),
@@ -957,41 +1286,6 @@ const discussionView = (
           ),
         ],
       ),
-      model.currentPart === CONVERSATIONS
-        ? h.label(
-            [h.Class('f-conversation-picker')],
-            [
-              h.span([], ['Conversation']),
-              h.select(
-                [
-                  h.AriaLabel('Choose a conversation'),
-                  h.Value(target),
-                  h.OnInput(target =>
-                    Message.SelectedDiscussionTarget({ target }),
-                  ),
-                ],
-                [
-                  h.option([h.Value(RUN_TARGET)], ['Whole run']),
-                  ...snapshot.grill.steps.map(item =>
-                    h.option(
-                      [h.Value(item.id)],
-                      [`${item.question.id} · ${item.question.title}`],
-                    ),
-                  ),
-                  ...snapshot.grill.parts
-                    .filter(part =>
-                      snapshot.asks.some(
-                        ask => ask.stepId === `part:${part.id}`,
-                      ),
-                    )
-                    .map(part =>
-                      h.option([h.Value(`part:${part.id}`)], [part.title]),
-                    ),
-                ],
-              ),
-            ],
-          )
-        : h.empty,
       h.div(
         [
           h.Class('f-discussion-scope'),
@@ -1002,9 +1296,29 @@ const discussionView = (
           h.button(
             [
               h.Class(
-                target === RUN_TARGET
-                  ? 'quiet-button is-active'
-                  : 'quiet-button',
+                `quiet-button${target !== RUN_TARGET ? ' is-active' : ''}`,
+              ),
+              h.Disabled(step === undefined && Option.isNone(onQuestion)),
+              h.AriaPressed(String(target !== RUN_TARGET)),
+              h.OnClick(
+                Message.SelectedDiscussionTarget({
+                  target:
+                    step?.id ??
+                    Option.match(onQuestion, {
+                      onSome: question => question.id,
+                      onNone: () => RUN_TARGET,
+                    }),
+                }),
+              ),
+            ],
+            [
+              `This question${step === undefined ? Option.match(onQuestion, { onSome: question => ` · ${question.question.id}`, onNone: () => '' }) : ` · ${step.question.id}`}`,
+            ],
+          ),
+          h.button(
+            [
+              h.Class(
+                `quiet-button${target === RUN_TARGET ? ' is-active' : ''}`,
               ),
               h.AriaPressed(String(target === RUN_TARGET)),
               h.OnClick(
@@ -1013,43 +1327,43 @@ const discussionView = (
             ],
             ['Whole run'],
           ),
-          ...(step === undefined && Option.isNone(onQuestion)
-            ? []
-            : [
-                h.button(
-                  [
-                    h.Class(
-                      target !== RUN_TARGET
-                        ? 'quiet-button is-active'
-                        : 'quiet-button',
-                    ),
-                    h.AriaPressed(String(target !== RUN_TARGET)),
-                    h.OnClick(
-                      Message.SelectedDiscussionTarget({
-                        target: step?.id ?? Option.getOrThrow(onQuestion).id,
-                      }),
-                    ),
-                  ],
-                  [
-                    step?.question.id ??
-                      Option.getOrThrow(onQuestion).question.id,
-                  ],
-                ),
-              ]),
+          h.button(
+            [
+              h.Class('quiet-button'),
+              h.Disabled(true),
+              h.Title(
+                'This grill does not supply a direct route to the squad lead.',
+              ),
+            ],
+            ['Ask the lead'],
+          ),
         ],
       ),
       h.div(
         [h.Class('f-discussion-messages')],
         [
-          expanded ? context : h.empty,
+          expanded || step !== undefined ? context : h.empty,
           ...(Array.isReadonlyArrayEmpty(thread)
             ? [
-                h.p(
-                  [h.Class('hint f-empty')],
+                h.div(
+                  [h.Class('f-empty-chat')],
                   [
-                    step === undefined
-                      ? 'Ask about this run. The agent’s reply will appear here.'
-                      : 'Ask about this question, compare its choices, or request a clearer rewrite.',
+                    h.h3(
+                      [],
+                      [
+                        step === undefined
+                          ? 'A question beyond one card?'
+                          : 'What would help you decide?',
+                      ],
+                    ),
+                    h.p(
+                      [],
+                      [
+                        step === undefined
+                          ? 'Ask about priorities, progress or what the run is waiting on. Replies stay in this conversation.'
+                          : 'Ask about an option, challenge the reasoning, or request a rewrite. This thread will stay attached to the question.',
+                      ],
+                    ),
                   ],
                 ),
               ]
@@ -1063,18 +1377,18 @@ const discussionView = (
         ],
         [
           h.label(
-            [h.For('talk-box'), h.Class('sr-only')],
-            ['Message to the agent'],
+            [h.For('talk-box')],
+            [
+              step === undefined
+                ? 'Ask about the run'
+                : `Ask about ${step.question.id}`,
+            ],
           ),
           h.keyed('textarea')(`discussion-${target}-${model.talkGeneration}`, [
             h.Id('talk-box'),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
-            h.Placeholder(
-              step === undefined
-                ? 'Ask about the run…'
-                : `Ask about ${step.question.id}…`,
-            ),
+            h.Placeholder('Ask, push back, or ask for a clearer explanation…'),
             h.OnInput(value =>
               Message.UpdatedTalkDraft({
                 partId: threadDraftKey(target),
@@ -1091,13 +1405,147 @@ const discussionView = (
             [h.Class('f-send-foot')],
             [
               h.span([h.Class('hint')], ['⌘ / Ctrl + Enter to send']),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+              h.button([h.Type('submit'), h.Class('send-button')], ['Ask']),
             ],
           ),
         ],
       ),
     ],
   )
+}
+
+const conversationPage = (
+  model: Model,
+  snapshot: Snapshot,
+  reading: Reading,
+  h: H,
+): Html => {
+  const current = Option.getOrElse(
+    model.workspace.maybeDiscussionTarget,
+    () => RUN_TARGET,
+  )
+  const targets = Array.dedupe([
+    current,
+    ...snapshot.asks.map(ask => ask.stepId),
+  ]).filter(target => target !== RUN_TARGET)
+  return h.div(
+    [h.Class('f-conversation-layout')],
+    [
+      h.nav(
+        [h.Class('f-conversation-list'), h.AriaLabel('Conversations')],
+        [
+          h.h2([], ['Conversations']),
+          ...targets.map(target => {
+            const step = snapshot.grill.steps.find(item => item.id === target)
+            return h.keyed('button')(
+              target,
+              [
+                h.Class(
+                  `f-conversation-item${current === target ? ' is-active' : ''}`,
+                ),
+                h.OnClick(Message.SelectedDiscussionTarget({ target })),
+              ],
+              [
+                step === undefined
+                  ? target.startsWith('part:')
+                    ? (snapshot.grill.parts.find(
+                        part => `part:${part.id}` === target,
+                      )?.title ?? target)
+                    : target
+                  : `About ${step.question.id}`,
+                step === undefined
+                  ? h.empty
+                  : h.small([], [step.question.title]),
+              ],
+            )
+          }),
+          h.button(
+            [
+              h.Class(
+                `f-conversation-item${current === RUN_TARGET ? ' is-active' : ''}`,
+              ),
+              h.OnClick(
+                Message.SelectedDiscussionTarget({ target: RUN_TARGET }),
+              ),
+            ],
+            [
+              `Run coordination${snapshot.grill.session === '' ? '' : ` · ${snapshot.grill.session}`}`,
+            ],
+          ),
+          h.button(
+            [
+              h.Class('f-conversation-item'),
+              h.Disabled(true),
+              h.Title(
+                'This grill does not supply a direct route to the squad lead.',
+              ),
+            ],
+            ['Across the squad'],
+          ),
+          h.p(
+            [h.Class('hint')],
+            [
+              'A conversation is the same thread here and beside its question. Moving between views keeps its draft and replies.',
+            ],
+          ),
+        ],
+      ),
+      discussionView(model, snapshot, reading, true, h),
+    ],
+  )
+}
+
+const catalogSnapshots = (
+  model: Model,
+  snapshot: Snapshot,
+): ReadonlyArray<Snapshot> => {
+  const catalog = Option.getOrElse(
+    AsyncData.getData(model.workspace.catalog),
+    () => [snapshot],
+  )
+  return catalog.map(state =>
+    state.grill.id === snapshot.grill.id ? snapshot : state,
+  )
+}
+
+const catalogStatus = (model: Model, h: H): Html =>
+  AsyncData.match(model.workspace.catalog, {
+    onIdle: () => h.p([h.Class('hint')], ['Loading other grills…']),
+    onLoading: () => h.p([h.Class('hint')], ['Loading other grills…']),
+    onFailure: error =>
+      h.p(
+        [h.Class('f-catalog-error'), h.Role('alert')],
+        [error, ' ', link('Retry', Message.ClickedRefreshCatalog(), h)],
+      ),
+    onStale: () => h.empty,
+    onRefreshing: () => h.p([h.Class('hint')], ['Refreshing…']),
+    onSuccess: () => h.empty,
+  })
+
+const neededCount = (snapshot: Snapshot): number =>
+  snapshot.grill.steps.filter(
+    step =>
+      statusOf(snapshot.grill, snapshot.answers, step.question.id)._tag !==
+        'NotNeeded' &&
+      questionState(
+        snapshot,
+        step,
+        snapshot.answers,
+        snapshot.notes,
+        snapshot.own,
+      ) !== 'Sent',
+  ).length
+const workOf = (snapshot: Snapshot) => {
+  const issues = snapshot.grill.plan?.issues ?? []
+  return {
+    current: issues.filter(issue =>
+      ['building', 'review', 'stuck'].includes(issue.phase),
+    ),
+    completed: issues.filter(issue => issue.phase === 'merged'),
+    later: issues.filter(
+      issue => !['building', 'review', 'stuck', 'merged'].includes(issue.phase),
+    ),
+  }
 }
 
 const needsView = (
@@ -1106,15 +1554,13 @@ const needsView = (
   reading: Reading,
   h: H,
 ): Html => {
-  const steps = snapshot.grill.steps.filter(step => {
-    const status = statusOf(
-      snapshot.grill,
-      model.answers,
-      step.question.id,
-      model.skipped,
-    )
-    return status._tag === 'Open' || status._tag === 'Waiting'
-  })
+  const drafts = draftQuestions(snapshot, model.answers, model.notes, model.own)
+  const steps = snapshot.grill.steps.filter(step =>
+    ['Open', 'Waiting'].includes(
+      statusOf(snapshot.grill, model.answers, step.question.id, model.skipped)
+        ._tag,
+    ),
+  )
   const ready = steps.filter(
     step =>
       statusOf(snapshot.grill, model.answers, step.question.id, model.skipped)
@@ -1123,41 +1569,257 @@ const needsView = (
   const waiting = steps.filter(step => !ready.includes(step))
   const rows = (items: ReadonlyArray<Step>) =>
     items.map(step =>
-      h.keyed('div')(
+      h.keyed('button')(
         step.id,
-        [h.Class('f-needs-row')],
         [
+          h.Class('f-decision-row'),
+          h.OnClick(
+            Message.ClickedWorkspacePage({
+              page: `${QUESTION_PAGE}${step.question.id}`,
+            }),
+          ),
+        ],
+        [
+          h.span([h.Class('f-decision-id')], [step.question.id]),
           h.div(
             [],
             [
-              h.strong([], [`${step.question.id} · ${step.question.title}`]),
-              h.p([h.Class('hint')], [step.question.scope]),
+              h.b([], [step.question.title]),
+              h.p([], reading.answer(step.question.ask, h)),
             ],
           ),
-          pageLink('Open question', `${QUESTION_PAGE}${step.question.id}`, h),
+          h.small([], [step.question.issue ?? '']),
         ],
       ),
     )
   return h.section(
-    [h.Class('f-page')],
+    [h.Class('f-page f-attention')],
     [
       h.h1([], ['Needs you']),
       h.p(
-        [h.Class('hint')],
+        [h.Class('f-lead')],
+        ['Decisions to make and answers ready to return to the agent.'],
+      ),
+      h.section(
+        [h.Class('f-attention-summary')],
         [
-          `${ready.length} questions ready to answer${waiting.length === 0 ? '' : ` · ${waiting.length} waiting on another answer`}`,
+          h.div(
+            [],
+            [
+              h.h2(
+                [],
+                [
+                  `${drafts.length} draft${drafts.length === 1 ? '' : 's'} ready to send`,
+                ],
+              ),
+              h.p(
+                [h.Class('hint')],
+                ['Review the selected answers and include a message.'],
+              ),
+            ],
+          ),
+          h.button(
+            [
+              h.Class('send-button'),
+              h.OnClick(Message.ClickedWorkspacePage({ page: REVIEW })),
+            ],
+            ['Review & send'],
+          ),
         ],
       ),
-      h.h2([], ['Ready to answer']),
+      h.div(
+        [h.Class('f-section-heading')],
+        [
+          h.h2(
+            [],
+            [`${ready.length} open decision${ready.length === 1 ? '' : 's'}`],
+          ),
+          pageLink(
+            'See all in questions',
+            snapshot.grill.steps[0] === undefined
+              ? 'overview'
+              : `${QUESTION_PAGE}${ready[0]?.question.id ?? snapshot.grill.steps[0].question.id}`,
+            h,
+          ),
+        ],
+      ),
       ...(ready.length === 0
-        ? [h.p([], ['Nothing is waiting for an answer.'])]
+        ? [h.p([h.Class('hint')], ['No decisions are ready for an answer.'])]
         : rows(ready)),
       ...(waiting.length === 0
         ? []
         : [h.h2([], ['Waiting on another answer']), ...rows(waiting)]),
+      snapshot.grill.kind === 'squad'
+        ? h.section(
+            [h.Class('f-owner-section')],
+            [
+              h.h2([], ['Owner steps']),
+              h.p(
+                [h.Class('hint')],
+                ['No owner actions reported in this grill.'],
+              ),
+            ],
+          )
+        : h.empty,
     ],
   )
 }
+
+const workState = (
+  snapshot: Snapshot,
+  issue: PlanIssue,
+  answers: typeof snapshot.answers,
+): string =>
+  ({
+    building: 'Building',
+    review: 'In review',
+    merged: 'Merged',
+    ready: 'Ready',
+    you: 'Needs you',
+    stuck: 'Stuck',
+    after: 'Waiting',
+    outside: 'Outside this run',
+  })[planPhaseOf(snapshot.grill, issue, answers)]
+const workTable = (
+  model: Model,
+  snapshot: Snapshot,
+  issues: ReadonlyArray<PlanIssue>,
+  reading: Reading,
+  h: H,
+): Html =>
+  h.div(
+    [h.Class('f-table-scroll')],
+    [
+      h.table(
+        [h.Class('f-table f-work-table')],
+        [
+          h.thead(
+            [],
+            [
+              h.tr(
+                [],
+                ['Work', 'State', 'Next action', 'Session'].map(label =>
+                  h.th([h.Scope('col')], [label]),
+                ),
+              ),
+            ],
+          ),
+          h.tbody(
+            [],
+            issues.map(issue => {
+              const gates = Array.dedupe([
+                ...(issue.start ?? []),
+                ...(issue.review ?? []),
+              ])
+              const question = snapshot.grill.steps.find(
+                step =>
+                  gates.includes(step.question.id) &&
+                  questionState(
+                    snapshot,
+                    step,
+                    model.answers,
+                    model.notes,
+                    model.own,
+                  ) !== 'Sent',
+              )
+              const state = workState(snapshot, issue, model.answers)
+              const fromHere =
+                snapshot.grill.id ===
+                Option.getOrElse(AsyncData.getData(model.page), () => snapshot)
+                  .grill.id
+              return h.keyed('tr')(
+                issue.id,
+                [],
+                [
+                  h.td(
+                    [],
+                    [
+                      h.b([], [issue.title]),
+                      h.small(
+                        [],
+                        [
+                          issue.id,
+                          issue.note === undefined ? '' : ` · ${issue.note}`,
+                        ],
+                      ),
+                    ],
+                  ),
+                  h.td(
+                    [],
+                    [
+                      h.span(
+                        [
+                          h.Class(
+                            `f-work-state${state === 'Merged' ? ' is-done' : state === 'Needs you' ? ' needs-you' : ''}`,
+                          ),
+                        ],
+                        [state],
+                      ),
+                    ],
+                  ),
+                  h.td(
+                    [],
+                    [
+                      question === undefined
+                        ? h.span(
+                            [],
+                            [
+                              state === 'Merged'
+                                ? 'Completed'
+                                : state === 'In review'
+                                  ? 'Review continues'
+                                  : (issue.follows?.length ?? 0) > 0
+                                    ? `After ${issue.follows?.join(', ')}`
+                                    : state,
+                            ],
+                          )
+                        : fromHere
+                          ? pageLink(
+                              `${model.answers[question.question.id] === undefined ? 'Answer' : 'Review'} ${question.question.id}`,
+                              `${QUESTION_PAGE}${question.question.id}`,
+                              h,
+                            )
+                          : h.a(
+                              [
+                                h.Href(
+                                  `/g/${encodeURIComponent(snapshot.grill.id)}/question/${encodeURIComponent(question.question.id)}`,
+                                ),
+                              ],
+                              [`Review ${question.question.id}`],
+                            ),
+                    ],
+                  ),
+                  h.td(
+                    [],
+                    [
+                      h.b(
+                        [],
+                        [
+                          issue.agent ??
+                            (snapshot.grill.session || 'Not supplied'),
+                        ],
+                      ),
+                      h.small(
+                        [],
+                        [
+                          issue.agent === undefined
+                            ? 'Run orchestrator'
+                            : 'Assigned session',
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            }),
+          ),
+        ],
+      ),
+      issues.length === 0
+        ? h.p([h.Class('f-empty hint')], ['No work in this section.'])
+        : h.empty,
+    ],
+  )
 
 const runView = (
   model: Model,
@@ -1165,105 +1827,421 @@ const runView = (
   reading: Reading,
   h: H,
 ): Html => {
-  const grill = snapshot.grill
-  const issues = grill.plan?.issues ?? []
+  const work = workOf(snapshot)
+  const section = model.workspace.workSection
+  const issues =
+    section === 'Completed'
+      ? work.completed
+      : section === 'Later'
+        ? work.later
+        : work.current
+  const lead = snapshot.grill.intro[0]?.split(/(?<=\.)\s/)[0] ?? ''
   return h.section(
     [h.Class('f-page f-run-overview')],
     [
-      h.h1([], ['Run overview']),
-      ...grill.intro.map(text => reading.prose(text, h)),
-      h.div(
-        [h.Class('f-run-summary')],
+      h.h1([], [snapshot.grill.title]),
+      h.p([h.Class('f-lead')], [lead]),
+      h.p(
+        [h.Class('f-run-guidance')],
         [
-          h.span(
-            [],
-            [
-              `${issues.filter(issue => issue.phase === 'merged').length} merged`,
-            ],
-          ),
-          h.span(
-            [],
-            [
-              `${issues.filter(issue => ['building', 'review'].includes(issue.phase)).length} active`,
-            ],
-          ),
-          h.span(
-            [],
-            [
-              `${issues.filter(issue => !['merged', 'building', 'review', 'outside'].includes(issue.phase)).length} remaining`,
-            ],
-          ),
-          h.span(
-            [],
-            [
-              grill.plan?.slots === undefined
-                ? ''
-                : `${grill.plan.slots} session slots`,
-            ],
-          ),
+          `${work.completed.length} completed · ${work.current.length} current · ${work.later.length} later${snapshot.grill.plan?.slots === undefined ? '' : ` · ${snapshot.grill.plan.slots} session slots`}`,
         ],
       ),
-      h.h2([], ['Work and sessions']),
-      h.div(
-        [h.Class('f-table-scroll')],
-        [
-          h.table(
-            [h.Class('f-table')],
+      h.nav(
+        [h.Class('f-work-tabs'), h.AriaLabel('Run sections')],
+        (
+          [
+            'Now',
+            'Completed',
+            'Later',
+            'Sessions',
+            'Dependencies',
+          ] satisfies ReadonlyArray<typeof section>
+        ).map(tab =>
+          h.button(
             [
-              h.thead(
+              h.Class(`quiet-button${section === tab ? ' is-active' : ''}`),
+              h.AriaPressed(String(section === tab)),
+              h.OnClick(Message.SelectedWorkSection({ section: tab })),
+            ],
+            [
+              `${tab === 'Now' ? 'Current work' : tab}${tab === 'Now' ? ` · ${work.current.length}` : tab === 'Completed' ? ` · ${work.completed.length}` : tab === 'Later' ? ` · ${work.later.length}` : ''}`,
+            ],
+          ),
+        ),
+      ),
+      section === 'Sessions'
+        ? sessionsView(snapshot, h)
+        : section === 'Dependencies'
+          ? dependenciesView(snapshot, h)
+          : workTable(model, snapshot, issues, reading, h),
+      h.details(
+        [h.Class('f-run-brief')],
+        [
+          h.summary([], ['Run brief and what comes next']),
+          ...snapshot.grill.intro.map(text => reading.prose(text, h)),
+          h.h2([], ['After this round']),
+          ...snapshot.grill.next.map(text => reading.prose(text, h)),
+          pageLink('Replies and decisions', REPLIES, h),
+        ],
+      ),
+    ],
+  )
+}
+
+const sessionsView = (snapshot: Snapshot, h: H): Html => {
+  const sessions = Array.dedupe([
+    snapshot.grill.session,
+    ...(snapshot.grill.plan?.issues ?? []).flatMap(issue =>
+      issue.agent === undefined ? [] : [issue.agent],
+    ),
+  ]).filter(session => session !== '')
+  return h.div(
+    [h.Class('f-table-scroll')],
+    [
+      h.table(
+        [h.Class('f-table f-work-table')],
+        [
+          h.thead(
+            [],
+            [
+              h.tr(
                 [],
-                [
-                  h.tr(
-                    [],
-                    ['Issue', 'State', 'Session', 'What happens next'].map(
-                      label => h.th([h.Scope('col')], [label]),
-                    ),
-                  ),
-                ],
-              ),
-              h.tbody(
-                [],
-                issues.map(issue =>
-                  h.keyed('tr')(
-                    issue.id,
-                    [],
-                    [
-                      h.td(
-                        [],
-                        [
-                          h.span([], reading.inline(issue.id, h)),
-                          h.span([], [issue.title]),
-                        ],
-                      ),
-                      h.td([], [planPhaseOf(grill, issue, model.answers)]),
-                      h.td([], [issue.agent ?? '—']),
-                      h.td(
-                        [],
-                        [
-                          issue.note ?? '',
-                          ...(issue.start ?? []).map(id =>
-                            pageLink(id, `${QUESTION_PAGE}${id}`, h),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                ['Session', 'Role', 'Work'].map(label =>
+                  h.th([h.Scope('col')], [label]),
                 ),
               ),
             ],
           ),
+          h.tbody(
+            [],
+            sessions.map(session =>
+              h.keyed('tr')(
+                session,
+                [],
+                [
+                  h.td([], [h.b([], [session])]),
+                  h.td(
+                    [],
+                    [
+                      session === snapshot.grill.session
+                        ? 'Run orchestrator'
+                        : 'Assigned session',
+                    ],
+                  ),
+                  h.td(
+                    [],
+                    [
+                      (snapshot.grill.plan?.issues ?? [])
+                        .filter(issue => issue.agent === session)
+                        .map(issue => issue.id)
+                        .join(', ') || snapshot.grill.title,
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
-      issues.length === 0
+      sessions.length === 0
         ? h.p(
-            [h.Class('f-empty')],
-            ['The agent has not supplied a run plan for this grill.'],
+            [h.Class('f-empty hint')],
+            ['No participating sessions supplied.'],
           )
         : h.empty,
-      h.h2([], ['Decisions']),
-      pageLink('Replies and decisions', REPLIES, h),
-      h.h2([], ['After this round']),
-      ...grill.next.map(text => reading.prose(text, h)),
+    ],
+  )
+}
+
+const dependenciesView = (snapshot: Snapshot, h: H): Html =>
+  h.div(
+    [h.Class('f-table-scroll')],
+    [
+      h.table(
+        [h.Class('f-table f-work-table')],
+        [
+          h.thead(
+            [],
+            [
+              h.tr(
+                [],
+                [
+                  'Work',
+                  'Depends on work',
+                  'Questions before starting',
+                  'Questions before review',
+                ].map(label => h.th([h.Scope('col')], [label])),
+              ),
+            ],
+          ),
+          h.tbody(
+            [],
+            (snapshot.grill.plan?.issues ?? []).map(issue =>
+              h.keyed('tr')(
+                issue.id,
+                [],
+                [
+                  h.td([], [h.b([], [issue.title]), h.small([], [issue.id])]),
+                  h.td([], [issue.follows?.join(', ') || 'None']),
+                  h.td(
+                    [],
+                    (issue.start ?? []).map(id =>
+                      pageLink(id, `${QUESTION_PAGE}${id}`, h),
+                    ),
+                  ),
+                  h.td(
+                    [],
+                    (issue.review ?? []).map(id =>
+                      pageLink(id, `${QUESTION_PAGE}${id}`, h),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+  )
+
+const squadView = (
+  model: Model,
+  snapshot: Snapshot,
+  reading: Reading,
+  h: H,
+): Html => {
+  const runs = catalogSnapshots(model, snapshot).filter(
+    state => state.grill.kind === 'squad',
+  )
+  const active = runs.filter(
+    state => workOf(state).current.length > 0 || neededCount(state) > 0,
+  )
+  const completed = runs.filter(state => !active.includes(state))
+  const table = (states: ReadonlyArray<Snapshot>) =>
+    h.div(
+      [h.Class('f-table-scroll')],
+      [
+        h.table(
+          [h.Class('f-table f-work-table f-runs-table')],
+          [
+            h.thead(
+              [],
+              [
+                h.tr(
+                  [],
+                  [
+                    'Run',
+                    'State',
+                    'Completed',
+                    'Remaining',
+                    'Attention',
+                    'Orchestrator',
+                  ].map(label => h.th([h.Scope('col')], [label])),
+                ),
+              ],
+            ),
+            h.tbody(
+              [],
+              states.map(state => {
+                const work = workOf(state)
+                return h.keyed('tr')(
+                  state.grill.id,
+                  [],
+                  [
+                    h.td(
+                      [],
+                      [
+                        h.a(
+                          [
+                            h.Href(
+                              `/g/${encodeURIComponent(state.grill.id)}/plan`,
+                            ),
+                          ],
+                          [state.grill.title],
+                        ),
+                        h.small([], [state.grill.id]),
+                      ],
+                    ),
+                    h.td(
+                      [],
+                      [
+                        work.current.length > 0
+                          ? 'Running'
+                          : neededCount(state) > 0
+                            ? 'Needs you'
+                            : 'Complete',
+                      ],
+                    ),
+                    h.td([], [String(work.completed.length)]),
+                    h.td(
+                      [],
+                      [
+                        String(
+                          work.current.length +
+                            work.later.filter(
+                              issue => issue.phase !== 'outside',
+                            ).length,
+                        ),
+                      ],
+                    ),
+                    h.td(
+                      [],
+                      [
+                        h.a(
+                          [
+                            h.Href(
+                              `/g/${encodeURIComponent(state.grill.id)}/needs-you`,
+                            ),
+                          ],
+                          [`${neededCount(state)} questions`],
+                        ),
+                      ],
+                    ),
+                    h.td([], [state.grill.session || 'Not supplied']),
+                  ],
+                )
+              }),
+            ),
+          ],
+        ),
+      ],
+    )
+  return h.section(
+    [h.Class('f-page f-squad-overview')],
+    [
+      h.h1([], ['Squad overview']),
+      h.p(
+        [h.Class('f-lead')],
+        [
+          'The portfolio view: active runs, their state, and where your attention is needed.',
+        ],
+      ),
+      h.div(
+        [h.Class('f-section-heading')],
+        [
+          h.h2([], ['Active runs']),
+          link('Refresh', Message.ClickedRefreshCatalog(), h),
+        ],
+      ),
+      catalogStatus(model, h),
+      table(active),
+      active.length === 0
+        ? h.p(
+            [h.Class('f-empty hint')],
+            ['No active squad runs in the loaded grills.'],
+          )
+        : h.empty,
+      completed.length > 0
+        ? h.details(
+            [h.Class('f-archive')],
+            [
+              h.summary([], [`Completed runs · ${completed.length}`]),
+              table(completed),
+            ],
+          )
+        : h.empty,
+      h.section(
+        [h.Class('f-portfolio-next')],
+        [
+          h.h2([], ['Where to go next']),
+          h.p(
+            [],
+            [
+              'Needs you collects decisions and drafts ready to send. Run overview holds the work, future plans, sessions and dependencies.',
+            ],
+          ),
+          h.div(
+            [h.Class('f-actions')],
+            [
+              h.button(
+                [
+                  h.Class('quiet-button'),
+                  h.OnClick(Message.ClickedWorkspacePage({ page: NEEDS })),
+                ],
+                ['Needs you'],
+              ),
+              h.button(
+                [
+                  h.Class('quiet-button'),
+                  h.OnClick(Message.ClickedWorkspacePage({ page: 'plan' })),
+                ],
+                ['Run overview'],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+const grillsView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const states = catalogSnapshots(model, snapshot)
+  const machine = (state: Snapshot) =>
+    state.grill.session.includes('/')
+      ? (state.grill.session.split('/')[0] ?? 'This machine')
+      : 'This machine'
+  const machines = Array.dedupe(states.map(machine))
+  const row = (state: Snapshot) =>
+    h.keyed('a')(
+      state.grill.id,
+      [
+        h.Href(`/g/${encodeURIComponent(state.grill.id)}`),
+        h.Class('f-grill-row'),
+      ],
+      [
+        h.div(
+          [],
+          [
+            h.b([], [state.grill.title]),
+            h.small([], [state.grill.session || 'Agent collects replies here']),
+          ],
+        ),
+        h.span(
+          [h.Class('f-work-state')],
+          [
+            neededCount(state) === 0
+              ? 'All sent'
+              : `${neededCount(state)} not sent`,
+          ],
+        ),
+      ],
+    )
+  return h.section(
+    [h.Class('f-page')],
+    [
+      h.h1([], ['Your grills']),
+      h.p(
+        [h.Class('f-lead')],
+        ['Questions and decisions from your agents, grouped by machine.'],
+      ),
+      h.div(
+        [h.Class('f-section-heading')],
+        [
+          h.h2([], ['Grills']),
+          link('Refresh', Message.ClickedRefreshCatalog(), h),
+        ],
+      ),
+      catalogStatus(model, h),
+      ...machines.map(name => {
+        const group = states.filter(state => machine(state) === name)
+        const archived = group.filter(state => neededCount(state) === 0)
+        return h.section(
+          [h.Class('f-machine-group')],
+          [
+            h.h2([], [name]),
+            ...group.filter(state => neededCount(state) > 0).map(row),
+            h.details(
+              [h.Class('f-archive')],
+              [
+                h.summary([], [`Archived · ${archived.length}`]),
+                ...archived.map(row),
+              ],
+            ),
+          ],
+        )
+      }),
     ],
   )
 }

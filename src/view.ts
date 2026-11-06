@@ -449,6 +449,7 @@ const proseContext = (
       ),
   }),
   entities: grill.entities,
+  showTitles: isWorkspacePage(model.currentPart),
 })
 
 /** Agent-written text with its ```diagram blocks drawn and its paragraph titles kept. */
@@ -776,8 +777,37 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
               builder,
             ),
           ),
-        question: (step, builder) =>
-          questionBodyView(model, snapshot, step, builder, true),
+        answer: (text, builder) => plain(text, grill, builder),
+        status: (step, builder) =>
+          statusLine(
+            model,
+            grill,
+            step,
+            statusIn(model, grill, step.question.id),
+            builder,
+          ),
+        comparison: (step, builder) =>
+          step.question.compare === undefined
+            ? builder.empty
+            : compareView(
+                step.question.compare,
+                step.question.options.map(option => ({
+                  key: option.key,
+                  label: `${option.key} · ${plainLabel(option.label)}`,
+                  recommended: option.recommended,
+                })),
+                Option.filter(
+                  Record.get(model.answers, step.question.id),
+                  key =>
+                    step.question.options.some(option => option.key === key),
+                ),
+                grill.entities,
+                builder,
+              ),
+        related: (step, builder) =>
+          hasOutside(snapshot, step)
+            ? outsideView(model, snapshot, step, builder)
+            : builder.empty,
         reasoning: (step, builder) =>
           reasoningView(model, snapshot, step, builder),
         thread: (target, builder) =>
@@ -2331,7 +2361,6 @@ const questionBodyView = (
   snapshot: Snapshot,
   step: Step,
   h: H,
-  focused = false,
 ): Html => {
   const grill = snapshot.grill
   const question = step.question
@@ -2350,11 +2379,11 @@ const questionBodyView = (
       h.div(
         [h.Class('question-links')],
         [
-          question.issue === undefined || focused
+          question.issue === undefined
             ? h.empty
             : refOrKey(grill, question.issue, h),
-          focused ? h.empty : conceptLink(model, grill, step, h),
-          focused ? h.empty : whyLink(step, h),
+          conceptLink(model, grill, step, h),
+          whyLink(step, h),
           status._tag === 'Open' && !Array.contains(model.skipped, id)
             ? h.button(
                 [
@@ -2375,12 +2404,10 @@ const questionBodyView = (
             : h.empty,
         ],
       ),
-      focused
-        ? h.empty
-        : h.p(
-            [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
-            inline(question.ask, grill, h),
-          ),
+      h.p(
+        [h.Class('question-ask'), h.Id(`ask-text-${id}`)],
+        inline(question.ask, grill, h),
+      ),
       h.div(
         [
           h.Class('options'),
@@ -2455,13 +2482,13 @@ const questionBodyView = (
             grill.entities,
             h,
           ),
-      (focused || question.from === undefined) && !hasOutside(snapshot, step)
+      question.from === undefined && !hasOutside(snapshot, step)
         ? h.empty
         : h.div(
             [h.Class('question-meta')],
             [
               outsideView(model, snapshot, step, h),
-              focused ? h.empty : fromView(model, grill, step, h),
+              fromView(model, grill, step, h),
             ],
           ),
     ],

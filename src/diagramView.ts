@@ -639,6 +639,7 @@ export type ProseContext = Readonly<{
   maybeAnswer: Option.Option<string>
   label: StateLabel
   entities: ReadonlyArray<Entity>
+  showTitles?: boolean
 }>
 
 export const diagramKey = (context: string, index: number): string =>
@@ -650,6 +651,7 @@ const textView = (
   follow: Option.Option<
     Readonly<{ diagram: string; following: Option.Option<string> }>
   >,
+  showTitles: boolean,
   h: H,
 ): Html =>
   Option.match(item.title, {
@@ -658,7 +660,7 @@ const textView = (
       h.div(
         [
           h.Class(
-            `titled${
+            `titled${showTitles ? ' has-visible-title' : ''}${
               Option.exists(follow, ({ following }) =>
                 Option.contains(following, title),
               )
@@ -677,7 +679,7 @@ const textView = (
             ],
           }),
         ],
-        [render(item.paragraph)],
+        [showTitles ? h.h3([], [title]) : h.empty, render(item.paragraph)],
       ),
   })
 
@@ -695,7 +697,13 @@ export const proseView = (
     if (section._tag === 'Plain') {
       const item = section.item
       if (item._tag === 'Text') {
-        return textView(item, render, Option.none(), h)
+        return textView(
+          item,
+          render,
+          Option.none(),
+          context.showTitles ?? false,
+          h,
+        )
       }
       const key = diagramKey(context.key, item.index)
       return diagramView(
@@ -738,6 +746,7 @@ export const proseView = (
             )
               ? Option.some({ diagram: key, following: shown.following })
               : Option.none(),
+            context.showTitles ?? false,
             h,
           ),
         ),

@@ -55,7 +55,7 @@ describe('the question workspace', () => {
       expect(selector('.f-question-title')).toHaveText(
         grill.steps[0]!.question.ask,
       ),
-      expectAll(all.selector('.f-reading .option-effect')).toHaveCount(2),
+      expectAll(all.selector('.f-reading .f-option-effect')).toHaveCount(3),
       expect(selector('#workspace-reasoning')).toContainText(
         'Why this question',
       ),
@@ -75,7 +75,7 @@ describe('the question workspace', () => {
       { update, view },
       given(review),
       Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
-      expect(selector('.f-current-question')).toHaveText(''),
+      expect(selector('.f-current-question')).toHaveText('Review & send'),
       expect(selector('.f-review .f-table')).toContainText(
         grill.steps[0]!.question.options[0]!.label,
       ),
@@ -84,6 +84,45 @@ describe('the question workspace', () => {
       expect(role('button', { name: 'Send 1 answer' })).toBeEnabled(),
       expect(selector('#send-message')).toExist(),
       expect(role('button', { name: 'Discuss' })).toExist(),
+    )
+  })
+
+  it('keeps the authored explanation headings visible in the reading flow', () => {
+    const titled = {
+      ...snapshot,
+      grill: {
+        ...grill,
+        steps: grill.steps.map(step => ({
+          ...step,
+          prose: ['### The choice\nOnly this run is included.'],
+        })),
+      },
+    }
+    scene(
+      { update, view },
+      given({ ...loaded, page: PageData.Success({ data: titled }) }),
+      expect(selector('.f-reasoning .has-visible-title h3')).toHaveText(
+        'The choice',
+      ),
+      expect(selector('.f-reasoning .has-visible-title p')).toHaveText(
+        'Only this run is included.',
+      ),
+    )
+  })
+
+  it('opens Review details without losing the composer or selected answers', () => {
+    scene(
+      { update, view },
+      given({ ...loaded, currentPart: REVIEW, answers: { Q1: 'a' } }),
+      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+      click(role('button', { name: 'Show details for Q1' })),
+      expect(selector('.f-review-detail')).toContainText(
+        grill.steps[0]!.question.ask,
+      ),
+      expect(selector('#send-message')).toExist(),
+      expect(role('button', { name: 'Send 1 answer' })).toBeEnabled(),
+      click(role('button', { name: 'Hide details for Q1' })),
+      expectAll(all.selector('.f-review-detail')).toHaveCount(0),
     )
   })
 

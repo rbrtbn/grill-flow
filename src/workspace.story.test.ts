@@ -117,6 +117,13 @@ describe('workspace navigation and drafts', () => {
     expect(moved.currentPart).toBe(CONVERSATIONS)
   })
 
+  it('leaves a skipped question open and navigates to the next question route', () => {
+    const moved = update(loaded, Message.ClickedSkip({ question: 'Q1' }))
+    expect(moved.model.skipped).toContain('Q1')
+    expect(moved.model.answers.Q1).toBeUndefined()
+    expect(moved.model.currentPart).toBe(`${QUESTION_PAGE}Q2`)
+  })
+
   it('treats a changed note as a draft even when its option was already sent', () => {
     const answers = { Q1: 'a' }
     const sent = answerLines(grill, answers, {})
@@ -180,6 +187,74 @@ describe('workspace navigation and drafts', () => {
 })
 
 describe('reviewing and sending real answers', () => {
+  it('saves custom text and a note before keyboard navigation removes their editors', () => {
+    const ownText = 'Use a narrower scope.'
+    const note = 'Only for this run.'
+    story(
+      update,
+      given({
+        ...loaded,
+        answers: { Q1: 'other' },
+        own: { Q1: ownText },
+        notes: { Q1: note },
+      }),
+      message(Message.PressedWorkspaceShortcut()),
+      model(current => {
+        expect(current.currentPart).toBe(REVIEW)
+        expect(current.pendingEvents).toBe(2)
+      }),
+      Command.expectExact(
+        PostEvent({
+          grillId: 'fixture',
+          body: JSON.stringify({
+            kind: 'answered',
+            question: 'Q1',
+            key: 'other',
+            text: ownText,
+          }),
+        }),
+        PostEvent({
+          grillId: 'fixture',
+          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
+        }),
+        PushPage({ url: '/g/fixture/review' }),
+        ScrollToTop(),
+      ),
+      Command.resolve(
+        PostEvent({
+          grillId: 'fixture',
+          body: JSON.stringify({
+            kind: 'answered',
+            question: 'Q1',
+            key: 'other',
+            text: ownText,
+          }),
+        }),
+        Message.CompletedPostEvent({
+          result: Result.succeed(snapshot),
+          body: JSON.stringify({
+            kind: 'answered',
+            question: 'Q1',
+            key: 'other',
+            text: ownText,
+          }),
+        }),
+      ),
+      Command.resolve(
+        PostEvent({
+          grillId: 'fixture',
+          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
+        }),
+        Message.CompletedPostEvent({
+          result: Result.succeed(snapshot),
+          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
+        }),
+      ),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    )
+  })
+
   it('sends just the checked draft and guards against a second send while it is in flight', () => {
     const answers = { Q1: 'a', Q2: 'b' }
     const lines = answerLines(grill, answers, {}, {}, grill.steps)

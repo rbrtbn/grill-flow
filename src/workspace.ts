@@ -1,10 +1,11 @@
 import { Array, Option, Schema } from 'effect'
+import { AsyncData } from 'foldkit'
 
 import {
   type Answers,
   type Notes,
   OWN,
-  type Snapshot,
+  Snapshot,
   type Step,
   answerLines,
   isSent,
@@ -16,12 +17,31 @@ export const REVIEW = 'review'
 export const CONVERSATIONS = 'conversations'
 export const REPLIES = 'replies'
 export const NEEDS = 'needs-you'
+export const SQUAD = 'squad'
+export const GRILLS = 'grills'
 export const RUN_TARGET = 'run'
 
 export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 export type QuestionFilter = typeof QuestionFilter.Type
 
+export const CatalogData = AsyncData.Schema(
+  Schema.Array(Snapshot),
+  Schema.String,
+)
+export const WorkSection = Schema.Literals([
+  'Now',
+  'Completed',
+  'Later',
+  'Sessions',
+  'Dependencies',
+])
+
 export const Workspace = Schema.Struct({
+  catalog: CatalogData.schema,
+  workSection: WorkSection,
+  noteOpen: Schema.Array(Schema.String),
+  reviewQuery: Schema.String,
+  reviewExpanded: Schema.Array(Schema.String),
   filter: QuestionFilter,
   search: Schema.String,
   foldedRounds: Schema.Array(Schema.Number),
@@ -36,12 +56,17 @@ export const Workspace = Schema.Struct({
 export type Workspace = typeof Workspace.Type
 
 export const initialWorkspace: Workspace = {
+  catalog: CatalogData.Idle(),
+  workSection: 'Now',
+  noteOpen: [],
+  reviewQuery: '',
+  reviewExpanded: [],
   filter: 'All',
   search: '',
   foldedRounds: [],
   expandedRounds: [],
   isSettingsOpen: false,
-  highlightTerms: true,
+  highlightTerms: false,
   collapseSentRounds: true,
   isDiscussionExpanded: false,
   maybeDiscussionTarget: Option.none(),
@@ -55,6 +80,8 @@ export const isWorkspacePage = (page: string): boolean =>
     CONVERSATIONS,
     REPLIES,
     NEEDS,
+    SQUAD,
+    GRILLS,
     'overview',
     'plan',
     'status',
