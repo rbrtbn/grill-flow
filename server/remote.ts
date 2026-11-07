@@ -3,8 +3,10 @@ import { Schema } from 'effect'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { UpdateItem, type Grill } from '../src/domain'
-import { publishUpdate, publishedUpdates } from './channel'
+import { ChannelItem } from '../src/channel'
+import { type Grill } from '../src/domain'
+import { attentionSnapshot } from './attention'
+import { publishItem, publishedUpdates, remoteItemError } from './channel'
 import {
   ROOT,
   decodeGrill,
@@ -236,13 +238,18 @@ const takeItem = async (
   path: string,
 ): Promise<boolean> => {
   const grill = getGrill(db, path.split('/')[0] ?? '')
-  const decoded = Schema.decodeUnknownResult(UpdateItem)(
+  const decoded = Schema.decodeUnknownResult(ChannelItem)(
     await readRemote(remote.machine, `${root}/${path}`),
   )
   if (grill === undefined || decoded._tag === 'Failure') {
     return false
   }
-  const result = publishUpdate(db, grill, {
+  const remoteError = remoteItemError(decoded.success)
+  if (remoteError !== undefined) {
+    console.error(`remote ${remote.machine}:${path}: ${remoteError}`)
+    return false
+  }
+  const result = publishItem(db, grill, {
     ...decoded.success,
     session: remoteSession(remote.machine, decoded.success.session),
   })
@@ -273,6 +280,7 @@ const pushStates = async (db: Database): Promise<void> => {
       snapshot: {
         ...snapshot(db, grill),
         updates: publishedUpdates(db, [grill.id]),
+        ...attentionSnapshot(db, [grill.id]),
       },
       events: events(db, id).map(event => ({
         ...event,

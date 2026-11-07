@@ -17,8 +17,9 @@ import {
   recordAnswer,
   sendRequestIdentity,
 } from './answerReceipts'
+import { publishItem } from './channel'
 import { selectSend } from './sendSelection'
-import { events, loadGrill, snapshot } from './store'
+import { events, getGrill, loadGrill, snapshot } from './store'
 
 const dir = mkdtempSync(join(tmpdir(), 'grill-routing-'))
 const log = join(dir, 'deliveries.jsonl')
@@ -71,6 +72,15 @@ if (process.argv[3] === 'failed-worker') { console.error('worker unavailable'); 
 `,
   )
   chmodSync(join(dir, 'hc'), 0o700)
+  writeFileSync(
+    join(dir, 'herdr-app'),
+    `#!${process.execPath}
+import { appendFileSync } from 'node:fs'
+appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n')
+`,
+  )
+  chmodSync(join(dir, 'herdr-app'), 0o700)
+
   const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
   const grill = {
     ...fixture,
@@ -227,8 +237,40 @@ describe('HTTP delivery routing', () => {
       }
       await request('events', { kind: 'noted', question: 'Q1', text })
       await request('send', { questions: ['Q1'], message: text })
+      const db = new Database(database)
+      const decision = `veto-${text.length}`
+      try {
+        expect(
+          publishItem(db, getGrill(db, 'routing-fixture')!, {
+            version: 1,
+            kind: 'decision',
+            id: decision,
+            previous: 0,
+            revision: 1,
+            session: 'homelab/worker',
+            body: text,
+            deadline: Date.now() + 60_000,
+            affected: [],
+            resolution: { state: 'provisional' },
+          }).ok,
+        ).toBe(true)
+      } finally {
+        db.close()
+      }
+      const vetoed = await request('events', {
+        kind: 'veto-requested',
+        source: 'routing-fixture',
+        item: decision,
+        revision: 1,
+        requestId: decision,
+      })
+      expect(
+        vetoed.decisions.find(
+          (entry: { item: { id: string } }) => entry.item.id === decision,
+        ).vetoes[0],
+      ).toMatchObject({ delivery: 'delivered', acknowledgment: 'none' })
       const calls = received().slice(start)
-      expect(calls).toHaveLength(6)
+      expect(calls).toHaveLength(7)
       calls.forEach(call => {
         expect(call).toHaveLength(3)
         expect(call[2].startsWith('<grill-flow source="page">\n')).toBe(true)
@@ -322,6 +364,51 @@ it('publishes answer revisions, rejects stale choices and exposes an interrupted
         })
       ).status,
     ).toBe(400)
+  } finally {
+    db.close()
+  }
+})
+
+it('uses fixed focus argv from the published owner step without sending its command', async () => {
+  const db = new Database(database)
+  try {
+    expect(
+      publishItem(db, getGrill(db, 'routing-fixture')!, {
+        version: 1,
+        kind: 'owner-step',
+        id: 'focus-only',
+        previous: 0,
+        revision: 1,
+        session: 'lead',
+        body: 'A typed owner action.',
+        host: 'rob-mbp',
+        destination: { kind: 'terminal', address: 't42' },
+        action: 'never type or paste this',
+        urgency: 'soon',
+        blockers: [],
+        progress: { state: 'open' },
+      }).ok,
+    ).toBe(true)
+    const before = received().length
+    const state = await request('events', {
+      kind: 'owner-focused',
+      source: 'routing-fixture',
+      item: 'focus-only',
+      revision: 1,
+      address: 't99;touch /tmp/unsafe',
+      text: 'do not send',
+    })
+    expect(
+      state.ownerSteps.find(
+        (entry: { item: { id: string } }) => entry.item.id === 'focus-only',
+      ).item.destination,
+    ).toEqual({ kind: 'terminal', address: 't42' })
+    const calls = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line))
+    expect(calls.at(-1)).toEqual(['do', 'agent.focus', '--terminal', 't42'])
+    expect(received()).toHaveLength(before)
   } finally {
     db.close()
   }

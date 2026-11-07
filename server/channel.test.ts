@@ -12,7 +12,13 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { publishUpdate, publishedUpdates, updateHistory } from './channel'
+import { attentionSnapshot } from './attention'
+import {
+  itemHistory,
+  publishUpdate,
+  publishedUpdates,
+  updateHistory,
+} from './channel'
 import { readPage, sourceQuestionUrl, sourceText } from './squad'
 import { loadGrill, retireGrill, restoreGrill, snapshot } from './store'
 
@@ -205,6 +211,46 @@ it('publishes through gf item and rejects changing an immutable outbox item file
   )
   expect((await cli(outbox)).code).not.toBe(0)
   expect(JSON.parse(readFileSync(queued, 'utf8')).body).toBe(item.body)
+  const owner = {
+    ...item,
+    kind: 'owner-step',
+    id: 'manual-step',
+    host: 'rob-mbp',
+    destination: 'https://example.test/owner',
+    action: 'Exact owner command',
+    urgency: 'soon',
+    blockers: [],
+    progress: { state: 'open' },
+  }
+  writeFileSync(record, JSON.stringify(owner))
+  expect((await cli()).code).toBe(0)
+  expect((await cli(outbox)).code).toBe(0)
+  expect(
+    JSON.parse(
+      readFileSync(
+        join(outbox, grill.id, 'items/manual-step-0000000001.json'),
+        'utf8',
+      ),
+    ).action,
+  ).toBe(owner.action)
+  writeFileSync(
+    record,
+    JSON.stringify({
+      ...owner,
+      id: 'native-step',
+      destination: { kind: 'terminal', address: 't42' },
+    }),
+  )
+  expect((await cli()).code).toBe(0)
+  const remoteNative = await cli(outbox)
+  expect(remoteNative.code).not.toBe(0)
+  expect(remoteNative.error).toContain(
+    'native focus belongs to the serving host',
+  )
+  expect(
+    existsSync(join(outbox, grill.id, 'items/native-step-0000000001.json')),
+  ).toBe(false)
+  expect(itemHistory(db, grill.id)).toHaveLength(3)
   expect(readFileSync(grillFile, 'utf8')).toBe(original)
 })
 
@@ -231,6 +277,29 @@ it('imports remote immutable revisions in order, retries an unmet revision, and 
         body: `Revision ${revision}`,
       }),
     )
+  const owner = {
+    ...item,
+    kind: 'owner-step',
+    id: 'remote-owner',
+    host: 'lab',
+    destination: 'https://example.test/remote-session',
+    action: 'Exact remote-host action',
+    urgency: 'soon',
+    blockers: [],
+    progress: { state: 'open' },
+  }
+  writeFileSync(
+    join(root, id, 'items/remote-owner-0000000001.json'),
+    JSON.stringify(owner),
+  )
+  writeFileSync(
+    join(root, id, 'items/native-owner-0000000001.json'),
+    JSON.stringify({
+      ...owner,
+      id: 'native-owner',
+      destination: { kind: 'terminal', address: 't42' },
+    }),
+  )
   write(1)
   write(3)
   const hc = join(dir, 'hc')
@@ -277,6 +346,23 @@ try { await pollRemotesOnce(db,[{machine:'lab',dir:${JSON.stringify(root)}}]); }
   await poll()
   expect(publishedUpdates(db, [id])[0]?.item.revision).toBe(1)
   expect(publishedUpdates(db, [id])[0]?.item.session).toBe('lab/t-worker')
+  expect(attentionSnapshot(db, [id]).ownerSteps).toMatchObject([
+    {
+      item: {
+        id: 'remote-owner',
+        session: 'lab/t-worker',
+        destination: owner.destination,
+      },
+    },
+  ])
+  expect(
+    db
+      .query<{ count: number }, []>(
+        "SELECT COUNT(*) AS count FROM remote_files WHERE path LIKE '%native-owner%'",
+      )
+      .get()?.count,
+  ).toBe(0)
+
   expect(
     db
       .query<{ count: number }, []>(
@@ -296,6 +382,10 @@ try { await pollRemotesOnce(db,[{machine:'lab',dir:${JSON.stringify(root)}}]); }
   await poll()
   expect(updateHistory(db, id)).toHaveLength(3)
   expect(updateHistory(db, id)[0]?.item.body).toBe('Revision 1')
+  expect(
+    JSON.parse(readFileSync(join(root, id, 'state.json'), 'utf8')).snapshot
+      .ownerSteps,
+  ).toMatchObject([{ item: { id: 'remote-owner' } }])
   expect(
     JSON.parse(readFileSync(join(root, id, 'state.json'), 'utf8')).snapshot
       .updates[0].item.revision,

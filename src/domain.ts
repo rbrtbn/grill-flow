@@ -1,6 +1,13 @@
 import { Array, Option, Order, Record, Schema, pipe } from 'effect'
 
+import {
+  PublishedBlocker,
+  PublishedDecision,
+  PublishedOwnerStep,
+  PublishedUpdate,
+} from './channel'
 import { Compare, titleOf } from './diagram'
+export { UpdateItem } from './channel'
 
 // GRILL
 
@@ -473,30 +480,6 @@ export const Retirement = Schema.Struct({
   reason: Schema.String,
 })
 
-export const UpdateItem = Schema.Struct({
-  version: Schema.Literal(1),
-  kind: Schema.Literal('update'),
-  id: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]{0,79}$/)),
-  previous: Schema.Number.check(
-    Schema.isInt(),
-    Schema.isGreaterThanOrEqualTo(0),
-  ),
-  revision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
-  session: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
-  body: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20000)),
-  question: Schema.optionalKey(Schema.String),
-  supersedes: Schema.optionalKey(Schema.String),
-})
-export type UpdateItem = typeof UpdateItem.Type
-export const PublishedUpdate = Schema.Struct({
-  source: Schema.String,
-  event: Schema.Number,
-  at: Schema.Number,
-  item: UpdateItem,
-  displayBody: Schema.optionalKey(Schema.String),
-  supersededBy: Schema.optionalKey(Schema.String),
-})
-
 export const AnswerContext = Schema.Struct({
   revision: Schema.String,
   displayPage: Schema.String,
@@ -536,6 +519,10 @@ export const AnswerHistoryEntry = Schema.Struct({
 export const Snapshot = Schema.Struct({
   grill: Grill,
   updates: Schema.optionalKey(Schema.Array(PublishedUpdate)),
+  ownerSteps: Schema.optionalKey(Schema.Array(PublishedOwnerStep)),
+  decisions: Schema.optionalKey(Schema.Array(PublishedDecision)),
+  blockers: Schema.optionalKey(Schema.Array(PublishedBlocker)),
+  channelNow: Schema.optionalKey(Schema.Number),
   answerHistory: Schema.optionalKey(Schema.Array(AnswerHistoryEntry)),
   questionOrigins: Schema.optionalKey(
     Schema.Record(

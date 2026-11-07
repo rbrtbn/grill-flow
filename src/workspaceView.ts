@@ -3,6 +3,8 @@ import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 
+import { attentionView } from './attentionView'
+import { ownerWorkCounts } from './channel'
 import {
   answerHistoryView,
   sourceQuestionHref,
@@ -568,6 +570,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
     const status = statusOf(grill, model.answers, step.question.id)
     return status._tag === 'Open' || status._tag === 'Waiting'
   })
+  const ownerWork = ownerWorkCounts(snapshot)
   const visible = visibleQuestions(
     model.workspace,
     snapshot,
@@ -684,7 +687,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ),
           item(
             'Needs you',
-            `${open.length} open${drafts > 0 ? ` · ${drafts} drafts` : ''}`,
+            `${open.length} open${drafts > 0 ? ` · ${drafts} drafts` : ''}${ownerWork.actions > 0 ? ` · ${ownerWork.actions} action${ownerWork.actions === 1 ? '' : 's'}` : ''}${ownerWork.provisional > 0 ? ` · ${ownerWork.provisional} provisional` : ''}`,
             NEEDS,
           ),
           item(
@@ -2244,7 +2247,9 @@ const neededCount = (snapshot: Snapshot): number =>
     snapshot.notes,
     snapshot.own,
   ).filter(id => !snapshot.grill.steps.some(step => step.question.id === id))
-    .length
+    .length +
+  ownerWorkCounts(snapshot).actions +
+  ownerWorkCounts(snapshot).provisional
 const workOf = (snapshot: Snapshot) => {
   const issues = snapshot.grill.plan?.issues ?? []
   return {
@@ -2308,7 +2313,7 @@ const needsView = (
       h.h1([], ['Needs you']),
       h.p(
         [h.Class('f-lead')],
-        ['Decisions to make and answers ready to return to the agent.'],
+        ['Decisions, owner actions and answers ready to return to the agent.'],
       ),
       h.section(
         [h.Class('f-attention-summary')],
@@ -2359,18 +2364,7 @@ const needsView = (
       ...(waiting.length === 0
         ? []
         : [h.h2([], ['Waiting on another answer']), ...rows(waiting)]),
-      snapshot.grill.kind === 'squad'
-        ? h.section(
-            [h.Class('f-owner-section')],
-            [
-              h.h2([], ['Owner steps']),
-              h.p(
-                [h.Class('hint')],
-                ['No owner actions reported in this grill.'],
-              ),
-            ],
-          )
-        : h.empty,
+      attentionView(model, snapshot, h),
     ],
   )
 }
@@ -2812,7 +2806,9 @@ const squadView = (
                               `/g/${encodeURIComponent(state.grill.id)}/needs-you`,
                             ),
                           ],
-                          [`${neededCount(state)} questions`],
+                          [
+                            `${neededCount(state)} ${ownerWorkCounts(state).actions + ownerWorkCounts(state).provisional > 0 ? (neededCount(state) === 1 ? 'item' : 'items') : neededCount(state) === 1 ? 'question' : 'questions'}`,
+                          ],
                         ),
                       ],
                     ),
@@ -2921,7 +2917,11 @@ const grillsView = (model: Model, snapshot: Snapshot, h: H): Html => {
           [
             neededCount(state) === 0
               ? 'All sent'
-              : `${neededCount(state)} not sent`,
+              : ownerWorkCounts(state).actions +
+                    ownerWorkCounts(state).provisional >
+                  0
+                ? `${neededCount(state)} ${neededCount(state) === 1 ? 'item needs' : 'items need'} attention`
+                : `${neededCount(state)} not sent`,
           ],
         ),
       ],

@@ -18,6 +18,7 @@ import {
   replaySubmission,
   unconfirmedSends,
 } from './answerReceipts'
+import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { askMessage, pageMessage } from './messages'
@@ -169,6 +170,7 @@ const clientSnapshot = (grill: Grill) => {
   return {
     ...state,
     questionRevisions: questionRevisions(state.grill),
+    ...attentionSnapshot(db, sources),
     updates: publishedUpdates(db, sources).map(entry => ({
       ...entry,
       displayBody:
@@ -216,6 +218,57 @@ const handleEvent = async (
   const page = readPage(db, pageId)
   if (!page) {
     return json({ error: 'no such grill' }, 404)
+  }
+  if (requestBody.kind === 'owner-focused') {
+    const result = await focusOwnerStep(
+      db,
+      page,
+      requestBody,
+      async address => {
+        const child = Bun.spawn(
+          ['herdr-app', 'do', 'agent.focus', '--terminal', address],
+          {
+            stdout: 'ignore',
+            stderr: 'pipe',
+          },
+        )
+        const [code, error] = await Promise.all([
+          child.exited,
+          new Response(child.stderr).text(),
+        ])
+        return code === 0
+          ? { ok: true, detail: 'Session opened.' }
+          : {
+              ok: false,
+              detail:
+                error.trim().slice(0, 300) ||
+                'The session could not be opened.',
+            }
+      },
+      PREVIEW,
+    )
+    return result.ok
+      ? json(clientSnapshot(readPage(db, pageId)!.state.grill))
+      : json({ error: result.error }, result.status)
+  }
+  if (requestBody.kind === 'veto-requested') {
+    const result = await requestVeto(
+      db,
+      page,
+      requestBody,
+      (session, text) =>
+        PREVIEW
+          ? Promise.resolve({
+              ok: false,
+              detail: 'Preview: no terminal delivery was attempted.',
+            })
+          : sendToSession(sessionFor(session), text),
+      (source, session) => gfFor(source, session) ?? `bun run --cwd ${ROOT} gf`,
+    )
+    if (!result.ok) {
+      return json({ error: result.error }, result.status)
+    }
+    return json(clientSnapshot(readPage(db, pageId)!.state.grill))
   }
   const destination = eventDestination(page, requestBody)
   const grill = destination.grill

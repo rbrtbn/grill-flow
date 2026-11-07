@@ -29,6 +29,8 @@ export type EventKind =
   | 'sent'
   | 'submitted'
   | 'item-published'
+  | 'veto-requested'
+  | 'veto-delivery'
   | 'replied'
   | 'retired'
   | 'restored'

@@ -23,6 +23,13 @@ filters expose every state and urgency, including Unspecified. Counts follow the
 State, urgency and each grill's round scope are saved in the browser and restored on reload.
 Explicit question links reveal the target round; older Agent grouping preferences become Round.
 
+Needs you also shows source-owned owner steps, provisional decisions with veto receipts, and
+named blocking conditions. Owner completion is agent-reported with dated proof. Copy action
+copies only; a local session destination focuses its published tN address. Veto delivery and the
+owner's acknowledgment/outcome stay separate. See the
+[record contract](docs/implementation/2026-11-07-channel-attention-contract.md)
+for `gf item` examples.
+
 In a discussion, Enter sends and Shift + Enter adds a line. Sending moves to the bottom;
 new agent answers follow only when you were already there, leaving older reading undisturbed.
 

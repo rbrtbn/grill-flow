@@ -15,3 +15,4 @@
 | [0011](0011-freeze-ordinary-page-answer-receipts.md) | Freeze ordinary page answer receipts | accepted |
 | [0012](0012-publish-source-owned-updates-and-read-models.md) | Publish source-owned updates and read models | accepted |
 | [0013](0013-use-independent-round-scope-in-sidebar.md) | Use independent round scope in the sidebar | accepted |
+| [0014](0014-separate-owner-reports-from-delivery-evidence.md) | Separate owner reports from delivery evidence | accepted |

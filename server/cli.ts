@@ -8,7 +8,7 @@ import {
   replyText,
 } from '../src/domain'
 import { ContextUnavailable, readSubmission } from './answerReceipts'
-import { publishUpdate } from './channel'
+import { publishItem } from './channel'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
@@ -39,7 +39,7 @@ const usage = `gf: grill-flow's agent-side commands
                                        or reply with a comment; a concept takes comments only
   gf reply <grill-id> --file <path>    after a Send arrives: tell the user what you decided and
                                        what comes next; the page shows it as your reply
-  gf item <source-grill> --file <path> publish a versioned update without creating a question
+  gf item <source-grill> --file <path> publish a versioned update, owner step, decision, evidence or blocker
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
   gf grant --version                 probe immutable answer readback format
   gf grant <source-grill> <send-id>    read a captured submission; does not classify authority
@@ -51,7 +51,7 @@ const usage = `gf: grill-flow's agent-side commands
   gf remote add <machine> <outbox>     pull grills an agent on that machine writes to its outbox
   gf remote ls | rm <machine>          list or drop the outboxes this server pulls
 
-  With GF_OUTBOX=<folder>, load, revise, reply, state, events and wait work on that folder instead,
+  With GF_OUTBOX=<folder>, load, item, revise, reply, state, events and wait use that folder instead,
   for an agent on a machine whose grills a server elsewhere pulls (gf remote add there).`
 
 const flag = (
@@ -96,13 +96,13 @@ switch (command) {
     const grill =
       getGrill(db, args[0] ?? '') ??
       fail('An item belongs to a canonical source grill.')
-    const result = publishUpdate(
+    const result = publishItem(
       db,
       grill,
       JSON.parse(readFileSync(flag(args, '--file') ?? fail(usage), 'utf8')),
     )
     if (result.ok) {
-      console.log(`published update on ${grill.id}, event ${result.event}`)
+      console.log(`published item on ${grill.id}, event ${result.event}`)
     } else {
       fail(result.reason)
     }

@@ -25,10 +25,12 @@ import {
 } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { afterCommit } from 'foldkit/render'
+import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 
 import { BrowserCrypto } from '@effect/platform-browser'
 
+import { channelItemKey } from './channel'
 import { DiagramView } from './diagram'
 import {
   type Grill,
@@ -103,6 +105,16 @@ export const QuickSendState = Schema.Literals(['Idle', 'Reading', 'Saving'])
 export const CopyState = Schema.Literals(['Idle', 'Copied', 'Failed'])
 export type CopyState = typeof CopyState.Type
 
+const OwnerDestinationState = defineTaggedUnion({
+  Opening: {},
+  Opened: {},
+  Failed: { error: Schema.String },
+})
+const VetoAttemptState = defineTaggedUnion({
+  Sending: {},
+  Failed: { error: Schema.String },
+})
+
 /**
  * What fills the right sidebar: the concept's conversation, the map of every question, every
  * message from the agent, or nothing.
@@ -164,6 +176,12 @@ export const Model = Schema.Struct({
   talkGeneration: Schema.Number,
   sendDetail: Schema.String,
   copy: CopyState,
+  ownerDestinations: Schema.Record(Schema.String, OwnerDestinationState),
+  ownerCopies: Schema.Record(
+    Schema.String,
+    Schema.Literals(['Copied', 'Failed']),
+  ),
+  vetoAttempts: Schema.Record(Schema.String, VetoAttemptState),
   maybeSaveError: Schema.Option(Schema.String),
   maybeBuild: Schema.Option(Schema.String),
   currentPart: Schema.String,
@@ -322,6 +340,32 @@ export const Message = defineMessageUnion({
   ClickedCancelSend: {},
   UpdatedSendMessage: { value: Schema.String },
   CompletedSendAnswers: { result: Schema.Result(Snapshot, Schema.String) },
+  ClickedVeto: {
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+  },
+  CompletedPostVeto: {
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+    result: Schema.Result(Snapshot, Schema.String),
+  },
+  ClickedOwnerDestination: {
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+  },
+  CompletedOpenOwnerDestination: {
+    key: Schema.String,
+    result: Schema.Result(Snapshot, Schema.String),
+  },
+  ClickedCopyOwnerStep: {
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+  },
+  CompletedCopyOwnerStep: { key: Schema.String, copied: Schema.Boolean },
   ClickedCopy: {},
   CompletedCopyReply: { copied: Schema.Boolean },
   ClickedToggleDiff: { stepId: Schema.String },
@@ -1455,6 +1499,119 @@ export const update = (model: Model, message: Message) =>
             }),
           },
 
+    ClickedVeto: ({ source, item, revision }) =>
+      withSnapshot(model, snapshot => {
+        const key = channelItemKey(source, item, revision)
+        const decision = snapshot.decisions?.find(
+          entry =>
+            entry.source === source &&
+            entry.item.id === item &&
+            entry.item.revision === revision,
+        )
+        if (
+          model.vetoAttempts[key]?._tag === 'Sending' ||
+          decision === undefined ||
+          decision.item.resolution.state !== 'provisional' ||
+          decision.vetoes.some(receipt => receipt.revision === revision)
+        ) {
+          return { model }
+        }
+        return {
+          model: modifyFields(model, {
+            vetoAttempts: attempts =>
+              Record.set(attempts, key, VetoAttemptState.Sending()),
+          }),
+          commands: [
+            PostVeto({ grillId: snapshot.grill.id, source, item, revision }),
+          ],
+        }
+      }),
+    CompletedPostVeto: ({ source, item, revision, result }) => {
+      const key = channelItemKey(source, item, revision)
+      const loaded = settleLoad(model, result)
+      return {
+        model: modifyFields(loaded.model, {
+          vetoAttempts: attempts =>
+            result._tag === 'Success'
+              ? Record.remove(attempts, key)
+              : Record.set(
+                  attempts,
+                  key,
+                  VetoAttemptState.Failed({ error: result.failure }),
+                ),
+        }),
+      }
+    },
+    ClickedOwnerDestination: ({ source, item, revision }) =>
+      withSnapshot(model, snapshot => {
+        const step = snapshot.ownerSteps?.find(
+          entry =>
+            entry.source === source &&
+            entry.item.id === item &&
+            entry.item.revision === revision,
+        )
+        const key = channelItemKey(source, item, revision)
+        if (
+          step === undefined ||
+          typeof step.item.destination === 'string' ||
+          model.ownerDestinations[key]?._tag === 'Opening'
+        ) {
+          return { model }
+        }
+        return {
+          model: modifyFields(model, {
+            ownerDestinations: destinations =>
+              Record.set(destinations, key, OwnerDestinationState.Opening()),
+          }),
+          commands: [
+            OpenOwnerDestination({
+              grillId: snapshot.grill.id,
+              source,
+              item,
+              revision,
+              key,
+            }),
+          ],
+        }
+      }),
+    CompletedOpenOwnerDestination: ({ key, result }) => ({
+      model: modifyFields(model, {
+        ownerDestinations: destinations =>
+          Record.set(
+            destinations,
+            key,
+            result._tag === 'Success'
+              ? OwnerDestinationState.Opened()
+              : OwnerDestinationState.Failed({ error: result.failure }),
+          ),
+      }),
+    }),
+    ClickedCopyOwnerStep: ({ source, item, revision }) =>
+      withSnapshot(model, snapshot => {
+        const step = snapshot.ownerSteps?.find(
+          entry =>
+            entry.source === source &&
+            entry.item.id === item &&
+            entry.item.revision === revision,
+        )
+        return step === undefined
+          ? { model }
+          : {
+              model,
+              commands: [
+                CopyOwnerStep({
+                  key: channelItemKey(source, item, revision),
+                  text: step.item.action,
+                }),
+              ],
+            }
+      }),
+    CompletedCopyOwnerStep: ({ key, copied }) => ({
+      model: modifyFields(model, {
+        ownerCopies: copies =>
+          Record.set(copies, key, copied ? 'Copied' : 'Failed'),
+      }),
+    }),
     ClickedCopy: () =>
       withSnapshot(model, snapshot => ({
         model,
@@ -2617,6 +2774,9 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     talkGeneration: 0,
     sendDetail: '',
     copy: 'Idle',
+    ownerCopies: {},
+    ownerDestinations: {},
+    vetoAttempts: {},
     maybeSaveError: Option.none(),
     maybeBuild: Option.none(),
     currentPart: pageOfPath(url.pathname),
@@ -2848,21 +3008,29 @@ const SnapshotFromJson = Schema.decodeUnknownEffect(Snapshot)
 
 const requestSnapshot = (input: string, init?: RequestInit) =>
   pipe(
-    Effect.tryPromise(async () => {
-      const response = await fetch(input, {
-        credentials: 'same-origin',
-        ...init,
-      })
-      const body: unknown = await response.json()
-      if (!response.ok) {
-        const error = (body as { error?: unknown }).error
-        throw new Error(
-          typeof error === 'string'
-            ? error
-            : `The server answered ${response.status}.`,
-        )
-      }
-      return body
+    Effect.tryPromise({
+      try: async () => {
+        const response = await fetch(input, {
+          credentials: 'same-origin',
+          ...init,
+        })
+        const body: unknown = await response.json()
+        if (!response.ok) {
+          const error = Schema.decodeUnknownResult(
+            Schema.Struct({ error: Schema.String }),
+          )(body)
+          throw new Error(
+            error._tag === 'Success'
+              ? error.success.error
+              : `The server answered ${response.status}.`,
+          )
+        }
+        return body
+      },
+      catch: error =>
+        error instanceof Error
+          ? error
+          : new Error('The page data could not be read.'),
     }),
     Effect.flatMap(body => SnapshotFromJson(body)),
     Effect.mapError(error =>
@@ -2985,6 +3153,69 @@ export const SendAnswers = Command.define('SendAnswers', {
         }),
       ),
       Effect.map(result => Message.CompletedSendAnswers({ result })),
+    ),
+})
+
+export const PostVeto = Command.define('PostVeto', {
+  args: {
+    grillId: Schema.String,
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+  },
+  messages: [Message.CompletedPostVeto],
+  execute: ({ grillId, source, item, revision }) =>
+    SecureRandom.SecureRandom.use(random => random.uuidV4()).pipe(
+      Effect.provide(BrowserCrypto.layerSecureRandom),
+      Effect.flatMap(requestId =>
+        requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/events`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'veto-requested',
+            source,
+            item,
+            revision,
+            requestId,
+          }),
+        }),
+      ),
+      Effect.catch(error => Effect.succeed(Result.fail(String(error)))),
+      Effect.map(result =>
+        Message.CompletedPostVeto({ source, item, revision, result }),
+      ),
+    ),
+})
+export const OpenOwnerDestination = Command.define('OpenOwnerDestination', {
+  args: {
+    grillId: Schema.String,
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+    key: Schema.String,
+  },
+  messages: [Message.CompletedOpenOwnerDestination],
+  execute: ({ grillId, source, item, revision, key }) =>
+    requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'owner-focused', source, item, revision }),
+    }).pipe(
+      Effect.map(result =>
+        Message.CompletedOpenOwnerDestination({ key, result }),
+      ),
+    ),
+})
+
+export const CopyOwnerStep = Command.define('CopyOwnerStep', {
+  args: { key: Schema.String, text: Schema.String },
+  messages: [Message.CompletedCopyOwnerStep],
+  execute: ({ key, text }) =>
+    Effect.tryPromise(() => navigator.clipboard.writeText(text)).pipe(
+      Effect.map(() => Message.CompletedCopyOwnerStep({ key, copied: true })),
+      Effect.catch(() =>
+        Effect.succeed(Message.CompletedCopyOwnerStep({ key, copied: false })),
+      ),
     ),
 })
 

@@ -24,7 +24,9 @@ Step 1 shipped in 822ccea: versioned ordinary answer/submission capture, readbac
 unconfirmed-delivery state for interrupted sends. T10m reviewed the implemented contract;
 PAGE activation remains held. Step 2 shipped in 13bf32b: informational updates, original-wording
 answer history and registration-based source-qualified links. Sidebar G shipped in b082204.
-Live provider refresh remains in step 4.
+Step 3 adds owner steps with reported proof, provisional decisions with page veto receipts,
+and typed evidence-backed blockers. Local terminal jumps focus only a published tN address;
+remote item destinations remain links. Live provider refresh remains in step 4.
 
 ## Shared implementation
 

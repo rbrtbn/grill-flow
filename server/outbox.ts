@@ -8,14 +8,15 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
+import { ChannelItem } from '../src/channel'
 import {
   type Grill,
   type Snapshot,
-  UpdateItem,
   hasTarget,
   isWholeTarget,
   replyText,
 } from '../src/domain'
+import { remoteItemError } from './channel'
 import { askMessage } from './messages'
 import { ROOT, decodeGrill } from './store'
 
@@ -106,21 +107,25 @@ export const runOutbox = async (
   switch (command) {
     case 'item': {
       const grill = grillOf(args[0])
-      const decoded = Schema.decodeUnknownResult(UpdateItem)(
+      const decoded = Schema.decodeUnknownResult(ChannelItem)(
         JSON.parse(readFileSync(flag(args, '--file') ?? fail(usage), 'utf8')),
       )
       if (decoded._tag === 'Failure') {
-        return fail('Invalid version-1 update record.')
+        return fail('Invalid version-1 channel item.')
       }
       const item = decoded.success
+      const remoteError = remoteItemError(item)
+      if (remoteError !== undefined) {
+        fail(remoteError)
+      }
       if (item.body.trim() === '' || item.revision !== item.previous + 1) {
-        fail('An update needs text and the next revision after previous.')
+        fail('A channel item needs text and the next revision after previous.')
       }
       const name = `${item.id}-${String(item.revision).padStart(10, '0')}.json`
       const path = join(folder(grill.id), 'items', name)
       const text = `${JSON.stringify(item)}\n`
       if (existsSync(path) && readFileSync(path, 'utf8') !== text) {
-        fail('That immutable update file already has different content.')
+        fail('That immutable item file already has different content.')
       }
       mkdirSync(join(folder(grill.id), 'items'), { recursive: true })
       if (!existsSync(path)) {

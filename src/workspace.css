@@ -1993,7 +1993,6 @@ body[data-gf-preview] .f-workspace {
   margin-top: 12px;
 }
 
-/* The app rail and round rail stay put while questions scroll (sidebar G). */
 .f-frame {
   --nav-safe: clamp(340px, var(--nav-w), 44vw);
 }
@@ -2199,4 +2198,56 @@ body[data-gf-preview] .f-workspace {
     min-height: 51px;
     font-size: 11px;
   }
+}
+
+.f-channel-attention > section {
+  margin-top: 32px;
+}
+.f-channel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.f-channel-state {
+  color: var(--muted);
+  font: 500 13px/1.4 var(--label);
+}
+.f-channel-words {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.f-channel-attention .f-channel-entry > :is(p, pre, details, .f-actions) {
+  margin-top: 10px;
+}
+.f-owner-action {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.f-owner-action code {
+  white-space: inherit;
+}
+.f-veto-receipt {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.f-veto-receipt > p {
+  margin-top: 7px;
+}
+.f-veto-receipt > details {
+  margin-top: 10px;
+}
+.f-veto-receipt > strong {
+  font: 600 13px/1.4 var(--label);
+}
+.f-veto-receipt summary,
+.f-earlier-owner-steps summary {
+  cursor: pointer;
+  color: var(--link);
+  font: 500 13px/1.5 var(--label);
 }
