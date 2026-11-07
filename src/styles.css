@@ -2044,15 +2044,30 @@ button.plan-title:hover {
   font-size: 1.05rem;
   cursor: pointer;
 }
-.toast-more {
+.notification-tray-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   justify-self: end;
   background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 999px;
-  padding: 4px 12px;
+  min-height: 40px;
+  padding: 6px 12px;
   font: 600 0.82rem var(--label);
   color: var(--link);
   cursor: pointer;
+}
+.notification-tray-toggle:hover {
+  background: var(--link-wash);
+}
+.notification-count {
+  min-width: 1.5em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--link);
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
 }
 @keyframes toast-in {
   from {

@@ -89,6 +89,7 @@ import {
   talkKeyOf,
   threadDraftKey,
   unreadMessagesOf,
+  visibleToastsOf,
 } from './main'
 import { isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
@@ -2958,14 +2959,11 @@ const agentWhere = (grill: Grill, message: AgentMessage): string =>
             () => message.stepId,
           )}`
 
-const TOASTS_SHOWN = 3
-
 const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const unread = unreadMessagesOf(model)
-  const shown = Array.reverse(Array.takeRight(unread, TOASTS_SHOWN)).filter(
-    message => !model.hiddenToastIds.includes(message.id),
-  )
-  return Array.isReadonlyArrayEmpty(shown)
+  const shown = visibleToastsOf(model)
+  const expanded = Array.isReadonlyArrayNonEmpty(shown)
+  return Array.isReadonlyArrayEmpty(unread)
     ? h.empty
     : h.div(
         [h.Class('toasts'), h.AriaLive('polite')],
@@ -3028,15 +3026,20 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ],
             ),
           ),
-          unread.length > shown.length
-            ? h.button(
-                [
-                  h.Class('toast-more'),
-                  h.OnClick(Message.ClickedToastOverflow()),
-                ],
-                [`${unread.length - shown.length} more in Replies`],
-              )
-            : h.empty,
+          h.button(
+            [
+              h.Class('notification-tray-toggle'),
+              h.AriaExpanded(expanded),
+              h.AriaLabel(
+                `${expanded ? 'Hide' : 'Show'} ${unread.length} unread notifications`,
+              ),
+              h.OnClick(Message.ClickedNotificationTray()),
+            ],
+            [
+              expanded ? 'Hide notifications' : 'Notifications',
+              h.span([h.Class('notification-count')], [String(unread.length)]),
+            ],
+          ),
         ],
       )
 }

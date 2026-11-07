@@ -23,7 +23,6 @@ import {
   CONVERSATIONS,
   NEEDS,
   QUESTION_PAGE,
-  REPLIES,
   REVIEW,
   adjacentQuestion,
   draftQuestions,
@@ -129,37 +128,6 @@ describe('workspace navigation and drafts', () => {
     )
     expect(boundary.model.currentPart).toBe(`${QUESTION_PAGE}Q1`)
     expect(boundary.commands).toBeUndefined()
-  })
-
-  it('opens Replies from the notification overflow in the workspace', () => {
-    story(
-      update,
-      given({ ...loaded, side: 'Talk' }),
-      message(Message.ClickedToastOverflow()),
-      model(current => {
-        expect(current.currentPart).toBe(REPLIES)
-        expect(current.side).toBe('None')
-      }),
-      Command.expectExact(
-        PushPage({ url: '/g/fixture/replies' }),
-        ScrollToTop(),
-      ),
-      Command.resolve(PushPage, Message.CompletedNavigate()),
-      Command.resolve(ScrollToTop, Message.CompletedScroll()),
-    )
-  })
-
-  it('opens the legacy Replies panel without toggling an open panel closed', () => {
-    const opened = update(
-      { ...loaded, currentPart: 'part-1', side: 'None' },
-      Message.ClickedToastOverflow(),
-    )
-    const keptOpen = update(
-      { ...loaded, currentPart: 'part-1', side: 'Replies' },
-      Message.ClickedToastOverflow(),
-    )
-    expect(opened.model.side).toBe('Replies')
-    expect(keptOpen.model.side).toBe('Replies')
   })
 
   it('keeps conversation drafts separate and preserves the question when expanding into Conversations', () => {

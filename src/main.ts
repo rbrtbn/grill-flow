@@ -187,6 +187,7 @@ export const Model = Schema.Struct({
   readIds: Schema.Array(Schema.String),
   // Timeouts hide cards while their replies remain unread.
   hiddenToastIds: Schema.Array(Schema.String),
+  notificationTray: Schema.Literals(['Expanded', 'Collapsed']),
   // The agent message the reader closed in the top bar; a newer one brings the line back. Kept
   // per grill in the browser.
   maybeClosedLine: Schema.Option(Schema.String),
@@ -356,7 +357,7 @@ export const Message = defineMessageUnion({
   ClickedAgentMessage: { id: Schema.String, inReplies: Schema.Boolean },
   DismissedAgentMessage: { id: Schema.String },
   EndedToastCountdown: { id: Schema.String },
-  ClickedToastOverflow: {},
+  ClickedNotificationTray: {},
   SawAgentMessages: { ids: Schema.Array(Schema.String) },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
@@ -1722,14 +1723,13 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
 
-    ClickedToastOverflow: () => {
-      if (!isWorkspacePage(model.currentPart)) {
-        return { model: modifyFields(model, { side: () => 'Replies' }) }
-      }
-      const moved = workspaceNavigate(model, REPLIES)
+    ClickedNotificationTray: () => {
+      const reopening = Array.isReadonlyArrayEmpty(visibleToastsOf(model))
       return {
-        model: modifyFields(moved.model, { side: () => 'None' }),
-        commands: moved.commands ?? [],
+        model: modifyFields(model, {
+          notificationTray: () => (reopening ? 'Expanded' : 'Collapsed'),
+          hiddenToastIds: ids => (reopening ? [] : ids),
+        }),
       }
     },
 
@@ -2461,6 +2461,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     readSince: Option.none(),
     readIds: [],
     hiddenToastIds: [],
+    notificationTray: 'Expanded',
     maybeClosedLine: Option.none(),
     send: 'Idle',
     quickSend: 'Idle',
@@ -3275,6 +3276,13 @@ export const unreadMessagesOf = (model: Model) =>
         unreadOf(agentMessagesOf(snapshot), since, model.readIds),
     },
   )
+
+export const visibleToastsOf = (model: Model) =>
+  model.notificationTray === 'Collapsed'
+    ? []
+    : Array.reverse(Array.takeRight(unreadMessagesOf(model), 3)).filter(
+        message => !model.hiddenToastIds.includes(message.id),
+      )
 
 const NAV_FOLDED_KEY = 'grill-flow:nav-folded'
 

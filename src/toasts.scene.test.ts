@@ -1,7 +1,6 @@
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
-  Command,
   all,
   click,
   expect,
@@ -15,15 +14,7 @@ import { readFileSync } from 'node:fs'
 import { expect as assert, describe, it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import {
-  Message,
-  PageData,
-  PushPage,
-  ScrollToTop,
-  init,
-  unreadMessagesOf,
-  update,
-} from './main'
+import { Message, PageData, init, unreadMessagesOf, update } from './main'
 import { view } from './view'
 
 const grill = Schema.decodeUnknownSync(Grill)(
@@ -55,15 +46,13 @@ const loaded = {
 }
 
 describe('agent toast notifications', () => {
-  it('hides expired countdowns without marking replies read or replaying older toasts', () => {
+  it('keeps an unread badge after expiry and reopens the newest unread cards', () => {
     scene(
       { update, view },
       given(loaded),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
-      expect(role('button', { name: '2 more in Replies' })).toHaveHandler(
-        'click',
-      ),
+      expect(role('button', { name: 'Hide 5 unread notifications' })).toExist(),
       expect(selector('.toast-progress')).toHaveHandler('animationend'),
     )
     const expired = ['reply-5', 'reply-4', 'reply-3'].reduce(
@@ -76,27 +65,88 @@ describe('agent toast notifications', () => {
       { update, view },
       given(expired),
       expectAll(all.selector('.toast')).toHaveCount(0),
+      expect(selector('.notification-count')).toHaveText('5'),
+      click(role('button', { name: 'Show 5 unread notifications' })),
+      expectAll(all.selector('.toast')).toHaveCount(3),
+      expectAll(all.selector('.toast-progress')).toHaveCount(3),
+      expect(selector('.notification-count')).toHaveText('5'),
     )
   })
 
-  it('opens the Replies page from the overflow button in the workspace', () => {
+  it.each(['question:Q1', 'part-1'])(
+    'collapses and reopens without navigating or reading on %s',
+    currentPart => {
+      const collapsed = update(
+        { ...loaded, currentPart },
+        Message.ClickedNotificationTray(),
+      )
+      assert(collapsed.model.currentPart).toBe(currentPart)
+      assert(collapsed.model.side).toBe(loaded.side)
+      assert(collapsed.model.readIds).toEqual([])
+      assert(collapsed.commands).toBeUndefined()
+      const reopened = update(
+        collapsed.model,
+        Message.ClickedNotificationTray(),
+      )
+      assert(reopened.model.currentPart).toBe(currentPart)
+      assert(reopened.model.readIds).toEqual([])
+      assert(reopened.commands).toBeUndefined()
+      scene(
+        { update, view },
+        given({ ...loaded, currentPart }),
+        click(role('button', { name: 'Hide 5 unread notifications' })),
+        expectAll(all.selector('.toast')).toHaveCount(0),
+        expect(selector('.notification-count')).toHaveText('5'),
+        click(role('button', { name: 'Show 5 unread notifications' })),
+        expectAll(all.selector('.toast')).toHaveCount(3),
+      )
+    },
+  )
+
+  it('updates the badge without reopening when another unread reply arrives', () => {
+    const collapsed = update(loaded, Message.ClickedNotificationTray()).model
+    const incoming = update(
+      collapsed,
+      Message.CompletedLoadGrill({
+        result: Result.succeed({
+          ...snapshot,
+          replies: [
+            ...(snapshot.replies ?? []),
+            { id: 6, at: 6, text: 'New while collapsed' },
+          ],
+        }),
+      }),
+    )
+    assert(incoming.model.readIds).toEqual([])
+    assert(incoming.commands).toBeUndefined()
     scene(
       { update, view },
-      given(loaded),
-      click(role('button', { name: '2 more in Replies' })),
-      Command.resolve(PushPage, Message.CompletedNavigate()),
-      Command.resolve(ScrollToTop, Message.CompletedScroll()),
-      expect(selector('.f-replies-page h1')).toHaveText('Replies & decisions'),
-      expect(selector('#agent-reply-1')).toContainText('Agent reply 1'),
+      given(incoming.model),
+      expectAll(all.selector('.toast')).toHaveCount(0),
+      expect(role('button', { name: 'Show 6 unread notifications' })).toExist(),
+      expect(selector('.notification-count')).toHaveText('6'),
+      click(role('button', { name: 'Show 6 unread notifications' })),
+      expectAll(all.selector('.toast')).toHaveCount(3),
+      expect(selector('.toast')).toContainText('New while collapsed'),
     )
   })
 
-  it('opens the legacy Replies panel from the overflow button', () => {
+  it('still marks an individually dismissed notification read', () => {
+    const dismissed = update(
+      loaded,
+      Message.DismissedAgentMessage({ id: 'reply-5' }),
+    )
+    assert(dismissed.model.readIds).toEqual(['reply-5'])
+    assert(unreadMessagesOf(dismissed.model)).toHaveLength(4)
+    assert(dismissed.commands).toHaveLength(1)
+  })
+
+  it('omits the tray when there are no unread messages', () => {
     scene(
       { update, view },
-      given({ ...loaded, currentPart: 'part-1' }),
-      click(role('button', { name: '2 more in Replies' })),
-      expect(selector('.replies-list')).toExist(),
+      given({ ...loaded, readSince: Option.some(5) }),
+      expectAll(all.selector('.notification-tray-toggle')).toHaveCount(0),
+      expectAll(all.selector('.toast')).toHaveCount(0),
     )
   })
 })
