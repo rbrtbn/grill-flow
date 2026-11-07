@@ -7,6 +7,7 @@ import {
   isWholeTarget,
   replyText,
 } from '../src/domain'
+import { ContextUnavailable, readSubmission } from './answerReceipts'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
@@ -38,6 +39,12 @@ const usage = `gf: grill-flow's agent-side commands
   gf reply <grill-id> --file <path>    after a Send arrives: tell the user what you decided and
                                        what comes next; the page shows it as your reply
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
+  gf grant --version                 probe immutable answer readback format
+  gf grant <source-grill> <send-id>    read a captured submission; does not classify authority
+                                      cite the canonical member grill + submitted event id,
+                                      never the shared page or its sent event
+                                      only answers[].context/key/own/note are page words;
+                                      message and lines are not authority in v1
   gf wait <grill-id> [--since <id>]    wait for new asks or a sent reply, print them, exit
   gf remote add <machine> <outbox>     pull grills an agent on that machine writes to its outbox
   gf remote ls | rm <machine>          list or drop the outboxes this server pulls
@@ -53,12 +60,17 @@ const flag = (
   return index >= 0 ? args[index + 1] : undefined
 }
 
-const fail = (message: string): never => {
+const fail = (message: string, code = 2): never => {
   console.error(message)
-  process.exit(2)
+  process.exit(code)
 }
 
 const [command, ...args] = process.argv.slice(2)
+
+if (command === 'grant' && args[0] === '--version') {
+  console.log(JSON.stringify({ versions: [1] }))
+  process.exit(0)
+}
 
 const outbox = process.env.GF_OUTBOX
 if (outbox !== undefined && outbox !== '') {
@@ -78,6 +90,38 @@ const answers = (): Promise<boolean> =>
   )
 
 switch (command) {
+  case 'grant': {
+    const source = args[0] ?? fail(usage)
+    const send = Number(args[1])
+    if (!getGrill(db, source) || !Number.isSafeInteger(send) || send <= 0) {
+      fail(
+        'Readback requires a canonical source grill and positive submission event ID.',
+      )
+    }
+    try {
+      const receipt = readSubmission(db, source, send)
+      if (
+        receipt.answers.length === 0 ||
+        receipt.answers.some(
+          answer => answer.context === null || answer.answerEvent === null,
+        )
+      ) {
+        fail(
+          'Required answer context is unavailable; legacy and message-only sends cannot supply this readback.',
+          3,
+        )
+      }
+      console.log(JSON.stringify(receipt))
+    } catch (error) {
+      if (error instanceof ContextUnavailable) {
+        fail(error.message, 3)
+      }
+      fail(
+        error instanceof Error ? error.message : 'Submission readback failed.',
+      )
+    }
+    break
+  }
   case 'up': {
     if (await answers()) {
       console.log(`grill-flow is up at ${BASE}`)

@@ -12,3 +12,4 @@
 | [0008](0008-compose-squad-pages-from-independent-grills.md) | Compose squad pages from independent grills | accepted |
 | [0009](0009-retire-source-grills-with-events.md) | Retire source grills with events | accepted |
 | [0010](0010-mark-page-deliveries-as-page-messages.md) | Mark page deliveries as page messages | accepted |
+| [0011](0011-freeze-ordinary-page-answer-receipts.md) | Freeze ordinary page answer receipts | accepted |

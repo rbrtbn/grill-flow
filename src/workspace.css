@@ -14,6 +14,28 @@
   overflow: hidden;
   font: 400 15px/1.7 var(--read);
 }
+.f-workspace:has(> .f-unconfirmed-sends) {
+  display: flex;
+  flex-direction: column;
+}
+.f-workspace:has(> .f-unconfirmed-sends) > .f-topbar {
+  flex-shrink: 0;
+}
+.f-workspace:has(> .f-unconfirmed-sends) > .f-frame {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.f-unconfirmed-sends {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--del-ink);
+  color: var(--del-ink);
+  font: 500 14px/1.5 var(--label);
+}
+.f-unconfirmed-sends button {
+  margin-left: 10px;
+}
 .f-workspace :is(h1, h2, h3, p) {
   margin: 0;
 }

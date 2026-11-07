@@ -11,6 +11,15 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import {
+  freezeSubmission,
+  questionRevisions,
+  recordAnswer,
+  sendRequestIdentity,
+} from './answerReceipts'
+import { selectSend } from './sendSelection'
+import { events, loadGrill, snapshot } from './store'
+
 const dir = mkdtempSync(join(tmpdir(), 'grill-routing-'))
 const log = join(dir, 'deliveries.jsonl')
 const database = join(dir, 'test.sqlite')
@@ -228,4 +237,92 @@ describe('HTTP delivery routing', () => {
       })
     },
   )
+})
+
+it('publishes answer revisions, rejects stale choices and exposes an interrupted replay on the page', async () => {
+  const db = new Database(database)
+  try {
+    const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
+    const grill = loadGrill(db, { ...fixture, id: 'receipt-http-fixture' })
+    const body = { requestId: 'interrupted-http', questions: ['Q1'] }
+    expect(
+      recordAnswer(db, grill, grill, 'Q1', {
+        question: 'Q1',
+        key: 'a',
+        contextRevision: questionRevisions(grill).Q1,
+      }).ok,
+    ).toBe(true)
+    const selection = selectSend(snapshot(db, grill), body)
+    if (!selection.ok) throw new Error(selection.error)
+    const id = db
+      .transaction(() =>
+        freezeSubmission(
+          db,
+          grill,
+          grill,
+          { Q1: 'Q1' },
+          selection,
+          sendRequestIdentity(body),
+        ),
+      )
+      .immediate()
+    const url = `${base}/api/grills/${grill.id}`
+    const state = await fetch(url).then(response => response.json())
+    expect(state.questionRevisions.Q1).toBe(questionRevisions(grill).Q1)
+    expect(state.unconfirmedSends).toEqual([{ source: grill.id, send: id }])
+    const post = (path: string, payload: unknown) =>
+      fetch(`${url}/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify(payload),
+      })
+    const before = received().length
+    const replay = await post('send', body)
+    expect(replay.status).toBe(200)
+    expect((await replay.json()).unconfirmedSends).toEqual(
+      state.unconfirmedSends,
+    )
+    expect(received()).toHaveLength(before)
+    expect(
+      events(db, grill.id).filter(item => item.kind === 'submitted'),
+    ).toHaveLength(1)
+    expect(
+      (await post('send', { ...body, message: 'Changed request' })).status,
+    ).toBe(409)
+    const changed = loadGrill(db, {
+      ...grill,
+      steps: grill.steps.map(step => ({
+        ...step,
+        question: { ...step.question, ask: 'Changed while open?' },
+      })),
+    })
+    const stale = await post('events', {
+      kind: 'answered',
+      question: 'Q1',
+      key: 'b',
+      contextRevision: state.questionRevisions.Q1,
+    })
+    expect(stale.status).toBe(409)
+    expect(snapshot(db, changed).answers.Q1).toBe('a')
+    const fresh = await post('events', {
+      kind: 'answered',
+      question: 'Q1',
+      key: 'b',
+      contextRevision: questionRevisions(changed).Q1,
+    })
+    expect(fresh.status).toBe(200)
+    expect((await fresh.json()).answers.Q1).toBe('b')
+    expect(
+      (
+        await post('events', {
+          kind: 'answered',
+          question: 'Q1',
+          key: 'a',
+          contextRevision: 5,
+        })
+      ).status,
+    ).toBe(400)
+  } finally {
+    db.close()
+  }
 })

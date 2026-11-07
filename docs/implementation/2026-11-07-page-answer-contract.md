@@ -112,3 +112,24 @@ lives in the owning run at `design/t118-page-contract-review.md`.
 Contract tests should cover rewording after answer/send, identical option keys with changed
 meaning, source composition, request replay/conflict, partial sends and an agent-forged tag.
 No fixture or tag alone may manufacture a PAGE grant.
+
+## Ordinary capture implementation
+
+The implementation freezes `answers[].sendRevision` beside the original `context.revision`.
+Rewording between answer and Send is visible without rewriting the answer. Only
+`answers[].context`, `key`, `own` and `note` are page words. `message` and `lines` are not
+closure text or authority in v1; a later reader must not promote either field.
+
+A future grant cites the canonical member grill and its submitted event ID (for example, the
+member `squad-grants` and its own ID), never `/g/squad` or the page-level sent event.
+The reserved marker must carry that same source/submission pair.
+
+The probe returns `{"versions":[1]}`. Exit 3 denotes unavailable/legacy context or a message-only
+send; other nonzero errors use exit 2. The later reader maps those to NOT PAGE and BLOCKED,
+respectively. Until remote readback is implemented, `GF_OUTBOX` fails explicitly and tells the
+caller to run on the serving machine.
+
+Request replay returns the original committed evidence without repeating terminal transport.
+If a crash interrupts delivery after freezing, the page lists the source/submitted ID as
+unconfirmed and keeps its unsent drafts available for review. A replay cannot silently hide it
+or manufacture a delivery receipt.

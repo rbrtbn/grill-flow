@@ -102,6 +102,9 @@ export const runOutbox = async (
       : undefined
   }
   switch (command) {
+    case 'grant':
+      fail('Read submission evidence on the serving machine without GF_OUTBOX.')
+      break
     case 'retire':
     case 'restore':
       fail('Run retire/restore on the serving machine without GF_OUTBOX.')

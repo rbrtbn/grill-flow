@@ -5,16 +5,22 @@ import { dirname, join, normalize } from 'node:path'
 
 import {
   GRILL_FLOW_TARGET,
-  OWN,
   type Grill,
   hasTarget,
   questionSession,
   roundOf,
 } from '../src/domain'
+import {
+  SubmissionConflict,
+  questionRevisions,
+  recordAnswer,
+  replaySubmission,
+  unconfirmedSends,
+} from './answerReceipts'
 import { dashboard } from './dashboard'
 import { askMessage, pageMessage } from './messages'
 import { startRemotes } from './remote'
-import { selectSend } from './sendSelection'
+import { SendRequest, selectSend } from './sendSelection'
 import { eventDestination, listPages, readPage, sendPageAnswers } from './squad'
 import { ROOT, appendEvent, open, remoteOf, snapshot } from './store'
 
@@ -145,24 +151,38 @@ const sendToSession = async (
 const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
-const clientSnapshot = (grill: Grill) => ({
-  ...(readPage(db, grill.id)?.state ?? snapshot(db, grill)),
-  maintainerSession: process.env.GF_MAINTAINER_SESSION?.trim() || undefined,
-})
+const clientSnapshot = (grill: Grill) => {
+  const page = readPage(db, grill.id)
+  const state = page?.state ?? snapshot(db, grill)
+  return {
+    ...state,
+    questionRevisions: questionRevisions(state.grill),
+    unconfirmedSends: unconfirmedSends(
+      db,
+      page?.members.length
+        ? page.members.map(member => member.state.grill.id)
+        : [grill.id],
+    ),
+    maintainerSession: process.env.GF_MAINTAINER_SESSION?.trim() || undefined,
+  }
+}
 
 const handleEvent = async (
   grillId: string,
   request: Request,
 ): Promise<Response> => {
   const pageId = grillId
+  const decodedBody = Schema.decodeUnknownResult(
+    Schema.Record(Schema.String, Schema.Unknown),
+  )(await request.json().catch(() => null))
+  if (decodedBody._tag === 'Failure')
+    return json({ error: 'Invalid event request' }, 400)
+  const requestBody = decodedBody.success
   const page = readPage(db, pageId)
   if (!page) {
     return json({ error: 'no such grill' }, 404)
   }
-  const destination = eventDestination(
-    page,
-    (await request.json()) as Record<string, unknown>,
-  )
+  const destination = eventDestination(page, requestBody)
   const grill = destination.grill
   const body = destination.body
   grillId = grill.id
@@ -196,25 +216,16 @@ const handleEvent = async (
       break
     }
     case 'answered': {
-      const step = grill.steps.find(s => s.question.id === question)
-      const key = String(body.key ?? '')
-      if (
-        !step ||
-        !(
-          key === OWN ||
-          step.question.options.some(option => option.key === key)
-        )
-      ) {
-        return json({ error: 'unknown question or option' }, 400)
-      }
-      appendEvent(
+      const recorded = recordAnswer(
         db,
-        grillId,
-        'answered',
-        key === OWN
-          ? { question, key, text: String(body.text ?? '').slice(0, 4000) }
-          : { question, key },
+        grill,
+        page.state.grill,
+        String(requestBody.question ?? ''),
+        body,
       )
+      if (!recorded.ok) {
+        return json({ error: recorded.error }, recorded.status)
+      }
       break
     }
     case 'cleared':
@@ -280,24 +291,44 @@ const handleSend = async (
   grillId: string,
   request: Request,
 ): Promise<Response> => {
+  const body: unknown = await request.json().catch(() => null)
   const page = readPage(db, grillId)
   if (!page) {
     return json({ error: 'no such grill' }, 404)
   }
   const grill = page.state.grill
-  const body: unknown = await request.json().catch(() => null)
+  const decoded = Schema.decodeUnknownResult(SendRequest)(body)
+  if (decoded._tag === 'Failure')
+    return json({ error: 'Invalid send request' }, 400)
+  const replay = replaySubmission(db, grillId, decoded.success)
+  if (replay === 'conflict')
+    return json(
+      { error: 'This send request ID already names different content.' },
+      409,
+    )
+  if (replay === 'replay') {
+    return json(clientSnapshot(grill))
+  }
   const selection = selectSend(page.state, body)
   if (!selection.ok) {
     return json({ error: selection.error }, selection.status)
   }
-  await sendPageAnswers(
-    db,
-    page,
-    selection,
-    (session, text) => sendToSession(sessionFor(session), text),
-    (source, session) =>
-      gfFor(source.id, session) ?? `bun run --cwd ${ROOT} gf`,
-  )
+  try {
+    await sendPageAnswers(
+      db,
+      page,
+      selection,
+      (session, text) => sendToSession(sessionFor(session), text),
+      (source, session) =>
+        gfFor(source.id, session) ?? `bun run --cwd ${ROOT} gf`,
+      decoded.success,
+    )
+  } catch (error) {
+    if (error instanceof SubmissionConflict) {
+      return json({ error: error.message }, 409)
+    }
+    throw error
+  }
   return json(clientSnapshot(grill))
 }
 

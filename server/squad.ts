@@ -10,6 +10,12 @@ import {
   questionSession,
   roundOf,
 } from '../src/domain'
+import {
+  SubmissionConflict,
+  freezeSubmission,
+  replaySubmission,
+  sendRequestIdentity,
+} from './answerReceipts'
 import { sendAnswerBatches, type SessionSender } from './delivery'
 import { selectSend, type SendSelection } from './sendSelection'
 import {
@@ -391,6 +397,7 @@ export const sendPageAnswers = async (
   selection: Extract<SendSelection, { ok: true }>,
   send: SessionSender,
   gf: (grill: Grill, session: string) => string,
+  request: unknown = {},
 ): Promise<void> => {
   const selected = new Set(Object.keys(selection.lines))
   const batches = page.members.flatMap(member => {
@@ -399,39 +406,88 @@ export const sendPageAnswers = async (
       .map(([local]) => local)
     return questions.length === 0 ? [] : [{ member, questions }]
   })
-  if (batches.length === 0) {
-    const grill = page.state.grill
-    const result = await sendAnswerBatches(grill, selection, send, session =>
-      gf(grill, session),
-    )
-    appendEvent(db, grill.id, 'sent', { ...result, what: 'answers' })
-    return
-  }
-  const results = await Promise.all(
-    batches.map(async ({ member, questions }) => {
-      const grill = member.state.grill
-      const local = selectSend(member.state, {
-        questions,
-        message: selection.message,
-        expectedLines: sendableLines(
-          grill,
-          member.state.answers,
-          member.state.notes,
-          member.state.own,
+  const identity = sendRequestIdentity(request)
+  const planned =
+    batches.length === 0
+      ? [
+          {
+            grill: page.state.grill,
+            local: selection,
+            questions: Object.fromEntries(
+              Object.keys(selection.lines).map(id => [id, id]),
+            ),
+          },
+        ]
+      : batches.map(({ member, questions }) => {
+          const grill = member.state.grill
+          const local = selectSend(member.state, {
+            questions,
+            message: selection.message,
+            expectedLines: sendableLines(
+              grill,
+              member.state.answers,
+              member.state.notes,
+              member.state.own,
+            ),
+          })
+          if (!local.ok) {
+            throw new Error(local.error)
+          }
+          return {
+            grill,
+            local,
+            questions: Object.fromEntries(
+              questions.map(id => [id, member.registration.questions[id]!]),
+            ),
+          }
+        })
+  const frozen = db
+    .transaction(() => {
+      const replay = replaySubmission(db, page.state.grill.id, request)
+      if (replay === 'conflict')
+        throw new SubmissionConflict(
+          'This send request ID already names different content.',
+        )
+      if (replay === 'replay') {
+        return []
+      }
+      return planned.map(batch => ({
+        ...batch,
+        submission: freezeSubmission(
+          db,
+          batch.grill,
+          page.state.grill,
+          batch.questions,
+          batch.local,
+          identity,
         ),
-      })
-      if (!local.ok) throw new Error(local.error)
+      }))
+    })
+    .immediate()
+  const results = await Promise.all(
+    frozen.map(async ({ grill, local, submission }) => {
       const result = await sendAnswerBatches(grill, local, send, session =>
         gf(grill, session),
       )
-      appendEvent(db, grill.id, 'sent', { ...result, what: 'answers' })
+      appendEvent(db, grill.id, 'sent', {
+        ...result,
+        what: 'answers',
+        submission,
+      })
       return result
     }),
   )
+  if (page.members.length === 0 || frozen.length === 0) {
+    return
+  }
   appendEvent(db, page.state.grill.id, 'sent', {
     what: 'answers',
     ok: results.every(result => result.ok),
     detail: results.map(result => result.detail).join('; '),
     text: results.map(result => result.text).join('\n\n'),
+    submissions: frozen.map(batch => ({
+      grill: batch.grill.id,
+      send: batch.submission,
+    })),
   })
 }

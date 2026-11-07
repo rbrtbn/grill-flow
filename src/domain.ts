@@ -477,6 +477,17 @@ export const Snapshot = Schema.Struct({
   grill: Grill,
   retirement: Schema.optionalKey(Retirement),
   maintainerSession: Schema.optionalKey(Schema.String),
+  questionRevisions: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.String),
+  ),
+  unconfirmedSends: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        source: Schema.String,
+        send: Schema.Number,
+      }),
+    ),
+  ),
   answers: Schema.Record(Schema.String, Schema.String),
   notes: Schema.Record(Schema.String, Schema.String),
   own: Schema.Record(Schema.String, Schema.String),

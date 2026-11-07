@@ -28,6 +28,24 @@ full unread count after the cards expire; click Notifications to reopen the newe
 Toasts stay inside the main reading section and hide when Discussion takes that space. Agent
 messages visible in Discussion count as seen after a short dwell; hidden messages stay unread.
 
+Answers from a current page capture the question wording shown when picked. A newly stale pick
+is rejected with its draft retained; an already saved answer keeps its original wording after
+later edits. Send freezes a receipt for each source before delivery. An interrupted send without
+a delivery receipt stays visible as unconfirmed, including when its request is replayed.
+
+Readback runs on the serving machine without `GF_OUTBOX`:
+
+```bash
+bun run gf grant --version             # {"versions":[1]}
+bun run gf grant <source-grill> <submitted-event-id>
+```
+
+This command reads ordinary evidence and never records or classifies a grant. Cite the canonical
+member grill and its submitted event ID, not the shared squad page or its page-level sent event.
+Only `answers[].context`, `key`, `own` and `note` are page words; `message` and `lines` are not
+authority in v1. Exit 3 means missing/legacy context or a message-only send; other errors exit 2.
+PAGE reader activation and message-only eligibility remain pending at LAB-1310's gate.
+
 ## Two kinds of grill
 
 One page serves both; which one you get depends only on the fields the grill's file fills in.

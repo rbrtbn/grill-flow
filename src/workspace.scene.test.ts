@@ -26,9 +26,11 @@ import {
   Message,
   OpenWorkspaceSettings,
   PageData,
+  PushPage,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
   SaveWorkspaceSettings,
+  ScrollToTop,
   init,
   update,
 } from './main'
@@ -55,6 +57,27 @@ const start = init(
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
 describe('the question workspace', () => {
+  it('shows interrupted saved sends instead of silently treating their request replay as delivered', () => {
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        page: PageData.Success({
+          data: {
+            ...snapshot,
+            unconfirmedSends: [{ source: 'member-grill', send: 72 }],
+          },
+        }),
+      }),
+      expect(role('alert')).toContainText('Delivery is unconfirmed'),
+      expect(role('alert')).toContainText('member-grill #72'),
+      click(role('button', { name: 'Review drafts before sending again' })),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      Mount.resolve(FillBox, Message.CompletedFillBox()),
+      expect(selector('.f-review')).toExist(),
+    )
+  })
   it('shows the full question, consequences and inline reasoning with accessible arrow controls', () => {
     scene(
       { update, view },

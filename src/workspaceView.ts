@@ -455,6 +455,19 @@ export const workspaceView = (
           ),
         ],
       ),
+      Array.isReadonlyArrayNonEmpty(snapshot.unconfirmedSends ?? [])
+        ? h.div(
+            [h.Class('f-unconfirmed-sends'), h.Role('alert')],
+            [
+              `Delivery is unconfirmed for saved sends: ${(snapshot.unconfirmedSends ?? []).map(item => `${item.source} #${item.send}`).join(', ')}. `,
+              link(
+                'Review drafts before sending again',
+                Message.ClickedWorkspacePage({ page: REVIEW }),
+                h,
+              ),
+            ],
+          )
+        : h.empty,
       h.div(
         [
           h.Class(

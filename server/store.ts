@@ -27,6 +27,7 @@ export type EventKind =
   | 'asked'
   | 'revised'
   | 'sent'
+  | 'submitted'
   | 'replied'
   | 'retired'
   | 'restored'
@@ -455,6 +456,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         roundNames[String(p.round)] = String(p.name)
         break
       case 'loaded':
+      case 'submitted':
       case 'squad-registered':
       case 'retired':
       case 'restored':

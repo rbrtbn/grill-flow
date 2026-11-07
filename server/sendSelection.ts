@@ -7,7 +7,10 @@ import {
   sendableLines,
 } from '../src/domain'
 
-const SendRequest = Schema.Struct({
+export const SendRequest = Schema.Struct({
+  requestId: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128)),
+  ),
   message: Schema.optionalKey(Schema.String),
   questions: Schema.optionalKey(Schema.Array(Schema.String)),
   expectedLines: Schema.optionalKey(

@@ -11,6 +11,7 @@ import {
   Stream,
   pipe,
 } from 'effect'
+import { SecureRandom } from 'effect/crypto'
 import {
   AsyncData,
   Command,
@@ -25,6 +26,8 @@ import {
 import { defineMessageUnion } from 'foldkit/message'
 import { afterCommit } from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
+
+import { BrowserCrypto } from '@effect/platform-browser'
 
 import { DiagramView } from './diagram'
 import {
@@ -401,14 +404,33 @@ const grillIdOf = (model: Model): Option.Option<string> =>
     Option.map(snapshot => snapshot.grill.id),
   )
 
-const postEvent = (model: Model, body: Record<string, unknown>): UpdateReturn =>
-  Option.match(grillIdOf(model), {
+const postEvent = (
+  model: Model,
+  body: Record<string, unknown>,
+): UpdateReturn => {
+  const question = typeof body.question === 'string' ? body.question : ''
+  const contextRevision = Option.flatMap(
+    AsyncData.getData(model.page),
+    snapshot => Option.fromUndefinedOr(snapshot.questionRevisions?.[question]),
+  )
+  const payload =
+    body.kind !== 'answered'
+      ? body
+      : {
+          ...body,
+          ...Option.match(contextRevision, {
+            onNone: () => ({}),
+            onSome: revision => ({ contextRevision: revision }),
+          }),
+        }
+  return Option.match(grillIdOf(model), {
     onNone: () => ({ model }),
     onSome: grillId => ({
       model: modifyFields(model, { pendingEvents: count => count + 1 }),
-      commands: [PostEvent({ grillId, body: JSON.stringify(body) })],
+      commands: [PostEvent({ grillId, body: JSON.stringify(payload) })],
     }),
   })
+}
 
 const sendDraftAnswers = (model: Model, text: string): UpdateReturn =>
   withSnapshot(model, snapshot => {
@@ -2811,16 +2833,26 @@ export const SendAnswers = Command.define('SendAnswers', {
   messages: [Message.CompletedSendAnswers],
   execute: ({ grillId, message, maybeQuestions, expectedLines }) =>
     pipe(
-      requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/send`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          Option.match(maybeQuestions, {
-            onNone: () => ({ message }),
-            onSome: questions => ({ message, questions, expectedLines }),
-          }),
-        ),
-      }),
+      SecureRandom.SecureRandom.use(random => random.uuidV4()).pipe(
+        Effect.provide(BrowserCrypto.layerSecureRandom),
+      ),
+      Effect.flatMap(requestId =>
+        requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/send`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(
+            Option.match(maybeQuestions, {
+              onNone: () => ({ requestId, message }),
+              onSome: questions => ({
+                requestId,
+                message,
+                questions,
+                expectedLines,
+              }),
+            }),
+          ),
+        }),
+      ),
       Effect.map(result => Message.CompletedSendAnswers({ result })),
     ),
 })
