@@ -45,6 +45,7 @@ import {
   questionGroups,
   questionOnPage,
   questionState,
+  questionUrgencyFilterFrom,
   visibleQuestions,
   workspaceLines,
 } from './workspace'
@@ -673,6 +674,33 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ),
             ),
           ),
+          h.label(
+            [h.Class('f-urgency-filter')],
+            [
+              h.span([], ['Urgency']),
+              h.select(
+                [
+                  h.AriaLabel('Urgency filter'),
+                  h.Value(model.workspace.urgencyFilter),
+                  h.OnChange(value =>
+                    Message.ChangedQuestionUrgencyFilter({
+                      urgencyFilter: questionUrgencyFilterFrom(value),
+                    }),
+                  ),
+                ],
+                [
+                  { value: 'All', label: 'All urgencies' },
+                  { value: 'blocking', label: 'Blocking' },
+                  { value: 'soon', label: 'Soon' },
+                  { value: 'wait', label: 'Can wait' },
+                  { value: 'fyi', label: 'FYI' },
+                  { value: 'unspecified', label: 'Unspecified' },
+                ].map(({ value, label }) =>
+                  h.option([h.Value(value)], [label]),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       h.nav(
@@ -685,7 +713,9 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             ? [
                 h.p(
                   [h.Class('hint f-empty-nav')],
-                  ['No questions match. Clear the search or choose All.'],
+                  [
+                    'No questions match. Clear the search or adjust the filters.',
+                  ],
                 ),
               ]
             : []),

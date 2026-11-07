@@ -28,6 +28,27 @@ export const RUN_TARGET = 'run'
 
 export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 export type QuestionFilter = typeof QuestionFilter.Type
+export const QuestionUrgencyFilter = Schema.Literals([
+  'All',
+  'blocking',
+  'soon',
+  'wait',
+  'fyi',
+  'unspecified',
+])
+export type QuestionUrgencyFilter = typeof QuestionUrgencyFilter.Type
+
+export const questionFilterFrom = (value: unknown): QuestionFilter => {
+  const result = Schema.decodeUnknownResult(QuestionFilter)(value)
+  return result._tag === 'Success' ? result.success : 'All'
+}
+
+export const questionUrgencyFilterFrom = (
+  value: unknown,
+): QuestionUrgencyFilter => {
+  const result = Schema.decodeUnknownResult(QuestionUrgencyFilter)(value)
+  return result._tag === 'Success' ? result.success : 'All'
+}
 export const QuestionGrouping = Schema.Literals(['Round', 'Agent'])
 
 export const CatalogData = AsyncData.Schema(
@@ -49,6 +70,7 @@ export const Workspace = Schema.Struct({
   reviewQuery: Schema.String,
   reviewExpanded: Schema.Array(Schema.String),
   filter: QuestionFilter,
+  urgencyFilter: QuestionUrgencyFilter,
   grouping: QuestionGrouping,
   foldedAgents: Schema.Array(Schema.String),
   maybeEditingRound: Schema.Option(Schema.Number),
@@ -75,6 +97,7 @@ export const initialWorkspace: Workspace = {
   reviewQuery: '',
   reviewExpanded: [],
   filter: 'All',
+  urgencyFilter: 'All',
   grouping: 'Round',
   foldedAgents: [],
   maybeEditingRound: Option.none(),
@@ -159,6 +182,10 @@ export const visibleQuestions = (
       (workspace.filter === 'All' ||
         questionState(snapshot, step, answers, notes, own) ===
           workspace.filter) &&
+      (workspace.urgencyFilter === 'All' ||
+        (workspace.urgencyFilter === 'unspecified'
+          ? step.question.urgency === undefined
+          : step.question.urgency === workspace.urgencyFilter)) &&
       (search === '' ||
         [
           step.question.id,
@@ -376,7 +403,11 @@ export const revealQuestion = (
   }
   const ancestors = new Set(ancestry(id))
   const group = questionGroups(
-    modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+    modifyFields(workspace, {
+      filter: () => 'All',
+      urgencyFilter: () => 'All',
+      search: () => '',
+    }),
     snapshot,
     answers,
     notes,
@@ -420,7 +451,11 @@ export const adjacentQuestion = (
   )
     ? displayed
     : questionGroups(
-        modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+        modifyFields(workspace, {
+          filter: () => 'All',
+          urgencyFilter: () => 'All',
+          search: () => '',
+        }),
         snapshot,
         answers,
         notes,

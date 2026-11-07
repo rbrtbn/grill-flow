@@ -52,7 +52,8 @@ Successful recipients and failed recipients retain distinct receipts during part
 An acknowledgement from a new/reused recipient cannot settle the old recipient's envelope.
 
 The future PAGE reader uses committed submissions; delivery state is evidence only. A failed
-delivery does not alter the frozen submission. A message-only send is not PAGE in version 1.
+delivery does not alter the frozen submission. Message-only sends default to not PAGE in v1;
+this is t10m's fail-closed recommendation, pending Rob at LAB-1310's gate.
 
 ## Reserved reader interface
 
@@ -98,7 +99,8 @@ for those clients appears in this format, UI or CLI output.
 ## Reader owner's resolved interface choices
 
 1. JSON version 1; the canonical source send ID is its immutable submission event ID.
-2. Committed submissions count; delivery is evidence. Message-only sends are not PAGE in v1.
+2. Committed submissions count; delivery is evidence. Message-only sends default to not PAGE
+   in v1, pending Rob's decision at LAB-1310's gate.
 3. Legacy/context-unavailable records are never PAGE; never backfill from current wording.
 4. Ordinary receipt capture and wording comparisons can ship while PAGE remains held.
 5. Ship refusal markup first, then readback with a version probe, then the separately gated squad

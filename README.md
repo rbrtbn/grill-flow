@@ -16,6 +16,10 @@ the currently selected unsent drafts across rounds, keeping any answers you unch
 excluded and including your saved review message. It saves visible notes and custom answer text
 first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
 
+The question sidebar combines state, urgency and search. State and urgency choices are saved
+with the browser's workspace settings and restored after reload. All urgencies includes questions
+without an urgency; Unspecified selects only those questions.
+
 ## Two kinds of grill
 
 One page serves both; which one you get depends only on the fields the grill's file fills in.

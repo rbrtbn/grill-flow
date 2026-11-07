@@ -5,6 +5,7 @@ import {
   Mount,
   Subscription,
   all,
+  change,
   click,
   expect,
   expectAll,
@@ -27,6 +28,7 @@ import {
   PageData,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
+  SaveWorkspaceSettings,
   init,
   update,
 } from './main'
@@ -407,5 +409,39 @@ it('shows a failed quick-send on the question page with a path to the remaining 
     given({ ...loaded, send: 'Failed', sendDetail: 'Agent unavailable' }),
     expect(role('alert')).toContainText('Not sent: Agent unavailable'),
     expect(role('button', { name: 'Review drafts' })).toExist(),
+  )
+})
+
+it('filters sidebar questions by urgency and preserves an explicit unspecified choice', () => {
+  const state = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      steps: grill.steps.slice(0, 2).map((step, index) => ({
+        ...step,
+        question: {
+          ...step.question,
+          ...(index === 0 ? { urgency: 'blocking' satisfies 'blocking' } : {}),
+        },
+      })),
+    },
+  }
+  scene(
+    { update, view },
+    given({ ...loaded, page: PageData.Success({ data: state }) }),
+    expect(role('combobox', { name: 'Urgency filter' })).toHaveValue('All'),
+    change(role('combobox', { name: 'Urgency filter' }), 'blocking'),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expectAll(all.selector('.f-question-item')).toHaveCount(1),
+    expect(selector('.f-question-item')).toContainText('Q1'),
+    change(role('combobox', { name: 'Urgency filter' }), 'unspecified'),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(selector('.f-question-item')).toContainText('Q2'),
   )
 })

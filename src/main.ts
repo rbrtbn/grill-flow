@@ -50,6 +50,7 @@ import {
   QUESTION_PAGE,
   QuestionFilter,
   QuestionGrouping,
+  QuestionUrgencyFilter,
   REPLIES,
   REVIEW,
   RUN_TARGET,
@@ -60,7 +61,9 @@ import {
   draftAnswerIds,
   initialWorkspace,
   isWorkspacePage,
+  questionFilterFrom,
   questionOnPage,
+  questionUrgencyFilterFrom,
   revealQuestion,
   roundIsCollapsed,
   workspaceLines,
@@ -254,6 +257,7 @@ export const Message = defineMessageUnion({
   ClickedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   PressedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   ChangedQuestionFilter: { filter: QuestionFilter },
+  ChangedQuestionUrgencyFilter: { urgencyFilter: QuestionUrgencyFilter },
   ChangedQuestionGrouping: { grouping: QuestionGrouping },
   ClickedAgentGroup: { session: Schema.String },
   ClickedRenameRound: { round: Schema.Number },
@@ -268,6 +272,8 @@ export const Message = defineMessageUnion({
   ChangedHighlights: {},
   ChangedCollapseSentRounds: {},
   RestoredWorkspaceSettings: {
+    filter: QuestionFilter,
+    urgencyFilter: QuestionUrgencyFilter,
     grouping: QuestionGrouping,
     highlightTerms: Schema.Boolean,
     collapseSentRounds: Schema.Boolean,
@@ -802,28 +808,33 @@ export const update = (model: Model, message: Message) =>
     }),
     ClickedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
     PressedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
-    ChangedQuestionFilter: ({ filter }) => ({
-      model: modifyFields(model, {
-        workspace: value => modifyFields(value, { filter: () => filter }),
-      }),
-    }),
+    ChangedQuestionFilter: ({ filter }) =>
+      saveWorkspacePreferences(
+        model,
+        modifyFields(model.workspace, {
+          filter: () => filter,
+        }),
+      ),
+    ChangedQuestionUrgencyFilter: ({ urgencyFilter }) =>
+      saveWorkspacePreferences(
+        model,
+        modifyFields(model.workspace, {
+          urgencyFilter: () => urgencyFilter,
+        }),
+      ),
     UpdatedQuestionSearch: ({ value }) => ({
       model: modifyFields(model, {
         workspace: workspace =>
           modifyFields(workspace, { search: () => value }),
       }),
     }),
-    ChangedQuestionGrouping: ({ grouping }) => {
-      const next = modifyFields(model, {
-        workspace: value => modifyFields(value, { grouping: () => grouping }),
-      })
-      return {
-        model: next,
-        commands: [
-          SaveWorkspaceSettings({ settings: JSON.stringify(next.workspace) }),
-        ],
-      }
-    },
+    ChangedQuestionGrouping: ({ grouping }) =>
+      saveWorkspacePreferences(
+        model,
+        modifyFields(model.workspace, {
+          grouping: () => grouping,
+        }),
+      ),
     ClickedAgentGroup: ({ session }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -923,6 +934,8 @@ export const update = (model: Model, message: Message) =>
     ChangedCollapseSentRounds: () =>
       saveWorkspaceSetting(model, 'collapseSentRounds'),
     RestoredWorkspaceSettings: ({
+      filter,
+      urgencyFilter,
       highlightTerms,
       collapseSentRounds,
       grouping,
@@ -930,6 +943,8 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         workspace: value =>
           modifyFields(value, {
+            filter: () => filter,
+            urgencyFilter: () => urgencyFilter,
             grouping: () => grouping,
             highlightTerms: () => highlightTerms,
             collapseSentRounds: () => collapseSentRounds,
@@ -2339,6 +2354,14 @@ const reviewFromQuestion = (model: Model): UpdateReturn =>
     }
   })
 
+const saveWorkspacePreferences = (
+  model: Model,
+  workspace: Workspace,
+): UpdateReturn => ({
+  model: modifyFields(model, { workspace: () => workspace }),
+  commands: [SaveWorkspaceSettings({ settings: JSON.stringify(workspace) })],
+})
+
 const saveWorkspaceSetting = (
   model: Model,
   key: 'highlightTerms' | 'collapseSentRounds',
@@ -2506,12 +2529,16 @@ export const RestoreWorkspaceSettings = Command.define(
       )
       const settings = Schema.decodeUnknownSync(
         Schema.Struct({
+          filter: Schema.optionalKey(Schema.Unknown),
+          urgencyFilter: Schema.optionalKey(Schema.Unknown),
           grouping: Schema.optionalKey(Schema.String),
           highlightTerms: Schema.optionalKey(Schema.Boolean),
           collapseSentRounds: Schema.optionalKey(Schema.Boolean),
         }),
       )(raw)
       return Message.RestoredWorkspaceSettings({
+        filter: questionFilterFrom(settings.filter),
+        urgencyFilter: questionUrgencyFilterFrom(settings.urgencyFilter),
         grouping: settings.grouping === 'Agent' ? 'Agent' : 'Round',
         highlightTerms: settings.highlightTerms ?? false,
         collapseSentRounds: settings.collapseSentRounds ?? true,
@@ -2520,6 +2547,8 @@ export const RestoreWorkspaceSettings = Command.define(
       Effect.catch(() =>
         Effect.succeed(
           Message.RestoredWorkspaceSettings({
+            filter: 'All',
+            urgencyFilter: 'All',
             grouping: 'Round',
             highlightTerms: false,
             collapseSentRounds: true,

@@ -305,6 +305,24 @@
 .f-filters button:hover {
   border-color: #9bac8d;
 }
+.f-urgency-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font: 400 12px/1.4 var(--label);
+}
+.f-urgency-filter select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
 .f-question-list {
   flex: 1;
   min-height: 0;
