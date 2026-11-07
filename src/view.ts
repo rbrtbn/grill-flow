@@ -10,52 +10,53 @@ import {
   stateLabelFor,
 } from './diagramView'
 import {
+  type AgentMessage,
+  type DiffBlock,
+  type DiffLine,
   FORMAT_VERSION,
+  type Grill,
   OWN,
+  type Part,
   type Plan,
   type PlanIssue,
   type PlanPhase,
-  downstreamOf,
-  openGatesOf,
-  openReviewOf,
-  planPhaseOf,
-  waitingOnYou,
-  type DiffBlock,
-  type DiffLine,
-  type Grill,
-  type Part,
   type Ref,
   type Relation,
   type Segment,
   type Snapshot,
   type Status,
   type Step,
-  type UrgencyLevel,
   URGENCY_ORDER,
-  type AgentMessage,
+  type UrgencyLevel,
   agentMessagesOf,
+  answerRoundLabel,
   blockOf,
+  cardOf,
+  cardsOf,
   diffBlocks,
-  previewOf,
+  downstreamOf,
+  isSent,
+  issuesOf,
   mentionsOf,
+  openGatesOf,
+  openReviewOf,
+  planPhaseOf,
+  previewOf,
   proseOf,
   relationsOf,
-  answerLines,
-  isSent,
   replyText,
-  sentAnswers,
   roundSteps,
   segments,
+  sendableLines,
+  sentAnswers,
   splitParagraphs,
   statusOf,
   tally,
-  cardOf,
-  cardsOf,
-  issuesOf,
   upstreamOf,
   urgencyOf,
   urgencyRank,
   usesUrgency,
+  waitingOnYou,
   withEmphasis,
   withQuestions,
   withRefs,
@@ -492,7 +493,7 @@ const stateClass = (model: Model, grill: Grill, id: string): string => {
 
 /** Questions whose answer already went out, unchanged, in an earlier send. */
 const sentIdsOf = (model: Model, snapshot: Snapshot): ReadonlySet<string> => {
-  const lines = answerLines(
+  const lines = sendableLines(
     snapshot.grill,
     model.answers,
     model.notes,
@@ -509,7 +510,7 @@ const freshAnswerCount = (model: Model, snapshot: Snapshot): number => {
   const sent = sentIdsOf(model, snapshot)
   return Array.filter(
     Record.keys(
-      answerLines(snapshot.grill, model.answers, model.notes, model.own),
+      sendableLines(snapshot.grill, model.answers, model.notes, model.own),
     ),
     id => !sent.has(id),
   ).length
@@ -956,8 +957,19 @@ const resizeHandleView = (model: Model, edge: SidebarEdge, h: H): Html => {
 const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
   const sentIds = sentIdsOf(model, snapshot)
-  const steps = roundSteps(grill)
-  const counts = tally(grill, model.answers, model.skipped, steps)
+  const current = roundSteps(grill)
+  const lines = sendableLines(grill, model.answers, model.notes, model.own)
+  const steps = grill.steps.filter(
+    step =>
+      current.includes(step) ||
+      (lines[step.question.id] !== undefined && !sentIds.has(step.question.id)),
+  )
+  const unlisted = Object.keys(lines).filter(
+    id =>
+      !grill.steps.some(step => step.question.id === id) && !sentIds.has(id),
+  )
+  const pendingCount = Object.keys(lines).filter(id => !sentIds.has(id)).length
+  const counts = tally(grill, model.answers, model.skipped, current)
   const needed = counts.total - counts.notNeeded
   const isSending = model.send === 'Sending'
   const sentCount = Array.filter(steps, step =>
@@ -978,14 +990,11 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
           h.AriaLabelledBy('send-title'),
         ],
         [
-          h.h2(
-            [h.Id('send-title')],
-            [`Send round ${grill.round}${toSession(grill)}`],
-          ),
+          h.h2([h.Id('send-title')], [`Send answers${toSession(grill)}`]),
           h.p(
             [h.Class('send-counts')],
             [
-              `${counts.answered} of ${needed} answered`,
+              `${pendingCount} answer${pendingCount === 1 ? '' : 's'} ready to send across rounds. Round ${grill.round}: ${counts.answered} of ${needed} answered`,
               sentCount > 0
                 ? `, ${sentCount} of them sent before and left out`
                 : '',
@@ -1013,13 +1022,36 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                       ],
                       [
                         h.span([h.Class('send-id')], [step.question.id]),
-                        h.span([h.Class('send-title')], [step.question.title]),
+                        h.span(
+                          [h.Class('send-title')],
+                          [
+                            step.question.title,
+                            h.small(
+                              [h.Class('send-round')],
+                              [answerRoundLabel(grill, step)],
+                            ),
+                          ],
+                        ),
                         h.span(
                           [h.Class('send-answer')],
                           answerSummary(model, grill, step, h),
                         ),
                       ],
                     ),
+                ).concat(
+                  unlisted.map(id =>
+                    h.li(
+                      [h.Class('send-row is-answered')],
+                      [
+                        h.span([h.Class('send-id')], [id]),
+                        h.span(
+                          [h.Class('send-title')],
+                          ['Question no longer listed · round unavailable'],
+                        ),
+                        h.span([h.Class('send-answer')], [lines[id] ?? '']),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -2346,7 +2378,9 @@ const questionView = (
                     ],
                     ['sent'],
                   )
-                : h.empty,
+                : statusIn(model, grill, id)._tag === 'Answered'
+                  ? h.span([h.Class('sent-tag unsent-tag')], ['not sent'])
+                  : h.empty,
             ],
           ),
         ],

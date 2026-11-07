@@ -705,10 +705,10 @@ export const answerLines = (
   answers: Answers,
   notes: Notes,
   own: Notes = {},
-  steps: ReadonlyArray<Step> = roundSteps(grill),
+  steps: ReadonlyArray<Step> = grill.steps,
 ): Readonly<Record<string, string>> =>
   Record.fromEntries(
-    Array.flatMap(steps, step => {
+    Array.flatMap(steps, (step): ReadonlyArray<readonly [string, string]> => {
       const status = statusOf(grill, answers, step.question.id)
       return status._tag === 'Answered'
         ? [
@@ -719,11 +719,83 @@ export const answerLines = (
                 notes,
                 step.question.id,
               ),
-            ] as const,
+            ],
           ]
         : []
     }),
   )
+
+export const sendableLines = (
+  grill: Grill,
+  answers: Answers,
+  notes: Notes,
+  own: Notes = {},
+): Readonly<Record<string, string>> => {
+  const listed = answerLines(grill, answers, notes, own)
+  return Record.fromEntries(
+    Object.entries(answers).flatMap(
+      ([id, key]): ReadonlyArray<readonly [string, string]> => {
+        const step = grill.steps.find(item => item.question.id === id)
+        if (key === OWN && (own[id] ?? '').trim() === '') return []
+        if (step !== undefined) {
+          return listed[id] !== undefined &&
+            (key === OWN ||
+              step.question.options.some(option => option.key === key))
+            ? [[id, listed[id]]]
+            : []
+        }
+        // Answers were validated when saved; a later load can remove their question metadata.
+        return [[id, withNote(answerText(id, key, own), notes, id)]]
+      },
+    ),
+  )
+}
+
+export const answerRoundLabel = (grill: Grill, step: Step): string => {
+  const round =
+    step.question.round ??
+    (grill.steps.some(item => item.question.round !== undefined)
+      ? 1
+      : grill.round)
+  return `Round ${round}${round < grill.round ? ' (sent late)' : ''}`
+}
+
+const answerGroups = (
+  grill: Grill,
+  lines: Readonly<Record<string, string>>,
+): ReadonlyArray<Readonly<{ title: string; ids: ReadonlyArray<string> }>> => {
+  const listed = grill.steps.filter(
+    step => lines[step.question.id] !== undefined,
+  )
+  const grouped = Array.groupBy(listed, step => answerRoundLabel(grill, step))
+  const unlisted = Object.keys(lines).filter(
+    id => !grill.steps.some(step => step.question.id === id),
+  )
+  return [
+    ...Object.entries(grouped).map(([title, steps]) => ({
+      title,
+      ids: steps.map(step => step.question.id),
+    })),
+    ...(Array.isArrayEmpty(unlisted)
+      ? []
+      : [
+          {
+            title: 'Round unavailable (question no longer listed)',
+            ids: unlisted,
+          },
+        ]),
+  ]
+}
+
+export const groupedAnswerText = (
+  grill: Grill,
+  lines: Readonly<Record<string, string>>,
+): string =>
+  answerGroups(grill, lines)
+    .map(group =>
+      [`${group.title}:`, ...group.ids.map(id => lines[id])].join('\n'),
+    )
+    .join('\n')
 
 /** Whether a question's answer went out, word for word, in an earlier send. */
 export const isSent = (
@@ -732,11 +804,7 @@ export const isSent = (
   id: string,
 ): boolean => lines[id] !== undefined && sent[id] === lines[id]
 
-/**
- * The reply Send delivers. With `sent`, answers that already went out unchanged are left out, and
- * the header says how many are new.
- */
-export const replyText = (
+const currentRoundReply = (
   grill: Grill,
   answers: Answers,
   notes: Notes,
@@ -747,9 +815,11 @@ export const replyText = (
     question: step.question,
     status: statusOf(grill, answers, step.question.id),
   }))
-  const lines = answerLines(grill, answers, notes, own)
+  const lines = sendableLines(grill, answers, notes, own)
   const answered = Array.flatMap(statuses, ({ question, status }) =>
-    status._tag === 'Answered' ? [{ question, key: status.key }] : [],
+    status._tag === 'Answered' && lines[question.id] !== undefined
+      ? [{ question, key: status.key }]
+      : [],
   )
   const fresh = Array.filter(
     answered,
@@ -815,6 +885,28 @@ export const replyText = (
       ]
     : []
   return Array.join([header, ...freshLines, ...openLine, ...skippedLine], '\n')
+}
+
+export const replyText = (
+  grill: Grill,
+  answers: Answers,
+  notes: Notes,
+  own: Notes = {},
+  sent: Readonly<Record<string, string>> = {},
+): string => {
+  const current = new Set(roundSteps(grill).map(step => step.question.id))
+  const all = sendableLines(grill, answers, notes, own)
+  const earlier = Record.fromEntries(
+    Object.entries(all).filter(
+      ([id]) => !current.has(id) && !isSent(sent, all, id),
+    ),
+  )
+  return [
+    groupedAnswerText(grill, earlier),
+    currentRoundReply(grill, answers, notes, own, sent),
+  ]
+    .filter(text => text !== '')
+    .join('\n')
 }
 
 /** What Send delivers inside its instructions to the agent: the answers, then the message. */

@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import { hostname } from 'node:os'
 
-import { answerLines, isSent, roundSteps, tally } from '../src/domain'
+import { isSent, roundSteps, sendableLines, tally } from '../src/domain'
 import { getGrill, lastActivity, listGrills, snapshot } from './store'
 
 const THIS_HOST = hostname().split('.')[0] ?? 'this machine'
@@ -118,11 +118,17 @@ const rows = (
       const state = snapshot(db, grill)
       const steps = roundSteps(grill)
       const counts = tally(grill, state.answers, [], steps)
-      const lines = answerLines(grill, state.answers, state.notes, state.own)
+      const lines = sendableLines(grill, state.answers, state.notes, state.own)
       const sent = steps.filter(step =>
         isSent(state.sent ?? {}, lines, step.question.id),
       ).length
       const needed = counts.total - counts.notNeeded
+      const pending = Object.keys(lines).filter(
+        id => !isSent(state.sent ?? {}, lines, id),
+      )
+      const earlier = pending.filter(
+        id => !steps.some(step => step.question.id === id),
+      ).length
       return [
         {
           host: remoteHost(db, id) ?? THIS_HOST,
@@ -134,8 +140,8 @@ const rows = (
           answered: counts.answered,
           needed,
           sent,
-          unsent: needed - sent,
-          readyToSend: counts.answered - sent,
+          unsent: needed - sent + earlier,
+          readyToSend: pending.length,
           pendingAsks: state.asks.filter(ask => !ask.answered).length,
           at: lastActivity(db, id),
         },
@@ -158,7 +164,7 @@ const rowHtml = (row: Row, now: number): string => {
     <span class="meta">${row.kind === 'squad' ? 'squad' : 'decision'} · round ${row.round}${asks} · ${ago(row.at, now)}</span>
     <span class="progress">
       <span class="count${done ? ' done' : ''}">${row.answered}/${row.needed} answered</span>
-      <span class="delivery${done ? ' done' : ''}">${done ? `All ${row.sent} sent` : row.needed === 0 ? 'No questions to send' : `${row.unsent} not sent`}</span>
+      <span class="delivery${done ? ' done' : ''}">${done ? `All ${row.sent} sent` : row.unsent === 0 ? 'No questions to send' : `${row.unsent} not sent`}</span>
       ${row.readyToSend > 0 ? `<span class="ready">${row.readyToSend} ready to send</span>` : ''}
     </span>
   </a>

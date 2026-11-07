@@ -7,23 +7,23 @@ import {
   blockOf,
   diffBlocks,
   diffWords,
+  issuesOf,
   neighbourStep,
+  planPhaseOf,
   relationsOf,
-  withQuestions,
-  withRefs,
-  withTerms,
   replyText,
   roundSteps,
-  issuesOf,
-  urgencyRank,
-  usesUrgency,
   segments,
   sentAnswers,
   splitParagraphs,
   statusOf,
   tally,
-  planPhaseOf,
+  urgencyRank,
+  usesUrgency,
   waitingOnYou,
+  withQuestions,
+  withRefs,
+  withTerms,
 } from './domain'
 
 const grill = Schema.decodeUnknownSync(Grill)(
@@ -418,13 +418,13 @@ describe('rounds', () => {
     ),
   }
 
-  it('replies with only the questions the current round asks', () => {
+  it('keeps current-round scope while sending pending earlier answers', () => {
     expect(roundSteps(tagged).map(step => step.question.id)).toEqual([
       'Q1',
       'Q17',
     ])
     expect(replyText(tagged, { Q1: 'a', Q2: 'a', Q17: 'b' }, {})).toBe(
-      'Round 2:\nQ1 a\nQ17 b',
+      'Round 1 (sent late):\nQ2 a\nRound 2:\nQ1 a\nQ17 b',
     )
   })
 

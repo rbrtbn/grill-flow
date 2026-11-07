@@ -7,8 +7,8 @@ import {
   OWN,
   Snapshot,
   type Step,
-  answerLines,
   isSent,
+  sendableLines,
   statusOf,
 } from './domain'
 
@@ -102,7 +102,7 @@ export const workspaceLines = (
   answers: Answers,
   notes: Notes,
   own: Notes,
-) => answerLines(snapshot.grill, answers, notes, own, snapshot.grill.steps)
+) => sendableLines(snapshot.grill, answers, notes, own)
 
 export const questionState = (
   snapshot: Snapshot,
@@ -150,6 +150,18 @@ export const visibleQuestions = (
           .join(' ')
           .toLocaleLowerCase()
           .includes(search)),
+  )
+}
+
+export const draftAnswerIds = (
+  snapshot: Snapshot,
+  answers: Answers,
+  notes: Notes,
+  own: Notes,
+): ReadonlyArray<string> => {
+  const lines = workspaceLines(snapshot, answers, notes, own)
+  return Object.keys(lines).filter(
+    id => !isSent(snapshot.sent ?? {}, lines, id),
   )
 }
 

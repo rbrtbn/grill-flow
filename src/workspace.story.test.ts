@@ -292,6 +292,27 @@ describe('reviewing and sending real answers', () => {
     )
   })
 
+  it('includes saved picks from removed questions in the reviewed selection', () => {
+    const answers = { Q1: 'a', Q99: 'b' }
+    story(
+      update,
+      given({ ...loaded, currentPart: REVIEW, answers }),
+      message(Message.ReadSendBox({ text: '' })),
+      Command.expectExact(
+        SendAnswers({
+          grillId: 'fixture',
+          message: '',
+          maybeQuestions: Option.some(['Q1', 'Q99']),
+          expectedLines: { Q1: 'Q1 a', Q99: 'Q99 b' },
+        }),
+      ),
+      Command.resolve(
+        SendAnswers,
+        Message.CompletedSendAnswers({ result: Result.fail('Not delivered') }),
+      ),
+    )
+  })
+
   it('keeps drafts, exclusions and the message after a failed send', () => {
     const review = {
       ...loaded,

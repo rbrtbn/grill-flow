@@ -31,7 +31,7 @@ describe('selective answer delivery', () => {
     })
     expect(selection).toEqual({
       ok: true,
-      reply: 'Selected answers:\nQ2 b (Keep the fallback.)',
+      reply: 'Round 1:\nQ2 b (Keep the fallback.)',
       message: 'Explain what happens next.',
       lines: { Q2: 'Q2 b (Keep the fallback.)' },
     })
@@ -51,6 +51,52 @@ describe('selective answer delivery', () => {
     }
     const selection = selectSend(earlier, { questions: ['Q1'] })
     expect(selection.ok && selection.lines).toEqual({ Q1: 'Q1 a' })
+  })
+
+  it('includes every earlier-round pick in a legacy send and records its canonical line', () => {
+    const earlier = {
+      ...state,
+      grill: {
+        ...grill,
+        round: 2,
+        steps: grill.steps.map(step => ({
+          ...step,
+          question: { ...step.question, round: 1 },
+        })),
+      },
+    }
+    const selection = selectSend(earlier, {})
+    expect(selection.ok && selection.lines).toEqual({
+      Q1: 'Q1 a',
+      Q2: 'Q2 b (Keep the fallback.)',
+    })
+    expect(selection.ok && selection.reply).toContain('Round 1 (sent late):')
+  })
+
+  it('labels selected old answers by round without changing the stored sent line', () => {
+    const earlier = {
+      ...state,
+      grill: {
+        ...grill,
+        round: 2,
+        steps: grill.steps.map(step => ({
+          ...step,
+          question: { ...step.question, round: 1 },
+        })),
+      },
+    }
+    const selection = selectSend(earlier, { questions: ['Q1'] })
+    expect(selection.ok && selection.reply).toBe('Round 1 (sent late):\nQ1 a')
+    expect(selection.ok && selection.lines).toEqual({ Q1: 'Q1 a' })
+  })
+
+  it('can select a stored pick after the question was removed from the grill', () => {
+    const selection = selectSend(
+      { ...state, answers: { Q99: 'b' } },
+      { questions: ['Q99'] },
+    )
+    expect(selection.ok && selection.lines).toEqual({ Q99: 'Q99 b' })
+    expect(selection.ok && selection.reply).toContain('Round unavailable')
   })
 
   it.each([
@@ -106,6 +152,38 @@ describe('selective answer delivery', () => {
     expect(selection.ok && selection.reply).toContain(
       'Q2 b (Keep the fallback.)',
     )
+  })
+})
+
+describe('saved answers after a question is removed', () => {
+  it('keeps an unsent pick sendable after reload and marks only its canonical line delivered', () => {
+    const db = new Database(':memory:')
+    db.exec(
+      'CREATE TABLE grills (id TEXT PRIMARY KEY, json TEXT, loaded_at INTEGER); CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, grill_id TEXT, at INTEGER, kind TEXT, payload TEXT);',
+    )
+    try {
+      loadGrill(db, grill)
+      appendEvent(db, grill.id, 'answered', { question: 'Q1', key: 'b' })
+      const changed = loadGrill(db, {
+        ...grill,
+        round: 2,
+        steps: grill.steps.filter(step => step.question.id !== 'Q1'),
+      })
+      const selection = selectSend(snapshot(db, changed), {})
+      expect(selection.ok && selection.lines).toEqual({ Q1: 'Q1 b' })
+      if (!selection.ok) throw new Error(selection.error)
+      appendEvent(db, grill.id, 'sent', {
+        ok: true,
+        what: 'answers',
+        lines: selection.lines,
+        text: selection.reply,
+      })
+      const after = snapshot(db, changed)
+      expect(after.sent?.Q1).toBe('Q1 b')
+      expect(selectSend(after, { questions: ['Q1'] }).ok).toBe(false)
+    } finally {
+      db.close()
+    }
   })
 })
 

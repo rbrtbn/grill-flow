@@ -9,6 +9,7 @@ import {
   type Snapshot,
   type Step,
   agentMessagesOf,
+  answerRoundLabel,
   planPhaseOf,
   statusOf,
 } from './domain'
@@ -30,11 +31,13 @@ import {
   SQUAD,
   adjacentQuestion,
   answerLabel,
+  draftAnswerIds,
   draftQuestions,
   questionOnPage,
   questionState,
   roundIsCollapsed,
   visibleQuestions,
+  workspaceLines,
 } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -157,7 +160,7 @@ export const workspaceView = (
   h: H,
 ): Html => {
   const grill = snapshot.grill
-  const drafts = draftQuestions(snapshot, model.answers, model.notes, model.own)
+  const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
   const question = questionOnPage(snapshot, model.currentPart)
   const isDiscussion =
     model.side === 'Talk' || model.currentPart === CONVERSATIONS
@@ -372,7 +375,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
           h.a([h.Href('/'), h.Class('f-brand')], ['grill-flow']),
           item(
             'Needs you',
-            `${open.length + draftQuestions(snapshot, model.answers, model.notes, model.own).length} questions`,
+            `${open.length + draftAnswerIds(snapshot, model.answers, model.notes, model.own).length} questions`,
             NEEDS,
           ),
           grill.kind === 'squad'
@@ -664,7 +667,10 @@ const questionView = (
                       ),
                       h.span(
                         [h.Class('f-state-label')],
-                        [stateMark(state, h), state],
+                        [
+                          stateMark(state, h),
+                          state === 'Draft' ? 'Draft · not sent' : state,
+                        ],
                       ),
                     ],
                   ),
@@ -907,12 +913,21 @@ const reviewView = (
   reading: Reading,
   h: H,
 ): Html => {
-  const drafts = draftQuestions(snapshot, model.answers, model.notes, model.own)
-  const selected = drafts.filter(
-    step => !model.workspace.excluded.includes(step.question.id),
-  )
+  const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
+  const selected = drafts.filter(id => !model.workspace.excluded.includes(id))
   const query = model.workspace.reviewQuery.trim().toLocaleLowerCase()
-  const visible = drafts.filter(step =>
+  const lines = workspaceLines(snapshot, model.answers, model.notes, model.own)
+  const unlisted = drafts.filter(
+    id =>
+      !snapshot.grill.steps.some(step => step.question.id === id) &&
+      `${id} ${lines[id]}`.toLocaleLowerCase().includes(query),
+  )
+  const visible = draftQuestions(
+    snapshot,
+    model.answers,
+    model.notes,
+    model.own,
+  ).filter(step =>
     [
       step.question.id,
       step.question.title,
@@ -983,148 +998,158 @@ const reviewView = (
               ),
               h.tbody(
                 [],
-                visible.flatMap(step => {
-                  const id = step.question.id
-                  const expanded = model.workspace.reviewExpanded.includes(id)
-                  return [
-                    h.keyed('tr')(
-                      step.id,
-                      [
-                        h.Class(
-                          model.workspace.excluded.includes(id)
-                            ? 'is-excluded'
-                            : '',
-                        ),
-                      ],
-                      [
-                        h.td(
-                          [],
-                          [
-                            h.input([
-                              h.Type('checkbox'),
-                              h.Checked(!model.workspace.excluded.includes(id)),
-                              h.AriaLabel(`Send ${id}`),
-                              h.OnClick(
-                                Message.ToggledReviewAnswer({ question: id }),
-                              ),
-                            ]),
-                          ],
-                        ),
-                        h.td(
-                          [],
-                          [
-                            h.b(
-                              [h.Title(step.question.ask)],
-                              [step.question.title],
-                            ),
-                            h.small(
-                              [],
-                              [
-                                `${id}${step.question.issue === undefined ? '' : ` · ${step.question.issue}`}`,
-                              ],
-                            ),
-                          ],
-                        ),
-                        h.td(
-                          [],
-                          [
-                            h.p(
-                              [
-                                h.Title(
-                                  answerLabel(step, model.answers, model.own),
-                                ),
-                              ],
-                              reading.answer(
-                                answerLabel(step, model.answers, model.own),
-                                h,
-                              ),
-                            ),
-                            (model.notes[id] ?? '') === ''
-                              ? h.empty
-                              : h.small([], ['Has a note']),
-                          ],
-                        ),
-                        h.td(
-                          [],
-                          [
-                            h.button(
-                              [
-                                h.Class('text-button'),
-                                h.AriaLabel(
-                                  `${expanded ? 'Hide' : 'Show'} details for ${id}`,
-                                ),
-                                h.AriaExpanded(expanded),
-                                h.OnClick(
-                                  Message.ClickedReviewDetail({ question: id }),
-                                ),
-                              ],
-                              [expanded ? 'Less' : 'Details'],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    ...(expanded
-                      ? [
-                          h.keyed('tr')(
-                            `detail-${step.id}`,
+                visible
+                  .flatMap(step => {
+                    const id = step.question.id
+                    const expanded = model.workspace.reviewExpanded.includes(id)
+                    return [
+                      h.keyed('tr')(
+                        step.id,
+                        [
+                          h.Class(
+                            model.workspace.excluded.includes(id)
+                              ? 'is-excluded'
+                              : '',
+                          ),
+                        ],
+                        [
+                          h.td(
                             [],
                             [
-                              h.td(
-                                [h.Colspan(4)],
+                              h.input([
+                                h.Type('checkbox'),
+                                h.Checked(
+                                  !model.workspace.excluded.includes(id),
+                                ),
+                                h.AriaLabel(`Send ${id}`),
+                                h.OnClick(
+                                  Message.ToggledReviewAnswer({ question: id }),
+                                ),
+                              ]),
+                            ],
+                          ),
+                          h.td(
+                            [],
+                            [
+                              h.b(
+                                [h.Title(step.question.ask)],
+                                [step.question.title],
+                              ),
+                              h.small(
+                                [],
                                 [
-                                  h.div(
-                                    [h.Class('f-review-detail')],
-                                    [
-                                      h.h3(
-                                        [],
-                                        reading.heading(step.question.ask, h),
-                                      ),
-                                      h.p(
-                                        [],
-                                        reading.answer(
-                                          answerLabel(
-                                            step,
-                                            model.answers,
-                                            model.own,
-                                          ),
-                                          h,
-                                        ),
-                                      ),
-                                      (model.notes[id] ?? '') === ''
-                                        ? h.empty
-                                        : h.p([], [model.notes[id] ?? '']),
-                                      h.div(
-                                        [h.Class('f-actions')],
-                                        [
-                                          pageLink(
-                                            'Edit answer',
-                                            `${QUESTION_PAGE}${id}`,
-                                            h,
-                                          ),
-                                          link(
-                                            'Discuss',
-                                            Message.ClickedDiscussion({
-                                              target: step.id,
-                                            }),
-                                            h,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                  `${id}${step.question.issue === undefined ? '' : ` · ${step.question.issue}`} · ${answerRoundLabel(snapshot.grill, step)}`,
                                 ],
                               ),
                             ],
                           ),
-                        ]
-                      : []),
-                  ]
-                }),
+                          h.td(
+                            [],
+                            [
+                              h.p(
+                                [
+                                  h.Title(
+                                    answerLabel(step, model.answers, model.own),
+                                  ),
+                                ],
+                                reading.answer(
+                                  answerLabel(step, model.answers, model.own),
+                                  h,
+                                ),
+                              ),
+                              (model.notes[id] ?? '') === ''
+                                ? h.empty
+                                : h.small([], ['Has a note']),
+                            ],
+                          ),
+                          h.td(
+                            [],
+                            [
+                              h.button(
+                                [
+                                  h.Class('text-button'),
+                                  h.AriaLabel(
+                                    `${expanded ? 'Hide' : 'Show'} details for ${id}`,
+                                  ),
+                                  h.AriaExpanded(expanded),
+                                  h.OnClick(
+                                    Message.ClickedReviewDetail({
+                                      question: id,
+                                    }),
+                                  ),
+                                ],
+                                [expanded ? 'Less' : 'Details'],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      ...(expanded
+                        ? [
+                            h.keyed('tr')(
+                              `detail-${step.id}`,
+                              [],
+                              [
+                                h.td(
+                                  [h.Colspan(4)],
+                                  [
+                                    h.div(
+                                      [h.Class('f-review-detail')],
+                                      [
+                                        h.h3(
+                                          [],
+                                          reading.heading(step.question.ask, h),
+                                        ),
+                                        h.p(
+                                          [],
+                                          reading.answer(
+                                            answerLabel(
+                                              step,
+                                              model.answers,
+                                              model.own,
+                                            ),
+                                            h,
+                                          ),
+                                        ),
+                                        (model.notes[id] ?? '') === ''
+                                          ? h.empty
+                                          : h.p([], [model.notes[id] ?? '']),
+                                        h.div(
+                                          [h.Class('f-actions')],
+                                          [
+                                            pageLink(
+                                              'Edit answer',
+                                              `${QUESTION_PAGE}${id}`,
+                                              h,
+                                            ),
+                                            link(
+                                              'Discuss',
+                                              Message.ClickedDiscussion({
+                                                target: step.id,
+                                              }),
+                                              h,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ]
+                        : []),
+                    ]
+                  })
+                  .concat(
+                    unlisted.map(id =>
+                      unlistedReviewRow(model, id, lines[id] ?? '', h),
+                    ),
+                  ),
               ),
             ],
           ),
-          visible.length === 0
+          visible.length === 0 && unlisted.length === 0
             ? h.p(
                 [h.Class('f-empty')],
                 [
@@ -1185,6 +1210,39 @@ const reviewView = (
     ],
   )
 }
+
+const unlistedReviewRow = (
+  model: Model,
+  id: string,
+  line: string,
+  h: H,
+): Html =>
+  h.keyed('tr')(
+    `unlisted-${id}`,
+    [h.Class(model.workspace.excluded.includes(id) ? 'is-excluded' : '')],
+    [
+      h.td(
+        [],
+        [
+          h.input([
+            h.Type('checkbox'),
+            h.Checked(!model.workspace.excluded.includes(id)),
+            h.AriaLabel(`Send ${id}`),
+            h.OnClick(Message.ToggledReviewAnswer({ question: id })),
+          ]),
+        ],
+      ),
+      h.td(
+        [],
+        [
+          h.b([], [id]),
+          h.small([], ['Question no longer listed · round unavailable']),
+        ],
+      ),
+      h.td([], [h.p([], [line])]),
+      h.td([], ['Not sent']),
+    ],
+  )
 
 const discussionView = (
   model: Model,
@@ -1534,7 +1592,14 @@ const neededCount = (snapshot: Snapshot): number =>
         snapshot.notes,
         snapshot.own,
       ) !== 'Sent',
-  ).length
+  ).length +
+  draftAnswerIds(
+    snapshot,
+    snapshot.answers,
+    snapshot.notes,
+    snapshot.own,
+  ).filter(id => !snapshot.grill.steps.some(step => step.question.id === id))
+    .length
 const workOf = (snapshot: Snapshot) => {
   const issues = snapshot.grill.plan?.issues ?? []
   return {
@@ -1554,7 +1619,7 @@ const needsView = (
   reading: Reading,
   h: H,
 ): Html => {
-  const drafts = draftQuestions(snapshot, model.answers, model.notes, model.own)
+  const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
   const steps = snapshot.grill.steps.filter(step =>
     ['Open', 'Waiting'].includes(
       statusOf(snapshot.grill, model.answers, step.question.id, model.skipped)

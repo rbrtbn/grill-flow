@@ -2599,3 +2599,13 @@ button.plan-title:hover {
     transition: none;
   }
 }
+
+.unsent-tag {
+  color: var(--link);
+  border-color: var(--link);
+}
+.send-round {
+  display: block;
+  color: var(--muted);
+  font: 500 0.75rem var(--label);
+}
