@@ -230,6 +230,16 @@ const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         count: () => count,
         selected: () => Math.min(model.selected, count),
+        scope: current =>
+          model.variant === 'D' &&
+          current !== 'all' &&
+          model.grouping === 'Round'
+            ? String(
+                Math.floor(
+                  (Math.min(model.selected, count) - 1) / Math.ceil(count / 4),
+                ),
+              )
+            : current,
       }),
     }),
     ToggledDiscussion: () => ({
@@ -892,7 +902,7 @@ const view = (model: Model, h: H): Document => ({
             [],
             [
               h.button(
-                [h.OnClick(Message.SelectedPage({ page: 'Run overview' }))],
+                [h.OnClick(Message.ToggledDiscussion())],
                 ['Conversations'],
               ),
               h.button(
