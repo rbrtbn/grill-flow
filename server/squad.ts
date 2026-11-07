@@ -491,3 +491,44 @@ export const sendPageAnswers = async (
     })),
   })
 }
+
+export const sourceText = (
+  page: Page,
+  source: string,
+  text: string,
+): string => {
+  const member = page.members.find(entry => entry.state.grill.id === source)
+  return member === undefined
+    ? text
+    : mapText(text, member.registration.questions)
+}
+
+export const sourceQuestionUrl = (
+  db: Database,
+  page: string,
+  source: string,
+  question: string,
+): string | undefined => {
+  const grill = getGrill(db, source)
+  if (
+    grill === undefined ||
+    !grill.steps.some(step => step.question.id === question)
+  ) {
+    return undefined
+  }
+  const direct = `/g/${encodeURIComponent(source)}/question/${encodeURIComponent(question)}`
+  if (page === source) {
+    return direct
+  }
+  const registration = squadRegistrations(db, page).find(
+    entry => entry.source === source,
+  )
+  const shared = registration?.questions[question]
+  if (shared === undefined) {
+    return undefined
+  }
+  if (retirementOf(db, source) !== undefined || grill.squad?.id !== page) {
+    return direct
+  }
+  return `/g/${encodeURIComponent(page)}/question/${encodeURIComponent(shared)}`
+}

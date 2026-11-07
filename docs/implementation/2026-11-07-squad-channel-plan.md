@@ -19,6 +19,11 @@ Retire/restore shipped in 4c10e52 under ADR 0009. Ordinary page wrappers shipped
 under ADR 0010. The independent Command-click request shipped in 035c5c0 before these steps.
 Other-profile filtering remains outside that change pending squad-lead-21.
 
+Step 1 shipped in 822ccea: versioned ordinary answer/submission capture, readback and a visible
+unconfirmed-delivery state for interrupted sends. T10m reviewed the implemented contract;
+PAGE activation remains held. Step 2 adds informational updates, original-wording answer history
+and registration-based source-qualified links. Live provider refresh remains in step 4.
+
 ## Shared implementation
 
 Keep canonical source ownership in `server/squad.ts`: a shared page remains a projection.

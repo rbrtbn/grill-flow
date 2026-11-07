@@ -1,3 +1,4 @@
+import { Schema } from 'effect'
 import {
   existsSync,
   mkdirSync,
@@ -10,6 +11,7 @@ import { join } from 'node:path'
 import {
   type Grill,
   type Snapshot,
+  UpdateItem,
   hasTarget,
   isWholeTarget,
   replyText,
@@ -102,6 +104,33 @@ export const runOutbox = async (
       : undefined
   }
   switch (command) {
+    case 'item': {
+      const grill = grillOf(args[0])
+      const decoded = Schema.decodeUnknownResult(UpdateItem)(
+        JSON.parse(readFileSync(flag(args, '--file') ?? fail(usage), 'utf8')),
+      )
+      if (decoded._tag === 'Failure') {
+        return fail('Invalid version-1 update record.')
+      }
+      const item = decoded.success
+      if (item.body.trim() === '' || item.revision !== item.previous + 1) {
+        fail('An update needs text and the next revision after previous.')
+      }
+      const name = `${item.id}-${String(item.revision).padStart(10, '0')}.json`
+      const path = join(folder(grill.id), 'items', name)
+      const text = `${JSON.stringify(item)}\n`
+      if (existsSync(path) && readFileSync(path, 'utf8') !== text) {
+        fail('That immutable update file already has different content.')
+      }
+      mkdirSync(join(folder(grill.id), 'items'), { recursive: true })
+      if (!existsSync(path)) {
+        writeAtomic(path, text)
+      }
+      console.log(
+        `queued ${item.id} revision ${item.revision} in ${path}; the serving machine validates and publishes it`,
+      )
+      break
+    }
     case 'grant':
       fail('Read submission evidence on the serving machine without GF_OUTBOX.')
       break

@@ -175,3 +175,48 @@ The page is built with [Foldkit](https://foldkit.dev) on [Effect](https://effect
 `FOLDKIT.md` before changing `src/`. The design work used
 [Impeccable](https://github.com/pbakaus/impeccable), installed project-locally into `.claude/`
 and not committed.
+
+### Publish an update without a question
+
+An agent publishes an informational update on its own source grill:
+
+```json
+{
+  "version": 1,
+  "kind": "update",
+  "id": "progress",
+  "previous": 0,
+  "revision": 1,
+  "session": "t-worker",
+  "body": "The checks passed. The remaining decision is Q1.",
+  "question": "Q1"
+}
+```
+
+```bash
+bun run gf item <source-grill> --file update.json
+```
+
+The Updates page reads these items without creating a question, a Seen answer or a draft to send.
+Increment `revision` and set `previous` to the accepted revision when editing; identical replays
+are harmless and conflicting content is rejected. Optional `supersedes` names another update in
+that source. The session is publisher-supplied display metadata.
+Events keep every accepted revision.
+
+With `GF_OUTBOX`, the command queues an immutable `items/<id>-<revision>.json` file. The serving
+machine validates it before publication and returns accepted updates in `state.json`.
+Queued is not confirmation of publication; `gf events` shows the accepted
+`item-published` event. Reloading a grill does not remove its updates.
+No other source's JSON file needs editing.
+
+Answer history shows original question/option words, custom answers and notes from
+each submission,
+with delivery status and separately labelled extra messages. Legacy wording remains explicitly
+unavailable. On the original display page, a later wording change offers a word diff; another page
+links back to the original surface for comparison. Saved receipts remain unchanged.
+
+A durable local-question link can name its source explicitly:
+`/g/<shared-page>/question/<local-id>?source=<source-grill>`.
+The source determines the question even when its local ID resembles another member's
+shared Q number. Retired members lead to their preserved direct page;
+unknown source/question pairs fail instead of guessing.

@@ -12,9 +12,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { type Snapshot, type Step, roundSteps } from '../src/domain'
+import { questionRevisions, recordAnswer } from './answerReceipts'
+import { publishUpdate } from './channel'
 import { grillOnMachine } from './remote'
-import { readPage } from './squad'
-import { appendEvent, getGrill, loadGrill, squadRegistrations } from './store'
+import { selectSend } from './sendSelection'
+import { readPage, sendPageAnswers } from './squad'
+import {
+  appendEvent,
+  getGrill,
+  loadGrill,
+  retireGrill,
+  snapshot,
+  squadRegistrations,
+} from './store'
 
 const dir = mkdtempSync(join(tmpdir(), 'squad-composition-'))
 const database = join(dir, 'test.sqlite')
@@ -402,4 +412,104 @@ it('preserves sent receipts and references for member question IDs that are not 
   ).toEqual([
     `Compare ${registration.questions['grant-1']} and ${registration.questions.S1}.`,
   ])
+})
+
+it('projects updates and immutable answer history and resolves canonical source links through HTTP', async () => {
+  const grill = loadGrill(db, source('channel-source', 'channel-worker'))
+  const before = await state()
+  const visible = Object.entries(before.questionOrigins ?? {}).find(
+    ([, origin]) => origin.grill === grill.id && origin.question === 'Q1',
+  )?.[0]
+  expect(visible).toBeDefined()
+  const item = {
+    version: 1,
+    kind: 'update',
+    id: 'progress',
+    previous: 0,
+    revision: 1,
+    session: 'channel-worker',
+    body: 'Progress on Q1.',
+    question: 'Q1',
+  }
+  expect(publishUpdate(db, grill, item).ok).toBe(true)
+  const updated = await state()
+  const update = updated.updates?.find(entry => entry.source === grill.id)
+  expect(update?.item.body).toBe('Progress on Q1.')
+  expect(update?.displayBody).toBe(`Progress on ${visible}.`)
+  expect(updated.grill.steps).toHaveLength(before.grill.steps.length)
+  expect(updated.answers).toEqual(before.answers)
+  expect(updated.sends).toEqual(before.sends)
+  const qualified = `${base}/g/squad/question/Q1?source=${grill.id}`
+  const resolved = await fetch(qualified, { redirect: 'manual' })
+  expect(resolved.status).toBe(302)
+  expect(resolved.headers.get('location')).toBe(`/g/squad/question/${visible}`)
+  expect(
+    (
+      await fetch(`${base}/g/squad/question/Q1?source=unknown`, {
+        redirect: 'manual',
+      })
+    ).status,
+  ).toBe(404)
+  expect(
+    (
+      await fetch(`${base}/g/squad/question/Q999?source=${grill.id}`, {
+        redirect: 'manual',
+      })
+    ).status,
+  ).toBe(404)
+  expect(
+    recordAnswer(db, grill, updated.grill, visible!, {
+      question: 'Q1',
+      key: 'a',
+      contextRevision: updated.questionRevisions?.[visible!],
+    }).ok,
+  ).toBe(true)
+  const selected = selectSend(snapshot(db, grill), { questions: ['Q1'] })
+  if (!selected.ok) throw new Error(selected.error)
+  await sendPageAnswers(
+    db,
+    readPage(db, grill.id)!,
+    selected,
+    async () => ({ ok: true, detail: 'Mocked history transport' }),
+    () => 'gf',
+  )
+  const legacy = appendEvent(db, grill.id, 'sent', {
+    ok: true,
+    what: 'answers',
+    lines: { Q1: 'Q1 old receipt' },
+  })
+  loadGrill(db, {
+    ...grill,
+    steps: grill.steps.map(step => ({
+      ...step,
+      question: { ...step.question, ask: 'New wording after Send' },
+    })),
+  })
+  const history =
+    (await state()).answerHistory?.filter(entry => entry.source === grill.id) ??
+    []
+  expect(history).toHaveLength(2)
+  const captured = history.find(entry => entry.submission !== null)
+  expect(captured?.answers[0]?.context?.ask).toBe(
+    updated.grill.steps.find(step => step.question.id === visible)!.question
+      .ask,
+  )
+  expect(captured?.answers[0]?.context?.displayQuestion).toBe(visible!)
+  expect(captured?.state).toBe('delivered')
+  expect(history.find(entry => entry.event === legacy)).toMatchObject({
+    submission: null,
+    answers: [],
+    legacyLines: { Q1: 'Q1 old receipt' },
+  })
+  retireGrill(db, grill, 'Source finished')
+  const retired = await fetch(qualified, { redirect: 'manual' })
+  expect(retired.status).toBe(302)
+  expect(retired.headers.get('location')).toBe(`/g/${grill.id}/question/Q1`)
+  expect(
+    (await state()).updates?.some(entry => entry.source === grill.id),
+  ).toBe(false)
+  expect(
+    (await state(grill.id)).updates?.find(entry => entry.source === grill.id)
+      ?.item.body,
+  ).toBe('Progress on Q1.')
 })

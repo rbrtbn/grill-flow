@@ -1,8 +1,10 @@
 import type { Database } from 'bun:sqlite'
+import { Schema } from 'effect'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Grill } from '../src/domain'
+import { UpdateItem, type Grill } from '../src/domain'
+import { publishUpdate, publishedUpdates } from './channel'
 import {
   ROOT,
   decodeGrill,
@@ -79,7 +81,7 @@ type Listing = Readonly<{
 const list = async (remote: Remote): Promise<Listing | undefined> => {
   const script = `cd ${shellPath(remote.dir)} 2>/dev/null || exit 0
 pwd
-find . -mindepth 2 -maxdepth 3 -type f \\( -name grill.json -o -path './*/revisions/*.json' \\) | while read -r f; do
+find . -mindepth 2 -maxdepth 3 -type f \\( -name grill.json -o -path './*/revisions/*.json' -o -path './*/items/*.json' \\) | while read -r f; do
   m=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f")
   s=$(wc -c < "$f" | tr -d ' ')
   echo "$m.$s $f"
@@ -227,6 +229,29 @@ const takeRevision = async (
   }
 }
 
+const takeItem = async (
+  db: Database,
+  remote: Remote,
+  root: string,
+  path: string,
+): Promise<boolean> => {
+  const grill = getGrill(db, path.split('/')[0] ?? '')
+  const decoded = Schema.decodeUnknownResult(UpdateItem)(
+    await readRemote(remote.machine, `${root}/${path}`),
+  )
+  if (grill === undefined || decoded._tag === 'Failure') {
+    return false
+  }
+  const result = publishUpdate(db, grill, {
+    ...decoded.success,
+    session: remoteSession(remote.machine, decoded.success.session),
+  })
+  if (!result.ok) {
+    console.error(`remote ${remote.machine}:${path}: ${result.reason}`)
+  }
+  return result.ok
+}
+
 const pushed = new Map<string, number>()
 
 /** Writes a remote grill's state into its outbox folder whenever it has changed. */
@@ -245,7 +270,10 @@ const pushStates = async (db: Database): Promise<void> => {
     const state = {
       at: new Date().toISOString(),
       lastEventId: latest,
-      snapshot: snapshot(db, grill),
+      snapshot: {
+        ...snapshot(db, grill),
+        updates: publishedUpdates(db, [grill.id]),
+      },
       events: events(db, id).map(event => ({
         ...event,
         payload: JSON.parse(event.payload),
@@ -265,8 +293,11 @@ const pushStates = async (db: Database): Promise<void> => {
   }
 }
 
-const pollOnce = async (db: Database): Promise<void> => {
-  for (const remote of readRemotes()) {
+export const pollRemotesOnce = async (
+  db: Database,
+  remotes: ReadonlyArray<Remote> = readRemotes(),
+): Promise<void> => {
+  for (const remote of remotes) {
     const listing = await list(remote)
     if (listing === undefined) {
       continue
@@ -280,8 +311,18 @@ const pollOnce = async (db: Database): Promise<void> => {
       })
     for (const file of changed) {
       // A reply is taken once; a grill again whenever the agent rewrites it.
+      const isItem = file.path.includes('/items/')
       const isReply = file.path.includes('/revisions/')
-      if (isReply && seenStamp(db, remote.machine, file.path) !== undefined) {
+      if (
+        (isReply || isItem) &&
+        seenStamp(db, remote.machine, file.path) !== undefined
+      ) {
+        continue
+      }
+      if (isItem) {
+        if (await takeItem(db, remote, listing.root, file.path)) {
+          markSeen(db, remote.machine, file.path, file.stamp)
+        }
         continue
       }
       await (isReply
@@ -297,7 +338,7 @@ const pollOnce = async (db: Database): Promise<void> => {
 export const startRemotes = (db: Database): void => {
   const tick = async (): Promise<void> => {
     try {
-      await pollOnce(db)
+      await pollRemotesOnce(db)
     } catch (error) {
       console.error(`remotes: ${String(error).slice(0, 300)}`)
     }

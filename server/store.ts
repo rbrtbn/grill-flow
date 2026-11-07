@@ -28,6 +28,7 @@ export type EventKind =
   | 'revised'
   | 'sent'
   | 'submitted'
+  | 'item-published'
   | 'replied'
   | 'retired'
   | 'restored'
@@ -355,7 +356,7 @@ const REPLY_LINE = /^(Q\d+) (?:other: |[^\s(]+)/
  * The answer lines a send delivered. Sends record them; older ones only kept the message, so its
  * `Q<n> …` lines, or the picks in an all-recommended line, stand in.
  */
-const sentLines = (
+export const sentLines = (
   payload: Record<string, unknown>,
 ): Record<string, string> => {
   if (typeof payload.lines === 'object' && payload.lines !== null) {
@@ -457,6 +458,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         break
       case 'loaded':
       case 'submitted':
+      case 'item-published':
       case 'squad-registered':
       case 'retired':
       case 'restored':

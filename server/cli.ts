@@ -8,6 +8,7 @@ import {
   replyText,
 } from '../src/domain'
 import { ContextUnavailable, readSubmission } from './answerReceipts'
+import { publishUpdate } from './channel'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
@@ -38,6 +39,7 @@ const usage = `gf: grill-flow's agent-side commands
                                        or reply with a comment; a concept takes comments only
   gf reply <grill-id> --file <path>    after a Send arrives: tell the user what you decided and
                                        what comes next; the page shows it as your reply
+  gf item <source-grill> --file <path> publish a versioned update without creating a question
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
   gf grant --version                 probe immutable answer readback format
   gf grant <source-grill> <send-id>    read a captured submission; does not classify authority
@@ -90,6 +92,22 @@ const answers = (): Promise<boolean> =>
   )
 
 switch (command) {
+  case 'item': {
+    const grill =
+      getGrill(db, args[0] ?? '') ??
+      fail('An item belongs to a canonical source grill.')
+    const result = publishUpdate(
+      db,
+      grill,
+      JSON.parse(readFileSync(flag(args, '--file') ?? fail(usage), 'utf8')),
+    )
+    if (result.ok) {
+      console.log(`published update on ${grill.id}, event ${result.event}`)
+    } else {
+      fail(result.reason)
+    }
+    break
+  }
   case 'grant': {
     const source = args[0] ?? fail(usage)
     const send = Number(args[1])

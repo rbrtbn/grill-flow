@@ -46,6 +46,7 @@ import {
   usesUrgency,
 } from './domain'
 import {
+  ANSWER_HISTORY,
   CONVERSATIONS,
   CatalogData,
   GRILLS,
@@ -58,6 +59,7 @@ import {
   REVIEW,
   RUN_TARGET,
   SQUAD,
+  UPDATES,
   WorkSection,
   Workspace,
   adjacentQuestion,
@@ -1527,10 +1529,11 @@ export const update = (model: Model, message: Message) =>
             }
       }),
 
-    // A link inside this grill moves within the page; anything else, the dashboard included, loads.
+    // Local IDs need server resolution even when they resemble shared Q numbers (ADR 0012).
     RequestedUrl: ({ request }) =>
       withSnapshot(model, snapshot =>
         request._tag === 'Internal' &&
+        !new URL(Url.toString(request.url)).searchParams.has('source') &&
         (request.url.pathname ===
           `/g/${encodeURIComponent(snapshot.grill.id)}` ||
           request.url.pathname.startsWith(
@@ -2158,7 +2161,16 @@ export const pathOfPage = (grillId: string, page: string): string => {
     page === PLAN ||
     page === STATUS ||
     page === DECIDED ||
-    [REVIEW, CONVERSATIONS, REPLIES, NEEDS, SQUAD, GRILLS].includes(page)
+    [
+      REVIEW,
+      CONVERSATIONS,
+      REPLIES,
+      NEEDS,
+      SQUAD,
+      GRILLS,
+      UPDATES,
+      ANSWER_HISTORY,
+    ].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
   }
@@ -2180,7 +2192,16 @@ export const pageOfPath = (pathname: string): string => {
     kind === PLAN ||
     kind === STATUS ||
     kind === DECIDED ||
-    [REVIEW, CONVERSATIONS, REPLIES, NEEDS, SQUAD, GRILLS].includes(kind ?? '')
+    [
+      REVIEW,
+      CONVERSATIONS,
+      REPLIES,
+      NEEDS,
+      SQUAD,
+      GRILLS,
+      UPDATES,
+      ANSWER_HISTORY,
+    ].includes(kind ?? '')
     ? (kind ?? '')
     : kind === 'concept'
       ? decoded

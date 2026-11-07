@@ -3,53 +3,30 @@ import { Schema } from 'effect'
 import { createHash } from 'node:crypto'
 
 import {
-  AnswerOption,
+  RecordedAnswer,
+  SubmissionAnswer,
   OWN,
   type Grill,
   type Question,
+  type Snapshot,
   questionSession,
   roundOf,
   sendableLines,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
 import { SendRequest, type SendSelection } from './sendSelection'
-import { appendEvent, events, snapshot } from './store'
+import { appendEvent, events, sentLines, snapshot } from './store'
 
 export class SubmissionConflict extends Error {}
 export class ContextUnavailable extends Error {}
 
-const Context = Schema.Struct({
-  revision: Schema.String,
-  displayPage: Schema.String,
-  displayQuestion: Schema.String,
-  round: Schema.Number,
-  title: Schema.String,
-  scope: Schema.String,
-  ask: Schema.String,
-  options: Schema.Array(AnswerOption),
-})
-const CapturedAnswer = Schema.Struct({
-  version: Schema.Literal(1),
-  question: Schema.String,
-  key: Schema.String,
-  own: Schema.String,
-  note: Schema.String,
-  context: Schema.NullOr(Context),
-})
-const SubmittedAnswer = Schema.Struct({
-  ...CapturedAnswer.fields,
-  answerEvent: Schema.NullOr(Schema.Number),
-  answerRecordedAt: Schema.NullOr(Schema.Number),
-  sendRevision: Schema.NullOr(Schema.String),
-  recipient: Schema.String,
-})
 const Submission = Schema.Struct({
   version: Schema.Literal(1),
   requestId: Schema.NullOr(Schema.String),
   requestDigest: Schema.String,
   displayPage: Schema.String,
   questions: Schema.Record(Schema.String, Schema.String),
-  answers: Schema.Array(SubmittedAnswer),
+  answers: Schema.Array(SubmissionAnswer),
   lines: Schema.Record(Schema.String, Schema.String),
   message: Schema.String,
   recipients: Schema.Array(Schema.String),
@@ -222,7 +199,7 @@ export const freezeSubmission = (
     const captured =
       payload?.receipt === undefined
         ? null
-        : Schema.decodeUnknownSync(CapturedAnswer)(payload.receipt)
+        : Schema.decodeUnknownSync(RecordedAnswer)(payload.receipt)
     return {
       version: 1,
       question,
@@ -328,3 +305,53 @@ export const unconfirmedSends = (
       .filter(item => item.kind === 'submitted' && !confirmed.has(item.id))
       .map(item => ({ source, send: item.id }))
   })
+
+export const answerHistory = (
+  db: Database,
+  sources: ReadonlyArray<string>,
+): NonNullable<Snapshot['answerHistory']> =>
+  sources
+    .flatMap(source =>
+      events(db, source).flatMap(
+        (event): NonNullable<Snapshot['answerHistory']> => {
+          if (event.kind === 'submitted') {
+            const receipt = readSubmission(db, source, event.id)
+            return [
+              {
+                source,
+                event: event.id,
+                at: event.at,
+                submission: event.id,
+                answers: receipt.answers,
+                legacyLines: {},
+                message: receipt.message,
+                state: receipt.deliveries.every(
+                  item => item.state === 'delivered',
+                )
+                  ? 'delivered'
+                  : receipt.deliveries.some(item => item.state === 'failed')
+                    ? 'failed'
+                    : 'pending',
+              },
+            ]
+          }
+          if (event.kind !== 'sent') return []
+          const payload = JSON.parse(event.payload)
+          if (payload.what === 'ask' || payload.submission !== undefined)
+            return []
+          return [
+            {
+              source,
+              event: event.id,
+              at: event.at,
+              submission: null,
+              answers: [],
+              legacyLines: sentLines(payload),
+              message: '',
+              state: payload.ok === true ? 'delivered' : 'failed',
+            },
+          ]
+        },
+      ),
+    )
+    .sort((a, b) => b.event - a.event)

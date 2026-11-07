@@ -1955,3 +1955,40 @@ body[data-gf-preview] .f-workspace {
   padding: 16px 10px 4px;
   font: 600 15px/1.4 var(--label);
 }
+
+.f-channel-entry {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+.f-channel-entry .f-channel-meta {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font: 500 14px/1.5 var(--label);
+}
+.f-channel-entry > .prose,
+.f-saved-answer {
+  max-width: 68ch;
+}
+.f-saved-answer,
+.f-extra-message {
+  margin-top: 20px;
+  display: grid;
+  gap: 8px;
+}
+.f-original-title {
+  font-weight: 600;
+}
+.f-earlier-updates {
+  margin-top: 28px;
+}
+.f-legacy-answer {
+  white-space: pre-wrap;
+}
+.f-wording-changes {
+  margin-top: 12px;
+}
+.f-wording-diff {
+  white-space: pre-wrap;
+  margin-top: 12px;
+}

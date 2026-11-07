@@ -21,6 +21,8 @@ export const QUESTION_PAGE = 'question:'
 export const REVIEW = 'review'
 export const CONVERSATIONS = 'conversations'
 export const REPLIES = 'replies'
+export const UPDATES = 'updates'
+export const ANSWER_HISTORY = 'answer-history'
 export const NEEDS = 'needs-you'
 export const SQUAD = 'squad'
 export const GRILLS = 'grills'
@@ -122,6 +124,8 @@ export const isWorkspacePage = (page: string): boolean =>
     REVIEW,
     CONVERSATIONS,
     REPLIES,
+    UPDATES,
+    ANSWER_HISTORY,
     NEEDS,
     SQUAD,
     GRILLS,

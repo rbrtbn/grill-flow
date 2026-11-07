@@ -473,8 +473,79 @@ export const Retirement = Schema.Struct({
   reason: Schema.String,
 })
 
+export const UpdateItem = Schema.Struct({
+  version: Schema.Literal(1),
+  kind: Schema.Literal('update'),
+  id: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]{0,79}$/)),
+  previous: Schema.Number.check(
+    Schema.isInt(),
+    Schema.isGreaterThanOrEqualTo(0),
+  ),
+  revision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  session: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
+  body: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20000)),
+  question: Schema.optionalKey(Schema.String),
+  supersedes: Schema.optionalKey(Schema.String),
+})
+export type UpdateItem = typeof UpdateItem.Type
+export const PublishedUpdate = Schema.Struct({
+  source: Schema.String,
+  event: Schema.Number,
+  at: Schema.Number,
+  item: UpdateItem,
+  displayBody: Schema.optionalKey(Schema.String),
+  supersededBy: Schema.optionalKey(Schema.String),
+})
+
+export const AnswerContext = Schema.Struct({
+  revision: Schema.String,
+  displayPage: Schema.String,
+  displayQuestion: Schema.String,
+  round: Schema.Number,
+  title: Schema.String,
+  scope: Schema.String,
+  ask: Schema.String,
+  options: Schema.Array(AnswerOption),
+})
+export const RecordedAnswer = Schema.Struct({
+  version: Schema.Literal(1),
+  question: Schema.String,
+  key: Schema.String,
+  own: Schema.String,
+  note: Schema.String,
+  context: Schema.NullOr(AnswerContext),
+})
+export const SubmissionAnswer = Schema.Struct({
+  ...RecordedAnswer.fields,
+  answerEvent: Schema.NullOr(Schema.Number),
+  answerRecordedAt: Schema.NullOr(Schema.Number),
+  sendRevision: Schema.NullOr(Schema.String),
+  recipient: Schema.String,
+})
+export const AnswerHistoryEntry = Schema.Struct({
+  source: Schema.String,
+  event: Schema.Number,
+  at: Schema.Number,
+  submission: Schema.NullOr(Schema.Number),
+  answers: Schema.Array(SubmissionAnswer),
+  legacyLines: Schema.Record(Schema.String, Schema.String),
+  message: Schema.String,
+  state: Schema.Literals(['pending', 'delivered', 'failed']),
+})
+
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  updates: Schema.optionalKey(Schema.Array(PublishedUpdate)),
+  answerHistory: Schema.optionalKey(Schema.Array(AnswerHistoryEntry)),
+  questionOrigins: Schema.optionalKey(
+    Schema.Record(
+      Schema.String,
+      Schema.Struct({
+        grill: Schema.String,
+        question: Schema.String,
+      }),
+    ),
+  ),
   retirement: Schema.optionalKey(Retirement),
   maintainerSession: Schema.optionalKey(Schema.String),
   questionRevisions: Schema.optionalKey(

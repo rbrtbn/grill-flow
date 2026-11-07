@@ -12,16 +12,25 @@ import {
 } from '../src/domain'
 import {
   SubmissionConflict,
+  answerHistory,
   questionRevisions,
   recordAnswer,
   replaySubmission,
   unconfirmedSends,
 } from './answerReceipts'
+import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { askMessage, pageMessage } from './messages'
 import { startRemotes } from './remote'
 import { SendRequest, selectSend } from './sendSelection'
-import { eventDestination, listPages, readPage, sendPageAnswers } from './squad'
+import {
+  eventDestination,
+  listPages,
+  readPage,
+  sendPageAnswers,
+  sourceQuestionUrl,
+  sourceText,
+} from './squad'
 import { ROOT, appendEvent, open, remoteOf, snapshot } from './store'
 
 const PORT = Number(process.env.GF_PORT ?? 4317)
@@ -154,9 +163,35 @@ const sessionFor = (grillSession: string): string =>
 const clientSnapshot = (grill: Grill) => {
   const page = readPage(db, grill.id)
   const state = page?.state ?? snapshot(db, grill)
+  const sources = page?.members.length
+    ? page.members.map(member => member.state.grill.id)
+    : [grill.id]
   return {
     ...state,
     questionRevisions: questionRevisions(state.grill),
+    updates: publishedUpdates(db, sources).map(entry => ({
+      ...entry,
+      displayBody:
+        page === undefined
+          ? entry.item.body
+          : sourceText(page, entry.source, entry.item.body),
+    })),
+    answerHistory: answerHistory(db, sources),
+    questionOrigins: Object.fromEntries(
+      page?.members.length
+        ? page.members.flatMap(member =>
+            Object.entries(member.registration.questions).map(
+              ([question, shared]) => [
+                shared,
+                { grill: member.state.grill.id, question },
+              ],
+            ),
+          )
+        : state.grill.steps.map(step => [
+            step.question.id,
+            { grill: grill.id, question: step.question.id },
+          ]),
+    ),
     unconfirmedSends: unconfirmedSends(
       db,
       page?.members.length
@@ -344,6 +379,21 @@ Bun.serve({
       }
       // Every page of a grill has its own path under /g/<id>; the app reads which from the URL.
       if (parts[0] === 'g' && parts.length >= 2 && parts.length <= 4) {
+        if (
+          parts[2] === 'question' &&
+          parts.length === 4 &&
+          url.searchParams.has('source')
+        ) {
+          const target = sourceQuestionUrl(
+            db,
+            decodeURIComponent(parts[1] ?? ''),
+            url.searchParams.get('source') ?? '',
+            decodeURIComponent(parts[3] ?? ''),
+          )
+          return target === undefined
+            ? json({ error: 'No such source question on this page.' }, 404)
+            : new Response(null, { status: 302, headers: { location: target } })
+        }
         return page()
       }
       if (parts[0] === 'api' && parts[1] === 'build' && parts.length === 2) {

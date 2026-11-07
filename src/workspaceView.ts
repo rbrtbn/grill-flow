@@ -3,6 +3,11 @@ import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import {
+  answerHistoryView,
+  sourceQuestionHref,
+  updatesView,
+} from './channelView'
+import {
   FORMAT_VERSION,
   GRILL_FLOW_TARGET,
   OWN,
@@ -29,6 +34,7 @@ import {
   threadDraftKey,
 } from './main'
 import {
+  ANSWER_HISTORY,
   CONVERSATIONS,
   GRILLS,
   NEEDS,
@@ -38,6 +44,7 @@ import {
   REVIEW,
   RUN_TARGET,
   SQUAD,
+  UPDATES,
   adjacentQuestion,
   answerLabel,
   draftAnswerIds,
@@ -316,27 +323,32 @@ export const workspaceView = (
     '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
   }
   const content =
-    model.currentPart === SQUAD
-      ? squadView(model, snapshot, reading, h)
-      : model.currentPart === GRILLS
-        ? grillsView(model, snapshot, h)
-        : model.currentPart === REVIEW
-          ? reviewView(model, snapshot, reading, h)
-          : model.currentPart === REPLIES
-            ? repliesView(model, snapshot, reading, h)
-            : model.currentPart === NEEDS
-              ? needsView(model, snapshot, reading, h)
-              : model.currentPart === 'plan' || model.currentPart === 'status'
-                ? runView(model, snapshot, reading, h)
-                : model.currentPart === 'decided'
-                  ? reading.decided(h)
-                  : model.currentPart === CONVERSATIONS
-                    ? conversationPage(model, snapshot, reading, h)
-                    : Option.match(question, {
-                        onSome: step =>
-                          questionView(model, snapshot, step, reading, h),
-                        onNone: () => reading.overview(h),
-                      })
+    model.currentPart === UPDATES
+      ? updatesView(snapshot, reading.prose, h)
+      : model.currentPart === ANSWER_HISTORY
+        ? answerHistoryView(snapshot, h)
+        : model.currentPart === SQUAD
+          ? squadView(model, snapshot, reading, h)
+          : model.currentPart === GRILLS
+            ? grillsView(model, snapshot, h)
+            : model.currentPart === REVIEW
+              ? reviewView(model, snapshot, reading, h)
+              : model.currentPart === REPLIES
+                ? repliesView(model, snapshot, reading, h)
+                : model.currentPart === NEEDS
+                  ? needsView(model, snapshot, reading, h)
+                  : model.currentPart === 'plan' ||
+                      model.currentPart === 'status'
+                    ? runView(model, snapshot, reading, h)
+                    : model.currentPart === 'decided'
+                      ? reading.decided(h)
+                      : model.currentPart === CONVERSATIONS
+                        ? conversationPage(model, snapshot, reading, h)
+                        : Option.match(question, {
+                            onSome: step =>
+                              questionView(model, snapshot, step, reading, h),
+                            onNone: () => reading.overview(h),
+                          })
   return h.div(
     [
       h.Class(
@@ -599,6 +611,20 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             'Needs you',
             `${open.length} open${drafts > 0 ? ` · ${drafts} drafts` : ''}`,
             NEEDS,
+          ),
+          item(
+            'Updates',
+            String(
+              (snapshot.updates ?? []).filter(
+                update => update.supersededBy === undefined,
+              ).length,
+            ),
+            UPDATES,
+          ),
+          item(
+            'Answer history',
+            String((snapshot.answerHistory ?? []).length),
+            ANSWER_HISTORY,
           ),
           grill.kind === 'squad'
             ? item(
@@ -1022,6 +1048,25 @@ const questionView = (
                       h.summary([], ['Scope and source details']),
                       h.p([], [q.scope]),
                       reading.source(step, h),
+                      snapshot.questionOrigins?.[q.id] === undefined
+                        ? h.empty
+                        : h.p(
+                            [],
+                            [
+                              h.a(
+                                [
+                                  h.Href(
+                                    sourceQuestionHref(
+                                      snapshot.grill.id,
+                                      snapshot.questionOrigins[q.id]!.grill,
+                                      snapshot.questionOrigins[q.id]!.question,
+                                    ),
+                                  ),
+                                ],
+                                ['Source question link'],
+                              ),
+                            ],
+                          ),
                     ],
                   ),
                 ],
@@ -1069,6 +1114,8 @@ const workspacePageName = (page: string): string =>
     [GRILLS]: 'Your grills',
     [CONVERSATIONS]: 'Conversations',
     [REPLIES]: 'Replies & decisions',
+    [UPDATES]: 'Updates',
+    [ANSWER_HISTORY]: 'Answer history',
     plan: 'Run overview',
     status: 'Run overview',
     overview: 'Overview',
