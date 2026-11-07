@@ -2,7 +2,8 @@ import type { Database } from 'bun:sqlite'
 import { hostname } from 'node:os'
 
 import { isSent, roundSteps, sendableLines, tally } from '../src/domain'
-import { getGrill, lastActivity, listGrills, snapshot } from './store'
+import { listPages, readPage } from './squad'
+import { lastActivity } from './store'
 
 const THIS_HOST = hostname().split('.')[0] ?? 'this machine'
 
@@ -111,11 +112,12 @@ const rows = (
   db: Database,
   byAddress: ReadonlyMap<string, Terminal>,
 ): ReadonlyArray<Row> =>
-  listGrills(db)
+  listPages(db)
     .flatMap(({ id }) => {
-      const grill = getGrill(db, id)
-      if (!grill) return []
-      const state = snapshot(db, grill)
+      const page = readPage(db, id)
+      if (!page) return []
+      const state = page.state
+      const grill = state.grill
       const steps = roundSteps(grill)
       const counts = tally(grill, state.answers, [], steps)
       const lines = sendableLines(grill, state.answers, state.notes, state.own)
@@ -143,7 +145,12 @@ const rows = (
           unsent: needed - sent + earlier,
           readyToSend: pending.length,
           pendingAsks: state.asks.filter(ask => !ask.answered).length,
-          at: lastActivity(db, id),
+          at: Math.max(
+            lastActivity(db, id),
+            ...page.members.map(member =>
+              lastActivity(db, member.state.grill.id),
+            ),
+          ),
         },
       ]
     })

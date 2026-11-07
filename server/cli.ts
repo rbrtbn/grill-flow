@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { FORMAT_VERSION, isWholeTarget, replyText } from '../src/domain'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
+import { readPage } from './squad'
 import {
   ROOT,
   events,
-  getGrill,
   loadGrill,
   open,
   replyToGrill,
@@ -59,7 +59,7 @@ if (outbox !== undefined && outbox !== '') {
 const db = open()
 
 const requireGrill = (id: string | undefined) =>
-  getGrill(db, id ?? '') ?? fail(`no grill ${id}`)
+  readPage(db, id ?? '')?.state.grill ?? fail(`no grill ${id}`)
 
 const answers = (): Promise<boolean> =>
   fetch(`${BASE}/api/build`).then(
@@ -123,7 +123,7 @@ switch (command) {
   }
   case 'state': {
     const grill = requireGrill(args[0])
-    const state = snapshot(db, grill)
+    const state = readPage(db, grill.id)!.state
     console.log(replyText(grill, state.answers, state.notes, state.own))
     const waiting = state.asks.filter(ask => !ask.answered)
     if (waiting.length > 0) {

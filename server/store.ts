@@ -9,6 +9,7 @@ import {
   type Snapshot,
   hasTarget,
   isWholeTarget,
+  roundOf,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
 
@@ -16,6 +17,7 @@ export const ROOT = join(import.meta.dir, '..')
 const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
 
 export type EventKind =
+  | 'squad-registered'
   | 'renamed-round'
   | 'loaded'
   | 'answered'
@@ -38,6 +40,7 @@ export const open = (): Database => {
   mkdirSync(dirname(DB_PATH), { recursive: true, mode: 0o700 })
   const db = new Database(DB_PATH, { create: true })
   db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA busy_timeout = 5000')
   db.exec(`CREATE TABLE IF NOT EXISTS grills (
     id TEXT PRIMARY KEY,
     json TEXT NOT NULL,
@@ -69,40 +72,87 @@ export const open = (): Database => {
 
 export const decodeGrill = Schema.decodeUnknownSync(Grill)
 
-export const loadGrill = (db: Database, raw: unknown): Grill => {
-  const decoded = decodeGrill(raw)
-  const previous = getGrill(db, decoded.id)
-  const hasTitle = (key: string, text: string): boolean =>
-    text.trim() !== '' && text.trim() !== key
-  const grill =
-    decoded.refs === undefined
-      ? decoded
-      : {
-          ...decoded,
-          refs: Object.fromEntries(
-            Object.entries(decoded.refs).map(([key, ref]) => {
-              const title = previous?.refs?.[key]?.text
-              return [
-                key,
-                !hasTitle(key, ref.text) &&
-                title !== undefined &&
-                hasTitle(key, title)
-                  ? { ...ref, text: title }
-                  : ref,
-              ]
-            }),
-          ),
-        }
-  db.run(
-    'INSERT INTO grills (id, json, loaded_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, loaded_at = excluded.loaded_at',
-    [grill.id, JSON.stringify(grill), Date.now()],
-  )
-  appendEvent(db, grill.id, 'loaded', {
-    round: grill.round,
-    steps: grill.steps.length,
-  })
-  return grill
-}
+// Source loads and shared identity allocation commit together (docs/adr/0008).
+export const loadGrill = (db: Database, raw: unknown): Grill =>
+  db
+    .transaction(() => {
+      const decoded = decodeGrill(raw)
+      if (decoded.squad?.id === decoded.id) {
+        throw new Error(
+          'A member grill must have its own ID, distinct from its squad page.',
+        )
+      }
+      if (decoded.squad !== undefined && !/^[a-zA-Z0-9_-]+$/.test(decoded.id)) {
+        throw new Error(
+          'Squad member IDs use letters, numbers, underscores or hyphens.',
+        )
+      }
+      if (
+        decoded.squad?.openForYou !== undefined &&
+        (!decoded.squad.lead ||
+          !decoded.steps.some(step => step.id === decoded.squad?.openForYou))
+      ) {
+        throw new Error(
+          'Open for you names an existing step in the lead member.',
+        )
+      }
+      const existing = listGrills(db).map(row => getGrill(db, row.id)!)
+      if (
+        existing.some(grill => grill.squad?.id === decoded.id) ||
+        (decoded.squad !== undefined &&
+          getGrill(db, decoded.squad.id) !== undefined)
+      ) {
+        throw new Error('A squad page ID cannot also be a source grill ID.')
+      }
+      if (
+        decoded.squad?.lead &&
+        existing.some(
+          grill =>
+            grill.id !== decoded.id &&
+            grill.squad?.id === decoded.squad?.id &&
+            grill.squad?.lead,
+        )
+      ) {
+        throw new Error(
+          'A squad page has one lead; update the existing lead member instead.',
+        )
+      }
+      const previous = getGrill(db, decoded.id)
+      const hasTitle = (key: string, text: string): boolean =>
+        text.trim() !== '' && text.trim() !== key
+      const grill =
+        decoded.refs === undefined
+          ? decoded
+          : {
+              ...decoded,
+              refs: Object.fromEntries(
+                Object.entries(decoded.refs).map(([key, ref]) => {
+                  const title = previous?.refs?.[key]?.text
+                  return [
+                    key,
+                    !hasTitle(key, ref.text) &&
+                    title !== undefined &&
+                    hasTitle(key, title)
+                      ? { ...ref, text: title }
+                      : ref,
+                  ]
+                }),
+              ),
+            }
+      db.run(
+        'INSERT INTO grills (id, json, loaded_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, loaded_at = excluded.loaded_at',
+        [grill.id, JSON.stringify(grill), Date.now()],
+      )
+      appendEvent(db, grill.id, 'loaded', {
+        round: grill.round,
+        steps: grill.steps.length,
+      })
+      if (grill.squad !== undefined) {
+        registerSquadMember(db, grill)
+      }
+      return grill
+    })
+    .immediate()
 
 export const getGrill = (db: Database, id: string): Grill | undefined => {
   const row = db
@@ -341,6 +391,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         roundNames[String(p.round)] = String(p.name)
         break
       case 'loaded':
+      case 'squad-registered':
         break
     }
   }
@@ -354,5 +405,79 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
     sends,
     sent,
     replies,
+  }
+}
+
+export const SquadRegistration = Schema.Struct({
+  source: Schema.String,
+  questions: Schema.Record(Schema.String, Schema.String),
+  rounds: Schema.Record(Schema.String, Schema.Number),
+})
+export type SquadRegistration = typeof SquadRegistration.Type
+
+export const squadRegistrations = (
+  db: Database,
+  id: string,
+): ReadonlyArray<SquadRegistration> => {
+  const registrations = new Map<string, SquadRegistration>()
+  events(db, id)
+    .filter(event => event.kind === 'squad-registered')
+    .forEach(event => {
+      const registration = Schema.decodeUnknownSync(SquadRegistration)(
+        JSON.parse(event.payload),
+      )
+      registrations.set(registration.source, registration)
+    })
+  return [...registrations.values()]
+}
+
+const registerSquadMember = (db: Database, grill: Grill): void => {
+  const id = grill.squad!.id
+  const registrations = squadRegistrations(db, id)
+  const previous = registrations.find(member => member.source === grill.id)
+  const questions = { ...previous?.questions }
+  const rounds = { ...previous?.rounds }
+  const maxQuestion = Math.max(
+    0,
+    ...registrations.flatMap(member =>
+      Object.values(member.questions).map(value => Number(value.slice(1))),
+    ),
+  )
+  const maxRound = Math.max(
+    0,
+    ...registrations.flatMap(member => Object.values(member.rounds)),
+  )
+  const state = snapshot(db, grill)
+  const localQuestions = [
+    ...new Set([
+      ...grill.steps.map(step => step.question.id),
+      ...Object.keys(state.answers),
+      ...Object.keys(state.notes),
+      ...Object.keys(state.own),
+      ...Object.keys(state.sent ?? {}),
+    ]),
+  ]
+  const missingQuestions = localQuestions.filter(
+    id => questions[id] === undefined,
+  )
+  missingQuestions.forEach((id, index) => {
+    questions[id] = `Q${maxQuestion + index + 1}`
+  })
+  const missingRounds = [
+    ...new Set(grill.steps.map(step => roundOf(grill, step.question))),
+  ].filter(round => rounds[String(round)] === undefined)
+  missingRounds.forEach((round, index) => {
+    rounds[String(round)] = maxRound + index + 1
+  })
+  if (
+    previous === undefined ||
+    missingQuestions.length > 0 ||
+    missingRounds.length > 0
+  ) {
+    appendEvent(db, id, 'squad-registered', {
+      source: grill.id,
+      questions,
+      rounds,
+    })
   }
 }

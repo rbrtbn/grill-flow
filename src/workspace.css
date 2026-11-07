@@ -1894,3 +1894,8 @@ body[data-gf-preview] .f-workspace {
   flex: none;
   white-space: nowrap;
 }
+
+.f-workspace .f-agent-section {
+  padding: 16px 10px 4px;
+  font: 600 15px/1.4 var(--label);
+}

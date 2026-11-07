@@ -184,6 +184,36 @@ When questions are about Linear issues or PRs, any grill can add:
 - `decided`: the earlier decisions as `{id, text}`, listed under Decided so
   far.
 
+### Shared squad page
+
+Each member keeps its own grill ID, file and event history. Add this optional
+version 4 field to that grill, then use the same `gf load <file>` command:
+
+```json
+"squad": { "id": "squad", "section": "Grant checks" }
+```
+
+The server composes `/g/squad` from all loaded members with that squad ID.
+Give each member a descriptive section. Keep its own rounds and
+`roundNames`.
+Only the lead member adds `"lead": true` and, when applicable,
+`"openForYou": "open-for-you"` (the lead's existing step ID). Its pinned link
+stays at the top of the navigation. The squad ID differs from every member ID.
+
+Continue `gf revise`, `reply`, `state` and `wait` on your own grill ID and
+local question/step IDs. The shared page has stable question numbers of its
+own; delivered answers and reply commands use your original IDs. Keep
+`question.session` for the actual asker; it overrides the member's session.
+New questions get fresh shared numbers; existing questions keep theirs.
+
+Remote members add the same field in their `GF_OUTBOX/<grill-id>/grill.json`
+using `GF_OUTBOX=... gf load <file>`. The registered remote pull joins that
+member to the same squad page and returns its normal `state.json`.
+Membership persists only when you keep the field in subsequent loads. Existing
+URLs and saved drafts, asks, replies and send receipts remain valid; joining
+neither copies nor resends them. Agents on older checkouts must update first
+so their schema preserves membership. Never edit another member's file.
+
 A squad lead's grill, gathering questions from several agents, also sets
 `kind: "squad"` and adds:
 

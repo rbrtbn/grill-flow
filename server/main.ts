@@ -12,19 +12,11 @@ import {
   roundOf,
 } from '../src/domain'
 import { dashboard } from './dashboard'
-import { sendAnswerBatches } from './delivery'
 import { askMessage } from './messages'
 import { startRemotes } from './remote'
 import { selectSend } from './sendSelection'
-import {
-  ROOT,
-  appendEvent,
-  getGrill,
-  listGrills,
-  open,
-  remoteOf,
-  snapshot,
-} from './store'
+import { eventDestination, listPages, readPage, sendPageAnswers } from './squad'
+import { ROOT, appendEvent, open, remoteOf, snapshot } from './store'
 
 const PORT = Number(process.env.GF_PORT ?? 4317)
 const PREVIEW = process.env.GF_PREVIEW === '1'
@@ -156,7 +148,7 @@ const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
 const clientSnapshot = (grill: Grill) => ({
-  ...snapshot(db, grill),
+  ...(readPage(db, grill.id)?.state ?? snapshot(db, grill)),
   maintainerSession: process.env.GF_MAINTAINER_SESSION?.trim() || undefined,
 })
 
@@ -164,11 +156,18 @@ const handleEvent = async (
   grillId: string,
   request: Request,
 ): Promise<Response> => {
-  const grill = getGrill(db, grillId)
-  if (!grill) {
+  const pageId = grillId
+  const page = readPage(db, pageId)
+  if (!page) {
     return json({ error: 'no such grill' }, 404)
   }
-  const body = (await request.json()) as Record<string, unknown>
+  const destination = eventDestination(
+    page,
+    (await request.json()) as Record<string, unknown>,
+  )
+  const grill = destination.grill
+  const body = destination.body
+  grillId = grill.id
   const questionIds = new Set(grill.steps.map(step => step.question.id))
   const question = String(body.question ?? '')
   switch (body.kind) {
@@ -267,7 +266,7 @@ const handleEvent = async (
     default:
       return json({ error: 'unknown event kind' }, 400)
   }
-  return json(clientSnapshot(grill))
+  return json(clientSnapshot(readPage(db, pageId)!.state.grill))
 }
 
 // A pulled grill's agent answers into its outbox from its own checkout, at the path the grill
@@ -283,25 +282,24 @@ const handleSend = async (
   grillId: string,
   request: Request,
 ): Promise<Response> => {
-  const grill = getGrill(db, grillId)
-  if (!grill) {
+  const page = readPage(db, grillId)
+  if (!page) {
     return json({ error: 'no such grill' }, 404)
   }
+  const grill = page.state.grill
   const body: unknown = await request.json().catch(() => null)
-  const selection = selectSend(snapshot(db, grill), body)
+  const selection = selectSend(page.state, body)
   if (!selection.ok) {
     return json({ error: selection.error }, selection.status)
   }
-  const result = await sendAnswerBatches(
-    grill,
+  await sendPageAnswers(
+    db,
+    page,
     selection,
     (session, text) => sendToSession(sessionFor(session), text),
-    session => gfFor(grillId, session) ?? `bun run --cwd ${ROOT} gf`,
+    (source, session) =>
+      gfFor(source.id, session) ?? `bun run --cwd ${ROOT} gf`,
   )
-  appendEvent(db, grillId, 'sent', {
-    ...result,
-    what: 'answers',
-  })
   return json(clientSnapshot(grill))
 }
 
@@ -323,10 +321,10 @@ Bun.serve({
         return json({ build: buildId() })
       }
       if (parts[0] === 'api' && parts[1] === 'grills' && parts.length === 2) {
-        return json(listGrills(db))
+        return json(listPages(db))
       }
       if (parts[0] === 'api' && parts[1] === 'grills' && parts.length === 3) {
-        const grill = getGrill(db, parts[2] ?? '')
+        const grill = readPage(db, parts[2] ?? '')?.state.grill
         return grill
           ? json(clientSnapshot(grill))
           : json({ error: 'no such grill' }, 404)

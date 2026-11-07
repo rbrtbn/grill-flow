@@ -113,7 +113,16 @@ const documentTitle = (model: Model, snapshot: Snapshot): string => {
   const step = snapshot.grill.steps.find(
     item => model.currentPart === `question:${item.question.id}`,
   )
-  return `${roundLabel(snapshot.grill, step === undefined ? snapshot.grill.round : roundOf(snapshot.grill, step.question))} | ${snapshot.grill.title}`
+  const location =
+    step === undefined && snapshot.grill.squad?.id === snapshot.grill.id
+      ? 'Squad'
+      : roundLabel(
+          snapshot.grill,
+          step === undefined
+            ? snapshot.grill.round
+            : roundOf(snapshot.grill, step.question),
+        )
+  return `${location} | ${snapshot.grill.title}`
 }
 
 const shell = (title: string, body: Html, h: H): Document => ({
@@ -349,6 +358,7 @@ const fromView = (model: Model, grill: Grill, step: Step, h: H): Html => {
   }
   const source = grill.sources?.[from]
   const row = step.question.row
+  const label = grill.squad?.id === grill.id ? (source?.text ?? from) : from
   const cardLink = Option.match(cardOf(step.question), {
     onNone: () => row ?? '',
     onSome: card => {
@@ -378,10 +388,10 @@ const fromView = (model: Model, grill: Grill, step: Step, h: H): Html => {
     [
       'from ',
       source?.link === undefined
-        ? from
+        ? label
         : h.a(
             [h.Href(source.link), h.Target('_blank'), h.Rel('noreferrer')],
-            [from],
+            [label],
           ),
       row === undefined ? '' : ' · ',
       cardLink,

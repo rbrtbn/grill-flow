@@ -167,7 +167,20 @@ export type Plan = typeof Plan.Type
  */
 export const FORMAT_VERSION = 4
 
+export const SquadMembership = Schema.Struct({
+  id: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/)),
+  section: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(80)),
+  lead: Schema.optionalKey(Schema.Boolean),
+  openForYou: Schema.optionalKey(Schema.String),
+})
+
 export const Grill = Schema.Struct({
+  squad: Schema.optionalKey(SquadMembership),
+  activeRounds: Schema.optionalKey(Schema.Array(Schema.Number)),
+  roundSections: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.String),
+  ),
+  roundNumbers: Schema.optionalKey(Schema.Record(Schema.String, Schema.Number)),
   version: Schema.optionalKey(Schema.Number),
   id: Schema.String,
   title: Schema.String,
@@ -211,9 +224,17 @@ export const roundOf = (grill: Grill, question: Question): number =>
     ? 1
     : grill.round)
 
-export const roundLabel = (grill: Grill, round: number): string => {
+export const roundLabel = (
+  grill: Grill,
+  round: number,
+  includeSection = true,
+): string => {
   const name = grill.roundNames?.[String(round)]?.trim()
-  return `Round ${round}${name ? ` · ${name}` : ''}`
+  const number = grill.roundNumbers?.[String(round)] ?? round
+  const section = includeSection
+    ? grill.roundSections?.[String(round)]
+    : undefined
+  return `${section ? `${section} · ` : ''}Round ${number}${name ? ` · ${name}` : ''}`
 }
 
 export const urgencyDetail = (question: Question): Option.Option<string> =>
@@ -687,9 +708,13 @@ export type Tally = Readonly<{
 
 /** The questions this round asks, or every question when none carries a round. */
 export const roundSteps = (grill: Grill): ReadonlyArray<Step> =>
-  grill.steps.some(step => step.question.round !== undefined)
-    ? grill.steps.filter(step => (step.question.round ?? 1) === grill.round)
-    : grill.steps
+  grill.activeRounds !== undefined
+    ? grill.steps.filter(step =>
+        grill.activeRounds!.includes(roundOf(grill, step.question)),
+      )
+    : grill.steps.some(step => step.question.round !== undefined)
+      ? grill.steps.filter(step => (step.question.round ?? 1) === grill.round)
+      : grill.steps
 
 export const tally = (
   grill: Grill,
@@ -796,6 +821,7 @@ export const answerRoundLabel = (grill: Grill, step: Step): string => {
     (grill.steps.some(item => item.question.round !== undefined)
       ? 1
       : grill.round)
+  if (grill.squad?.id === grill.id) return roundLabel(grill, round)
   return `Round ${round}${round < grill.round ? ' (sent late)' : ''}`
 }
 

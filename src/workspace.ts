@@ -310,20 +310,40 @@ export const questionGroups = (
   const keys = Array.dedupe(snapshot.grill.steps.map(keyOf)).filter(key =>
     roots.some(node => keyOf(node.step) === key),
   )
+  const sections = Array.dedupe(
+    snapshot.grill.steps.map(
+      step =>
+        snapshot.grill.roundSections?.[
+          String(roundOf(snapshot.grill, step.question))
+        ],
+    ),
+  )
   const ordered =
-    workspace.grouping === 'Round'
-      ? keys.sort((a, b) => Number(a) - Number(b))
-      : keys
+    workspace.grouping === 'Round' && snapshot.grill.roundSections !== undefined
+      ? keys.sort(
+          (a, b) =>
+            sections.indexOf(snapshot.grill.roundSections?.[a]) -
+              sections.indexOf(snapshot.grill.roundSections?.[b]) ||
+            (snapshot.grill.roundNumbers?.[a] ?? Number(a)) -
+              (snapshot.grill.roundNumbers?.[b] ?? Number(b)),
+        )
+      : workspace.grouping === 'Round'
+        ? keys.sort((a, b) => Number(a) - Number(b))
+        : keys
   return ordered.map(key => {
     const nodes = roots.filter(node => keyOf(node.step) === key)
     const steps = flattenQuestions(nodes)
     const first = nodes[0]?.step
     return {
       key,
+      section:
+        workspace.grouping === 'Round'
+          ? snapshot.grill.roundSections?.[key]
+          : undefined,
       label:
         workspace.grouping === 'Agent'
           ? questionAgent(snapshot.grill, first?.question)
-          : roundLabel(snapshot.grill, Number(key)),
+          : roundLabel(snapshot.grill, Number(key), false),
       steps,
       roots: nodes,
       collapsed:

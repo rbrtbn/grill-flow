@@ -356,13 +356,15 @@ export const workspaceView = (
               h.span(
                 [h.Class('f-current-round')],
                 [
-                  roundLabel(
-                    grill,
-                    Option.match(question, {
-                      onSome: step => roundOf(grill, step.question),
-                      onNone: () => grill.round,
-                    }),
-                  ),
+                  grill.squad?.id === grill.id && Option.isNone(question)
+                    ? 'Squad'
+                    : roundLabel(
+                        grill,
+                        Option.match(question, {
+                          onSome: step => roundOf(grill, step.question),
+                          onNone: () => grill.round,
+                        }),
+                      ),
                 ],
               ),
               h.span(
@@ -492,6 +494,10 @@ export const workspaceView = (
 
 const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
+  const priority =
+    grill.squad?.id === grill.id
+      ? grill.steps.find(step => step.id === grill.squad?.openForYou)
+      : undefined
   const open = grill.steps.filter(step => {
     const status = statusOf(grill, model.answers, step.question.id)
     return status._tag === 'Open' || status._tag === 'Waiting'
@@ -526,6 +532,13 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
         [h.Class('f-nav-top')],
         [
           h.a([h.Href('/'), h.Class('f-brand')], ['grill-flow']),
+          priority === undefined
+            ? h.empty
+            : item(
+                'Open for you',
+                priority.question.id,
+                `${QUESTION_PAGE}${priority.question.id}`,
+              ),
           item(
             'Needs you',
             `${open.length + draftAnswerIds(snapshot, model.answers, model.notes, model.own).length} questions`,
@@ -535,7 +548,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             ? item(
                 'Squad overview',
                 AsyncData.hasData(model.workspace.catalog)
-                  ? `${catalogSnapshots(model, snapshot).filter(state => state.grill.kind === 'squad').length} runs`
+                  ? `${catalogSnapshots(model, snapshot).filter(state => state.grill.kind === 'squad' && state.grill.squad?.id !== state.grill.id).length} runs`
                   : 'Runs and work',
                 SQUAD,
               )
@@ -636,7 +649,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 ),
               ]
             : []),
-          ...groups.map(group => {
+          ...groups.map((group, index) => {
             const steps = group.steps
             const sent = steps.filter(
               step =>
@@ -653,6 +666,10 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               `${model.workspace.grouping}-${group.key}`,
               [h.Class('f-round')],
               [
+                group.section !== undefined &&
+                group.section !== groups[index - 1]?.section
+                  ? h.h3([h.Class('f-agent-section')], [group.section])
+                  : h.empty,
                 h.div(
                   [h.Class('f-round-heading')],
                   [
@@ -865,7 +882,7 @@ const questionView = (
                         [
                           q.round === undefined
                             ? 'No round'
-                            : `Round ${q.round}`,
+                            : roundLabel(snapshot.grill, q.round),
                         ],
                       ),
                       h.span(
@@ -2341,7 +2358,8 @@ const squadView = (
   h: H,
 ): Html => {
   const runs = catalogSnapshots(model, snapshot).filter(
-    state => state.grill.kind === 'squad',
+    state =>
+      state.grill.kind === 'squad' && state.grill.squad?.id !== state.grill.id,
   )
   const active = runs.filter(
     state => workOf(state).current.length > 0 || neededCount(state) > 0,
