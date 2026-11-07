@@ -2556,7 +2556,6 @@ const outsideOf = (snapshot: Snapshot, step: Step): ReadonlyArray<string> =>
 const hasOutside = (snapshot: Snapshot, step: Step): boolean =>
   !Array.isReadonlyArrayEmpty(outsideOf(snapshot, step))
 
-/** Questions from other concepts this one builds on or names, as chips that open a card in place. */
 const outsideView = (
   model: Model,
   snapshot: Snapshot,
@@ -2571,10 +2570,10 @@ const outsideView = (
       h.div(
         [h.Class('outside')],
         [
+          h.span([h.Class('label')], ['Related questions']),
           h.div(
             [h.Class('chips')],
             [
-              h.span([h.Class('label')], ['From other concepts']),
               ...Array.flatMap(ids, other =>
                 Option.match(stepOf(grill, other), {
                   onNone: () => [],
@@ -2593,8 +2592,14 @@ const outsideView = (
                       ],
                       [
                         h.b([], [other]),
-                        ` ${otherStep.question.title} · `,
-                        ...answerSummary(model, grill, otherStep, h),
+                        h.span(
+                          [h.Class('related-question-title')],
+                          [otherStep.question.title],
+                        ),
+                        h.span(
+                          [h.Class('related-question-state')],
+                          answerSummary(model, grill, otherStep, h),
+                        ),
                       ],
                     ),
                   ],

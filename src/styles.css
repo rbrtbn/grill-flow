@@ -832,6 +832,26 @@ button {
   border-color: var(--link);
   background: var(--link-wash);
 }
+.outside .chips {
+  align-items: stretch;
+  gap: 8px;
+}
+.outside .chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 2px 8px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font: 500 0.88rem/1.4 var(--label);
+  overflow-wrap: anywhere;
+}
+.related-question-state {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
 .peek {
   display: grid;
   gap: 6px;
