@@ -75,6 +75,7 @@ export const Question = Schema.Struct({
   // A `sources` key, and the question's id in that asker's own rows.
   from: Schema.optionalKey(Schema.String),
   row: Schema.optionalKey(Schema.String),
+  session: Schema.optionalKey(Schema.String),
   // How today stands beside each answer, shown under the options.
   compare: Schema.optionalKey(Compare),
 })
@@ -159,11 +160,11 @@ export type Plan = typeof Plan.Type
 
 /**
  * The grill format this page reads. A grill without `version` is version 1. Version 2 adds
- * `plan`; version 3 adds a question's `compare` and ```diagram blocks in prose. Fields from a
- * newer version are dropped on decode, so an older page still shows the rest
+ * `plan`; version 3 adds `compare` and diagrams; version 4 adds per-question session routing.
+ * Newer fields are dropped on decode, so an older page still shows the rest
  * (docs/adr/0001-version-the-grill-format.md).
  */
-export const FORMAT_VERSION = 3
+export const FORMAT_VERSION = 4
 
 export const Grill = Schema.Struct({
   version: Schema.optionalKey(Schema.Number),
@@ -187,6 +188,20 @@ export const Grill = Schema.Struct({
   plan: Schema.optionalKey(Plan),
 })
 export type Grill = typeof Grill.Type
+
+export const GRILL_FLOW_TARGET = 'grill-flow'
+
+export const questionSession = (grill: Grill, question?: Question): string =>
+  question?.session?.trim() || grill.session
+
+export const questionAgent = (grill: Grill, question?: Question): string => {
+  const session = questionSession(grill, question)
+  const source =
+    question?.from === undefined ? undefined : grill.sources?.[question.from]
+  return source === undefined
+    ? session || 'Asking agent'
+    : `${source.text}${session === '' ? '' : ` · ${session}`}`
+}
 
 // PLAN
 
@@ -351,11 +366,14 @@ export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
 
 /** A conversation about the run, a concept (`part:<id>`) or a card (`card:<card>`). */
 export const isWholeTarget = (target: string): boolean =>
-  target === 'run' || target.startsWith('part:') || target.startsWith('card:')
+  target === GRILL_FLOW_TARGET ||
+  target === 'run' ||
+  target.startsWith('part:') ||
+  target.startsWith('card:')
 
 /** Whether this grill contains the step, concept, card or whole-run reply target. */
 export const hasTarget = (grill: Grill, target: string): boolean =>
-  target === 'run'
+  target === 'run' || target === GRILL_FLOW_TARGET
     ? true
     : target.startsWith('part:')
       ? grill.parts.some(part => `part:${part.id}` === target)
@@ -410,6 +428,7 @@ export type Send = typeof Send.Type
 
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  maintainerSession: Schema.optionalKey(Schema.String),
   answers: Schema.Record(Schema.String, Schema.String),
   notes: Schema.Record(Schema.String, Schema.String),
   own: Schema.Record(Schema.String, Schema.String),

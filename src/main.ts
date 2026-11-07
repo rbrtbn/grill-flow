@@ -49,6 +49,7 @@ import {
   NEEDS,
   QUESTION_PAGE,
   QuestionFilter,
+  QuestionGrouping,
   REPLIES,
   REVIEW,
   RUN_TARGET,
@@ -227,6 +228,8 @@ export const Message = defineMessageUnion({
   ClickedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   PressedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   ChangedQuestionFilter: { filter: QuestionFilter },
+  ChangedQuestionGrouping: { grouping: QuestionGrouping },
+  ClickedAgentGroup: { session: Schema.String },
   UpdatedQuestionSearch: { value: Schema.String },
   ClickedRound: { round: Schema.Number },
   ClickedSettings: {},
@@ -619,6 +622,22 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         workspace: workspace =>
           modifyFields(workspace, { search: () => value }),
+      }),
+    }),
+    ChangedQuestionGrouping: ({ grouping }) => ({
+      model: modifyFields(model, {
+        workspace: value => modifyFields(value, { grouping: () => grouping }),
+      }),
+    }),
+    ClickedAgentGroup: ({ session }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            foldedAgents: agents =>
+              agents.includes(session)
+                ? agents.filter(agent => agent !== session)
+                : Array.append(agents, session),
+          }),
       }),
     }),
     ClickedRound: ({ round }) =>

@@ -244,6 +244,15 @@
 .f-question-tools > div:first-child .hint {
   font-size: 12px;
 }
+.f-question-tools select {
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 12px/1.4 var(--label);
+}
 .f-question-tools input {
   width: 100%;
   min-width: 0;

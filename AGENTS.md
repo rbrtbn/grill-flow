@@ -38,3 +38,13 @@ Not vendoring the Foldkit repo for now (decided 2026-11-02); read the installed 
 
 Work directly on `main`. Commit and push verified changes, then update the local app on
 127.0.0.1:4317 as each change lands. Preserve unrelated working files and live grill data.
+
+### Discussion routing
+
+Set `GF_MAINTAINER_SESSION` to this app's active builder session (a Herdr address) to expose
+the **Grill-flow** discussion tab. It uses the `grill-flow` ask target and the normal
+`gf revise <grill> grill-flow --ask <id> --kind comment --file <path>` reply path.
+Each question's optional `session` routes answers and discussion to its asker; blank or
+absent falls back to the grill's session. `from` and `sources` are display metadata.
+`GF_DIST` can point an isolated test or preview server at a staged frontend build.
+Set `GF_POLL_REMOTES=0` on isolated servers that must not pull or update remote outboxes.

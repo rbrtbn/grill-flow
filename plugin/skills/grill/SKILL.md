@@ -57,9 +57,9 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
    below). Round 1 creates it; a later round edits the same file: add the new
    frontier with the next free ids, set `round` on each new question and on
    the grill, and keep every answered question, which the page folds to its
-   answer. The reply and the send dialog then cover only this round's
-   questions. `<id>` is unique across
-   every agent's grills, e.g. `<repo>-<topic>`.
+   answer. Send includes every unsent answer across rounds, labelled by round;
+   only the current round can use the `all recommended` shorthand. `<id>` is
+   unique across every agent's grills, e.g. `<repo>-<topic>`.
 3. `gf load grills/<id>.json`. Answers, notes and asks already given stay,
    keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
@@ -194,6 +194,12 @@ A squad lead's grill, gathering questions from several agents, also sets
   the asker's rows, with `sources` giving each name as `{text, link}`. Write
   `row` as `<card>/<item>` (`cos-hardening-3/B2`): the sidebar's Cards list
   groups the questions by the part before the slash.
+- `session` on a question: the Herdr address of the session that asked it
+  (`t109` locally, `homelab/t12` on another machine). Answers and question
+  discussions go there; omitted or blank uses the grill's `session`.
+  `from` is display metadata and never determines delivery. Use `version: 4`
+  when naming per-question recipients. Review & Send lists each recipient;
+  partial failures leave only the failed recipients' answers unsent.
 - `version: 2` and a `plan`, so the page gets a Plan page ranking what waits
   on the user. Rewrite the plan at every load, from the run's own state:
   - `plan.issues`: every issue in the run, and the user's own ones that

@@ -479,3 +479,47 @@ describe('reviewing and sending real answers', () => {
     )
   })
 })
+
+it('follows the displayed agent groups when moving to the next question', () => {
+  const grouped = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      session: 'lead',
+      steps: grill.steps.slice(0, 3).map((step, index) => ({
+        ...step,
+        question: {
+          ...step.question,
+          session: index === 1 ? 'lead' : 'worker',
+        },
+      })),
+    },
+  }
+  const workspace = {
+    ...initialWorkspace,
+    grouping: 'Agent' satisfies typeof initialWorkspace.grouping,
+  }
+  expect(
+    Option.getOrThrow(
+      adjacentQuestion(workspace, grouped, {}, {}, {}, 'question:Q1', 'Next'),
+    ).question.id,
+  ).toBe('Q3')
+  expect(
+    Option.getOrThrow(
+      adjacentQuestion(workspace, grouped, {}, {}, {}, 'question:Q3', 'Next'),
+    ).question.id,
+  ).toBe('Q2')
+  expect(
+    Option.getOrThrow(
+      adjacentQuestion(
+        { ...workspace, filter: 'Open' },
+        grouped,
+        { Q3: 'a' },
+        {},
+        {},
+        'question:Q1',
+        'Next',
+      ),
+    ).question.id,
+  ).toBe('Q2')
+})

@@ -2,8 +2,10 @@ import type { Database } from 'bun:sqlite'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import type { Grill } from '../src/domain'
 import {
   ROOT,
+  decodeGrill,
   events,
   getGrill,
   lastEventId,
@@ -147,10 +149,25 @@ const readRemote = async (
 }
 
 // hc on this machine reaches the agent's terminal by its machine-qualified address.
-const remoteSession = (machine: string, session: unknown): unknown =>
-  typeof session === 'string' && session !== '' && !session.includes('/')
+const remoteSession = (machine: string, session: string): string =>
+  session.trim() !== '' && !session.includes('/')
     ? `${machine}/${session}`
     : session
+
+export const grillOnMachine = (grill: Grill, machine: string): Grill => ({
+  ...grill,
+  session: remoteSession(machine, grill.session),
+  steps: grill.steps.map(step => ({
+    ...step,
+    question:
+      step.question.session === undefined
+        ? step.question
+        : {
+            ...step.question,
+            session: remoteSession(machine, step.question.session),
+          },
+  })),
+})
 
 const takeGrill = async (
   db: Database,
@@ -163,13 +180,10 @@ const takeGrill = async (
     return
   }
   try {
-    const grill = loadGrill(db, {
-      ...raw,
-      session: remoteSession(
-        remote.machine,
-        (raw as { session?: unknown }).session,
-      ),
-    })
+    const grill = loadGrill(
+      db,
+      grillOnMachine(decodeGrill(raw), remote.machine),
+    )
     db.run(
       'INSERT INTO grill_remotes (grill_id, machine, dir) VALUES (?, ?, ?) ON CONFLICT(grill_id) DO UPDATE SET machine = excluded.machine, dir = excluded.dir',
       [grill.id, remote.machine, `${root}/${path.split('/')[0]}`],

@@ -4,6 +4,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import {
   FORMAT_VERSION,
+  GRILL_FLOW_TARGET,
   OWN,
   type PlanIssue,
   type Snapshot,
@@ -11,6 +12,8 @@ import {
   agentMessagesOf,
   answerRoundLabel,
   planPhaseOf,
+  questionAgent,
+  questionSession,
   statusOf,
 } from './domain'
 import {
@@ -33,9 +36,9 @@ import {
   answerLabel,
   draftAnswerIds,
   draftQuestions,
+  questionGroups,
   questionOnPage,
   questionState,
-  roundIsCollapsed,
   visibleQuestions,
   workspaceLines,
 } from './workspace'
@@ -354,9 +357,13 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
     model.notes,
     model.own,
   )
-  const rounds = Array.dedupe(
-    visible.map(step => step.question.round ?? 1),
-  ).sort((a, b) => a - b)
+  const groups = questionGroups(
+    model.workspace,
+    snapshot,
+    model.answers,
+    model.notes,
+    model.own,
+  )
   const item = (label: string, hint: string, page: string) =>
     h.button(
       [
@@ -419,6 +426,21 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             [
               h.strong([], ['Questions']),
               h.span([h.Class('hint')], [String(grill.steps.length)]),
+              h.select(
+                [
+                  h.AriaLabel('Group questions by'),
+                  h.Value(model.workspace.grouping),
+                  h.OnChange(value =>
+                    Message.ChangedQuestionGrouping({
+                      grouping: value === 'Agent' ? 'Agent' : 'Round',
+                    }),
+                  ),
+                ],
+                [
+                  h.option([h.Value('Round')], ['By round']),
+                  h.option([h.Value('Agent')], ['By agent']),
+                ],
+              ),
             ],
           ),
           h.input([
@@ -452,7 +474,10 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
         ],
       ),
       h.nav(
-        [h.Class('f-question-list'), h.AriaLabel('Questions by round')],
+        [
+          h.Class('f-question-list'),
+          h.AriaLabel(`Questions by ${model.workspace.grouping.toLowerCase()}`),
+        ],
         [
           ...(Array.isReadonlyArrayEmpty(visible)
             ? [
@@ -462,10 +487,8 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 ),
               ]
             : []),
-          ...rounds.map(round => {
-            const steps = visible.filter(
-              step => (step.question.round ?? 1) === round,
-            )
+          ...groups.map(group => {
+            const steps = group.steps
             const sent = steps.filter(
               step =>
                 questionState(
@@ -476,23 +499,23 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   model.own,
                 ) === 'Sent',
             ).length
-            const collapsed = roundIsCollapsed(
-              model.workspace,
-              snapshot,
-              round,
-              model.answers,
-              model.notes,
-              model.own,
-            )
+            const collapsed = group.collapsed
             return h.keyed('section')(
-              `round-${round}`,
+              `${model.workspace.grouping}-${group.key}`,
               [h.Class('f-round')],
               [
                 h.button(
                   [
                     h.Class('f-round-toggle'),
+                    h.AriaLabel(
+                      `${group.label} · ${sent} of ${steps.length} sent`,
+                    ),
                     h.AriaExpanded(!collapsed),
-                    h.OnClick(Message.ClickedRound({ round })),
+                    h.OnClick(
+                      model.workspace.grouping === 'Agent'
+                        ? Message.ClickedAgentGroup({ session: group.key })
+                        : Message.ClickedRound({ round: Number(group.key) }),
+                    ),
                   ],
                   [
                     h.svg(
@@ -510,9 +533,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                         ]),
                       ],
                     ),
-                    steps.every(step => step.question.round === undefined)
-                      ? 'No round'
-                      : `Round ${round}`,
+                    group.label,
                     h.span(
                       [
                         h.Class(
@@ -661,7 +682,7 @@ const questionView = (
                     [
                       h.span([], [q.id]),
                       issueLink(snapshot, q.issue, h),
-                      h.span([], [recipientName(snapshot)]),
+                      h.span([], [questionAgent(snapshot.grill, q)]),
                       h.span(
                         [],
                         [
@@ -761,10 +782,6 @@ const issueLink = (
       )
 }
 
-const recipientName = (snapshot: Snapshot): string =>
-  snapshot.grill.session === ''
-    ? 'Asking agent'
-    : `${snapshot.grill.kind === 'squad' ? 'Run orchestrator' : 'Asking agent'} · ${snapshot.grill.session}`
 const workspacePageName = (page: string): string =>
   ({
     [REVIEW]: 'Review & send',
@@ -920,6 +937,14 @@ const reviewView = (
 ): Html => {
   const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
   const selected = drafts.filter(id => !model.workspace.excluded.includes(id))
+  const recipients = Array.dedupe(
+    selected.map(id =>
+      questionSession(
+        snapshot.grill,
+        snapshot.grill.steps.find(step => step.question.id === id)?.question,
+      ),
+    ),
+  )
   const query = model.workspace.reviewQuery.trim().toLocaleLowerCase()
   const lines = workspaceLines(snapshot, model.answers, model.notes, model.own)
   const unlisted = drafts.filter(
@@ -951,7 +976,7 @@ const reviewView = (
       h.p(
         [h.Class('f-review-summary')],
         [
-          `${drafts.length} drafts · ${selected.length} selected · to ${recipientName(snapshot)}`,
+          `${drafts.length} drafts · ${selected.length} selected · ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}`,
         ],
       ),
       h.div(
@@ -1044,6 +1069,8 @@ const reviewView = (
                                 [],
                                 [
                                   `${id}${step.question.issue === undefined ? '' : ` · ${step.question.issue}`} · ${answerRoundLabel(snapshot.grill, step)}`,
+                                  h.br([]),
+                                  `To ${questionAgent(snapshot.grill, step.question)}`,
                                 ],
                               ),
                             ],
@@ -1169,7 +1196,18 @@ const reviewView = (
       h.div(
         [h.Class('f-review-compose')],
         [
-          h.label([h.For('send-message')], ['Message with these answers']),
+          h.label(
+            [h.For('send-message')],
+            ['Message to the selected recipients'],
+          ),
+          h.small(
+            [h.Class('hint')],
+            [
+              recipients
+                .map(session => session || 'Agent collects replies here')
+                .join(' · '),
+            ],
+          ),
           h.textarea([
             h.Id('send-message'),
             h.Value(model.sendMessage),
@@ -1242,6 +1280,7 @@ const unlistedReviewRow = (
         [
           h.b([], [id]),
           h.small([], ['Question no longer listed · round unavailable']),
+          h.small([], ['To the grill session']),
         ],
       ),
       h.td([], [h.p([], [line])]),
@@ -1272,13 +1311,26 @@ const discussionView = (
   const step = snapshot.grill.steps.find(item => item.id === target)
   const draft = model.talkDrafts[threadDraftKey(target)] ?? ''
   const thread = reading.thread(target, h)
+  const isMaintainer = target === GRILL_FLOW_TARGET
   const context =
     step === undefined
       ? h.div(
           [h.Class('f-context')],
           [
-            h.h3([], [snapshot.grill.title]),
-            ...snapshot.grill.intro.map(text => reading.prose(text, h)),
+            h.h3(
+              [],
+              [isMaintainer ? 'Improving grill-flow' : snapshot.grill.title],
+            ),
+            ...(isMaintainer
+              ? [
+                  h.p(
+                    [],
+                    [
+                      'Ask about the interface, report a problem, or discuss an improvement. This conversation goes directly to the session building grill-flow.',
+                    ],
+                  ),
+                ]
+              : snapshot.grill.intro.map(text => reading.prose(text, h))),
           ],
         )
       : h.div(
@@ -1316,9 +1368,9 @@ const discussionView = (
           h.span(
             [h.Class('hint')],
             [
-              snapshot.grill.session === ''
-                ? 'Agent'
-                : `Run orchestrator · ${snapshot.grill.session}`,
+              isMaintainer
+                ? `Grill-flow · ${snapshot.maintainerSession ?? 'Unavailable'}`
+                : questionAgent(snapshot.grill, step?.question),
             ],
           ),
           h.div(
@@ -1358,11 +1410,9 @@ const discussionView = (
         [
           h.button(
             [
-              h.Class(
-                `quiet-button${target !== RUN_TARGET ? ' is-active' : ''}`,
-              ),
+              h.Class(`quiet-button${step !== undefined ? ' is-active' : ''}`),
               h.Disabled(step === undefined && Option.isNone(onQuestion)),
-              h.AriaPressed(String(target !== RUN_TARGET)),
+              h.AriaPressed(String(step !== undefined)),
               h.OnClick(
                 Message.SelectedDiscussionTarget({
                   target:
@@ -1390,16 +1440,20 @@ const discussionView = (
             ],
             ['Whole run'],
           ),
-          h.button(
-            [
-              h.Class('quiet-button'),
-              h.Disabled(true),
-              h.Title(
-                'This grill does not supply a direct route to the squad lead.',
+          snapshot.maintainerSession === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Class(`quiet-button${isMaintainer ? ' is-active' : ''}`),
+                  h.AriaPressed(String(isMaintainer)),
+                  h.OnClick(
+                    Message.SelectedDiscussionTarget({
+                      target: GRILL_FLOW_TARGET,
+                    }),
+                  ),
+                ],
+                ['Grill-flow'],
               ),
-            ],
-            ['Ask the lead'],
-          ),
         ],
       ),
       h.div(
@@ -1414,17 +1468,21 @@ const discussionView = (
                     h.h3(
                       [],
                       [
-                        step === undefined
-                          ? 'A question beyond one card?'
-                          : 'What would help you decide?',
+                        isMaintainer
+                          ? 'What should work better?'
+                          : step === undefined
+                            ? 'A question beyond one card?'
+                            : 'What would help you decide?',
                       ],
                     ),
                     h.p(
                       [],
                       [
-                        step === undefined
-                          ? 'Ask about priorities, progress or what the run is waiting on. Replies stay in this conversation.'
-                          : 'Ask about an option, challenge the reasoning, or request a rewrite. This thread will stay attached to the question.',
+                        isMaintainer
+                          ? 'Describe what you are trying to do and what gets in your way. Replies appear here.'
+                          : step === undefined
+                            ? 'Ask about priorities, progress or what the run is waiting on. Replies stay in this conversation.'
+                            : 'Ask about an option, challenge the reasoning, or request a rewrite. This thread will stay attached to the question.',
                       ],
                     ),
                   ],
@@ -1442,9 +1500,11 @@ const discussionView = (
           h.label(
             [h.For('talk-box')],
             [
-              step === undefined
-                ? 'Ask about the run'
-                : `Ask about ${step.question.id}`,
+              isMaintainer
+                ? 'Ask about grill-flow'
+                : step === undefined
+                  ? 'Ask about the run'
+                  : `Ask about ${step.question.id}`,
             ],
           ),
           h.keyed('textarea')(`discussion-${target}-${model.talkGeneration}`, [
@@ -1490,7 +1550,7 @@ const conversationPage = (
   const targets = Array.dedupe([
     current,
     ...snapshot.asks.map(ask => ask.stepId),
-  ]).filter(target => target !== RUN_TARGET)
+  ]).filter(target => target !== RUN_TARGET && target !== GRILL_FLOW_TARGET)
   return h.div(
     [h.Class('f-conversation-layout')],
     [
@@ -1535,16 +1595,29 @@ const conversationPage = (
               `Run coordination${snapshot.grill.session === '' ? '' : ` · ${snapshot.grill.session}`}`,
             ],
           ),
-          h.button(
-            [
-              h.Class('f-conversation-item'),
-              h.Disabled(true),
-              h.Title(
-                'This grill does not supply a direct route to the squad lead.',
+          snapshot.maintainerSession === undefined
+            ? h.empty
+            : h.button(
+                [
+                  h.Class(
+                    `f-conversation-item${current === GRILL_FLOW_TARGET ? ' is-active' : ''}`,
+                  ),
+                  h.OnClick(
+                    Message.SelectedDiscussionTarget({
+                      target: GRILL_FLOW_TARGET,
+                    }),
+                  ),
+                ],
+                [
+                  'Grill-flow',
+                  h.small(
+                    [],
+                    [
+                      `Interface & improvements · ${snapshot.maintainerSession}`,
+                    ],
+                  ),
+                ],
               ),
-            ],
-            ['Across the squad'],
-          ),
           h.p(
             [h.Class('hint')],
             [

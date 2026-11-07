@@ -3,13 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 
 import {
+  GRILL_FLOW_TARGET,
   OWN,
-  answerLines,
+  type Grill,
   hasTarget,
-  replyText,
-  sentAnswers,
+  questionSession,
 } from '../src/domain'
 import { dashboard } from './dashboard'
+import { sendAnswerBatches } from './delivery'
 import { askMessage } from './messages'
 import { startRemotes } from './remote'
 import { selectSend } from './sendSelection'
@@ -28,9 +29,9 @@ const PREVIEW = process.env.GF_PREVIEW === '1'
 const HOST = '127.0.0.1'
 // Cookies ignore ports; previews must not replace the live server's write cookie.
 const COOKIE_NAME = PORT === 4317 ? 'gf_token' : `gf_token_${PORT}`
-const DIST = join(ROOT, 'dist')
+const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
 const db = open()
-if (!PREVIEW) startRemotes(db)
+if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
@@ -152,6 +153,11 @@ const sendToSession = async (
 const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
+const clientSnapshot = (grill: Grill) => ({
+  ...snapshot(db, grill),
+  maintainerSession: process.env.GF_MAINTAINER_SESSION?.trim() || undefined,
+})
+
 const handleEvent = async (
   grillId: string,
   request: Request,
@@ -209,10 +215,23 @@ const handleEvent = async (
       if (!hasTarget(grill, stepId) || text === '') {
         return json({ error: 'unknown step or empty ask' }, 400)
       }
+      const recipient =
+        stepId === GRILL_FLOW_TARGET
+          ? process.env.GF_MAINTAINER_SESSION?.trim()
+          : questionSession(
+              grill,
+              grill.steps.find(step => step.id === stepId)?.question,
+            )
+      if (recipient === undefined) {
+        return json(
+          { error: 'The grill-flow discussion session is not configured.' },
+          400,
+        )
+      }
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })
       const result = await sendToSession(
-        sessionFor(grill.session),
-        askMessage(grillId, stepId, askId, text, gfFor(grillId)),
+        sessionFor(recipient),
+        askMessage(grillId, stepId, askId, text, gfFor(grillId, recipient)),
       )
       appendEvent(db, grillId, 'sent', { ...result, what: 'ask', askId })
       break
@@ -220,14 +239,14 @@ const handleEvent = async (
     default:
       return json({ error: 'unknown event kind' }, 400)
   }
-  return json(snapshot(db, grill))
+  return json(clientSnapshot(grill))
 }
 
 // A pulled grill's agent answers into its outbox from its own checkout, at the path the grill
 // skill names, not from this machine's.
-const gfFor = (grillId: string): string | undefined => {
+const gfFor = (grillId: string, session: string): string | undefined => {
   const remote = remoteOf(db, grillId)
-  return remote === undefined
+  return remote === undefined || !session.startsWith(`${remote.machine}/`)
     ? undefined
     : `GF_OUTBOX=${dirname(remote.dir)} bun run --cwd ~/repos/rbrtbn/grill-flow gf`
 }
@@ -245,21 +264,17 @@ const handleSend = async (
   if (!selection.ok) {
     return json({ error: selection.error }, selection.status)
   }
-  const gf = gfFor(grillId) ?? `bun run --cwd ${ROOT} gf`
-  const text = [
-    `[grill-flow] Answers from the ${grill.title} page:`,
-    sentAnswers(selection.reply, selection.message),
-    `Once you've taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run`,
-    `${gf} reply ${grill.id} --file <path>`,
-  ].join('\n')
-  const result = await sendToSession(sessionFor(grill.session), text)
+  const result = await sendAnswerBatches(
+    grill,
+    selection,
+    (session, text) => sendToSession(sessionFor(session), text),
+    session => gfFor(grillId, session) ?? `bun run --cwd ${ROOT} gf`,
+  )
   appendEvent(db, grillId, 'sent', {
     ...result,
     what: 'answers',
-    text,
-    lines: selection.lines,
   })
-  return json(snapshot(db, grill))
+  return json(clientSnapshot(grill))
 }
 
 Bun.serve({
@@ -285,7 +300,7 @@ Bun.serve({
       if (parts[0] === 'api' && parts[1] === 'grills' && parts.length === 3) {
         const grill = getGrill(db, parts[2] ?? '')
         return grill
-          ? json(snapshot(db, grill))
+          ? json(clientSnapshot(grill))
           : json({ error: 'no such grill' }, 404)
       }
       return asset(url.pathname)

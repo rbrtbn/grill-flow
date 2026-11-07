@@ -1,4 +1,4 @@
-import { isWholeTarget } from '../src/domain'
+import { GRILL_FLOW_TARGET, isWholeTarget } from '../src/domain'
 import { ROOT } from './store'
 
 /**
@@ -14,7 +14,7 @@ export const askMessage = (
 ): string =>
   isWholeTarget(stepId)
     ? [
-        `[grill-flow] Ask on ${grillId}, the whole ${stepId === 'run' ? 'run' : `${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)}`} (ask ${askId}): ${text}`,
+        `[grill-flow] Ask on ${grillId}, ${stepId === GRILL_FLOW_TARGET ? 'about grill-flow' : `the whole ${stepId === 'run' ? 'run' : `${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)}`}`} (ask ${askId}): ${text}`,
         `Answer it on the page: write your reply to a file, then run`,
         `${gf} revise ${grillId} ${stepId} --ask ${askId} --kind comment --file <path>`,
         `To rewrite a step as well: ${gf} revise ${grillId} <step-id> --kind rewrite --file <path> (omit --ask).`,

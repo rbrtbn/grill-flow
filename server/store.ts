@@ -10,6 +10,7 @@ import {
   hasTarget,
   isWholeTarget,
 } from '../src/domain'
+import { DeliveryReceipt } from './delivery'
 
 export const ROOT = join(import.meta.dir, '..')
 const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
@@ -315,6 +316,15 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         }
         if (p.ok === true) {
           Object.assign(sent, sentLines(p))
+        } else if (p.deliveries !== undefined) {
+          const receipts = Schema.decodeUnknownResult(
+            Schema.Array(DeliveryReceipt),
+          )(p.deliveries)
+          if (receipts._tag === 'Success') {
+            receipts.success
+              .filter(receipt => receipt.ok)
+              .forEach(receipt => Object.assign(sent, receipt.lines))
+          }
         }
         sends.push({
           at: event.at,

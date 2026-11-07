@@ -1,5 +1,6 @@
 import { Array, Option, Schema } from 'effect'
 import { AsyncData } from 'foldkit'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   type Answers,
@@ -8,6 +9,8 @@ import {
   Snapshot,
   type Step,
   isSent,
+  questionAgent,
+  questionSession,
   sendableLines,
   statusOf,
 } from './domain'
@@ -23,6 +26,7 @@ export const RUN_TARGET = 'run'
 
 export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 export type QuestionFilter = typeof QuestionFilter.Type
+export const QuestionGrouping = Schema.Literals(['Round', 'Agent'])
 
 export const CatalogData = AsyncData.Schema(
   Schema.Array(Snapshot),
@@ -43,6 +47,8 @@ export const Workspace = Schema.Struct({
   reviewQuery: Schema.String,
   reviewExpanded: Schema.Array(Schema.String),
   filter: QuestionFilter,
+  grouping: QuestionGrouping,
+  foldedAgents: Schema.Array(Schema.String),
   search: Schema.String,
   foldedRounds: Schema.Array(Schema.Number),
   expandedRounds: Schema.Array(Schema.Number),
@@ -62,6 +68,8 @@ export const initialWorkspace: Workspace = {
   reviewQuery: '',
   reviewExpanded: [],
   filter: 'All',
+  grouping: 'Round',
+  foldedAgents: [],
   search: '',
   foldedRounds: [],
   expandedRounds: [],
@@ -145,6 +153,7 @@ export const visibleQuestions = (
           step.question.title,
           step.question.ask,
           step.question.issue ?? '',
+          questionAgent(snapshot.grill, step.question),
           step.heading,
         ]
           .join(' ')
@@ -209,6 +218,50 @@ export const roundIsCollapsed = (
           questionState(snapshot, step, answers, notes, own) === 'Sent',
       ))
 
+export const questionGroups = (
+  workspace: Workspace,
+  snapshot: Snapshot,
+  answers: Answers,
+  notes: Notes,
+  own: Notes,
+) => {
+  const visible = visibleQuestions(workspace, snapshot, answers, notes, own)
+  const keyOf = (step: Step) =>
+    workspace.grouping === 'Agent'
+      ? questionSession(snapshot.grill, step.question)
+      : String(step.question.round ?? 1)
+  const keys = Array.dedupe(visible.map(keyOf))
+  const ordered =
+    workspace.grouping === 'Round'
+      ? keys.sort((a, b) => Number(a) - Number(b))
+      : keys
+  return ordered.map(key => {
+    const steps = visible.filter(step => keyOf(step) === key)
+    const first = steps[0]
+    return {
+      key,
+      label:
+        workspace.grouping === 'Agent'
+          ? questionAgent(snapshot.grill, first?.question)
+          : steps.every(step => step.question.round === undefined)
+            ? 'No round'
+            : `Round ${key}`,
+      steps,
+      collapsed:
+        workspace.grouping === 'Agent'
+          ? workspace.foldedAgents.includes(key)
+          : roundIsCollapsed(
+              workspace,
+              snapshot,
+              Number(key),
+              answers,
+              notes,
+              own,
+            ),
+    }
+  })
+}
+
 export const adjacentQuestion = (
   workspace: Workspace,
   snapshot: Snapshot,
@@ -218,10 +271,19 @@ export const adjacentQuestion = (
   page: string,
   direction: 'Previous' | 'Next',
 ): Option.Option<Step> => {
-  const index = snapshot.grill.steps.findIndex(
+  const ordered = questionGroups(
+    modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+    snapshot,
+    answers,
+    notes,
+    own,
+  ).flatMap(group => group.steps)
+  const index = ordered.findIndex(
     step => `${QUESTION_PAGE}${step.question.id}` === page,
   )
-  if (index < 0) return Option.none()
+  if (index < 0) {
+    return Option.none()
+  }
   const visible = new Set(
     visibleQuestions(workspace, snapshot, answers, notes, own).map(
       step => step.id,
@@ -229,7 +291,7 @@ export const adjacentQuestion = (
   )
   const candidates =
     direction === 'Next'
-      ? snapshot.grill.steps.slice(index + 1)
-      : Array.reverse(snapshot.grill.steps.slice(0, index))
+      ? ordered.slice(index + 1)
+      : Array.reverse(ordered.slice(0, index))
   return Array.findFirst(candidates, step => visible.has(step.id))
 }
