@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import {
   Grill,
   OWN,
+  Retirement,
   type Snapshot,
   hasTarget,
   isWholeTarget,
@@ -27,6 +28,8 @@ export type EventKind =
   | 'revised'
   | 'sent'
   | 'replied'
+  | 'retired'
+  | 'restored'
 
 type EventRow = Readonly<{
   id: number
@@ -104,15 +107,7 @@ export const loadGrill = (db: Database, raw: unknown): Grill =>
       ) {
         throw new Error('A squad page ID cannot also be a source grill ID.')
       }
-      if (
-        decoded.squad?.lead &&
-        existing.some(
-          grill =>
-            grill.id !== decoded.id &&
-            grill.squad?.id === decoded.squad?.id &&
-            grill.squad?.lead,
-        )
-      ) {
+      if (hasOtherActiveLead(db, decoded)) {
         throw new Error(
           'A squad page has one lead; update the existing lead member instead.',
         )
@@ -284,6 +279,75 @@ export const events = (
     )
     .all(grillId, sinceId)
 
+// Source reloads cannot revive retired grills (docs/adr/0009).
+export const retirementOf = (
+  db: Database,
+  grillId: string,
+): Snapshot['retirement'] => {
+  const row = db
+    .query<EventRow, [string]>(
+      "SELECT * FROM events WHERE grill_id = ? AND kind IN ('retired', 'restored') ORDER BY id DESC LIMIT 1",
+    )
+    .get(grillId)
+  return row?.kind === 'retired'
+    ? Schema.decodeUnknownSync(Retirement)({
+        ...JSON.parse(row.payload),
+        id: row.id,
+        at: row.at,
+      })
+    : undefined
+}
+
+const hasOtherActiveLead = (db: Database, grill: Grill): boolean =>
+  grill.squad?.lead === true &&
+  listGrills(db).some(row => {
+    const other = getGrill(db, row.id)
+    return (
+      row.id !== grill.id &&
+      other?.squad?.id === grill.squad?.id &&
+      other?.squad?.lead === true &&
+      retirementOf(db, row.id) === undefined
+    )
+  })
+
+export const retireGrill = (
+  db: Database,
+  grill: Grill,
+  reason: string,
+): { ok: true } | { ok: false; reason: string } => {
+  if (reason.trim() === '' || reason.trim().length > 1000) {
+    return { ok: false, reason: 'give a reason of 1 to 1000 characters' }
+  }
+  return db
+    .transaction((): { ok: true } => {
+      if (retirementOf(db, grill.id) === undefined) {
+        appendEvent(db, grill.id, 'retired', { reason: reason.trim() })
+      }
+      return { ok: true }
+    })
+    .immediate()
+}
+
+export const restoreGrill = (
+  db: Database,
+  grill: Grill,
+): { ok: true } | { ok: false; reason: string } =>
+  db
+    .transaction((): { ok: true } | { ok: false; reason: string } => {
+      if (retirementOf(db, grill.id) !== undefined) {
+        if (hasOtherActiveLead(db, grill)) {
+          return {
+            ok: false,
+            reason:
+              'Another active source is the squad lead; retire it before restoring this lead.',
+          }
+        }
+        appendEvent(db, grill.id, 'restored', {})
+      }
+      return { ok: true }
+    })
+    .immediate()
+
 const REPLY_LINE = /^(Q\d+) (?:other: |[^\s(]+)/
 
 /**
@@ -392,11 +456,15 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         break
       case 'loaded':
       case 'squad-registered':
+      case 'retired':
+      case 'restored':
         break
     }
   }
+  const retirement = retirementOf(db, grill.id)
   return {
     grill: { ...grill, roundNames },
+    ...(retirement === undefined ? {} : { retirement }),
     answers,
     notes,
     own,

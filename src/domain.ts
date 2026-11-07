@@ -467,8 +467,15 @@ export const Send = Schema.Struct({
 })
 export type Send = typeof Send.Type
 
+export const Retirement = Schema.Struct({
+  id: Schema.Number,
+  at: Schema.Number,
+  reason: Schema.String,
+})
+
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  retirement: Schema.optionalKey(Retirement),
   maintainerSession: Schema.optionalKey(Schema.String),
   answers: Schema.Record(Schema.String, Schema.String),
   notes: Schema.Record(Schema.String, Schema.String),

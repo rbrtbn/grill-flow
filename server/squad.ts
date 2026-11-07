@@ -17,6 +17,7 @@ import {
   getGrill,
   listGrills,
   snapshot,
+  retirementOf,
   squadRegistrations,
   type SquadRegistration,
 } from './store'
@@ -59,6 +60,7 @@ const mapStructured = (
 const membersOf = (db: Database, id: string): ReadonlyArray<Member> => {
   const registrations = squadRegistrations(db, id)
   return registrations
+    .filter(registration => retirementOf(db, registration.source) === undefined)
     .flatMap(registration => {
       const grill = getGrill(db, registration.source)
       return grill?.squad?.id === id
@@ -319,7 +321,9 @@ export const readPage = (db: Database, id: string): Page | undefined => {
 }
 
 export const listPages = (db: Database) => {
-  const direct = listGrills(db)
+  const direct = listGrills(db).filter(
+    row => retirementOf(db, row.id) === undefined,
+  )
   const ids = [
     ...new Set(
       direct.flatMap(({ id }) => {

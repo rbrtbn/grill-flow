@@ -10,3 +10,4 @@
 | [0006](0006-group-unblocking-trees-by-their-roots.md) | Group unblocking trees by their roots | accepted |
 | [0007](0007-name-rounds-instead-of-question-topics.md) | Name rounds instead of question topics | accepted |
 | [0008](0008-compose-squad-pages-from-independent-grills.md) | Compose squad pages from independent grills | accepted |
+| [0009](0009-retire-source-grills-with-events.md) | Retire source grills with events | accepted |

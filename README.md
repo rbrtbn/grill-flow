@@ -84,6 +84,21 @@ it sets `GF_OUTBOX` and this server pulls that folder over hc (`gf remote add <m
 docs/adr/0002). `GF_PORT` and `GF_DB`
 move the server and its database elsewhere, say for a second copy.
 
+### Retire a finished grill
+
+On the serving machine, hide a source grill from the catalog, inbox and shared squad page:
+
+```bash
+bun run gf retire <grill-id> --reason 'Work finished'
+bun run gf restore <grill-id>
+```
+
+Retirement keeps the source file, answers, discussions and events. The source page's direct URL
+and `gf state`/`gf events` still work; `gf state` shows the retirement reason. Restore brings back
+the same shared question numbers. Reloading the source, including a remote outbox import, does
+not undo retirement. Run these commands on the serving machine without `GF_OUTBOX`; they also
+work for sources imported from another host. Refresh an open overview to update its catalog.
+
 Install the skill from your checkout, so your edits take effect without a release:
 
 ```bash

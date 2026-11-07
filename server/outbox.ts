@@ -102,6 +102,10 @@ export const runOutbox = async (
       : undefined
   }
   switch (command) {
+    case 'retire':
+    case 'restore':
+      fail('Run retire/restore on the serving machine without GF_OUTBOX.')
+      break
     case 'load': {
       const grill = decodeGrill(
         JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),

@@ -13,10 +13,13 @@ import { readPage } from './squad'
 import {
   ROOT,
   events,
+  getGrill,
   loadGrill,
   open,
   replyToGrill,
   reviseGrill,
+  retireGrill,
+  restoreGrill,
   snapshot,
 } from './store'
 
@@ -26,6 +29,8 @@ const usage = `gf: grill-flow's agent-side commands
 
   gf up                                start the server unless it already answers
   gf load <grill.json>                 load or replace a grill
+  gf retire <grill-id> --reason <text>  hide a source grill, keeping its history
+  gf restore <grill-id>                show a retired source grill again
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
   gf revise <grill-id> <step-id | part:<part-id> | card:<card> | run> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
@@ -129,6 +134,9 @@ switch (command) {
   case 'state': {
     const grill = requireGrill(args[0])
     const page = readPage(db, grill.id)!
+    if (page.state.retirement !== undefined) {
+      console.log(`Retired: ${page.state.retirement.reason}\n`)
+    }
     const printWaiting = (state: Snapshot) => {
       const waiting = state.asks.filter(ask => !ask.answered)
       if (waiting.length > 0) {
@@ -215,6 +223,20 @@ switch (command) {
     } else {
       fail(usage)
     }
+    break
+  }
+  case 'retire':
+  case 'restore': {
+    const id = args[0] ?? fail(usage)
+    const grill = getGrill(db, id) ?? fail(`no source grill ${id}`)
+    const result =
+      command === 'retire'
+        ? retireGrill(db, grill, flag(args, '--reason') ?? '')
+        : restoreGrill(db, grill)
+    if (!result.ok) {
+      fail(result.reason)
+    }
+    console.log(`${command === 'retire' ? 'retired' : 'restored'} ${id}`)
     break
   }
   case 'events': {
