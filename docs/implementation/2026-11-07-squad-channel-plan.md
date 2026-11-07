@@ -24,11 +24,13 @@ Step 1 shipped in 822ccea: versioned ordinary answer/submission capture, readbac
 unconfirmed-delivery state for interrupted sends. T10m reviewed the implemented contract;
 PAGE activation remains held. Step 2 shipped in 13bf32b: informational updates, original-wording
 answer history and registration-based source-qualified links. Sidebar G shipped in b082204.
-Step 3 adds owner steps with reported proof, provisional decisions with page veto receipts,
+Step 3 shipped in 0182c6e with owner steps with reported proof, provisional decisions with page veto receipts,
 and typed evidence-backed blockers. Local terminal jumps focus only a published tN address;
 remote item destinations remain links. Live provider refresh remains in step 4.
-Step 4 ships each part separately. Its first part adds frozen Draw this requests and typed
+Step 4 ships each part separately. Draw this shipped in 318a3c5 with frozen requests and typed
 compare/flow responses; roster, primary-provider refresh and What changed follow in order.
+The roster reads existing Herdr labels through a bounded cache, separates observed Core status
+from explicit page waits and leaves budgets unreported. It adds no terminal actions or storage.
 
 ## Shared implementation
 

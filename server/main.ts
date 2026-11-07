@@ -24,6 +24,7 @@ import { dashboard } from './dashboard'
 import { pageDrawings, requestDrawing } from './drawings'
 import { askMessage, pageMessage } from './messages'
 import { startRemotes } from './remote'
+import { createRosterReader, readRosterCommand } from './roster'
 import { SendRequest, selectSend } from './sendSelection'
 import {
   eventDestination,
@@ -162,6 +163,8 @@ const sendToSession = async (
 const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
+const readRoster = createRosterReader(readRosterCommand)
+
 const clientSnapshot = (grill: Grill) => {
   const page = readPage(db, grill.id)
   const state = page?.state ?? snapshot(db, grill)
@@ -170,6 +173,9 @@ const clientSnapshot = (grill: Grill) => {
     : [grill.id]
   return {
     ...state,
+    ...(state.grill.squad === undefined || PREVIEW
+      ? {}
+      : { roster: readRoster(state.grill.squad.id) }),
     drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
     ...attentionSnapshot(db, sources),

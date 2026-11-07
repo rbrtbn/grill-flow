@@ -38,6 +38,7 @@ import {
   type SidebarEdge,
   threadDraftKey,
 } from './main'
+import { rosterView } from './rosterView'
 import {
   ANSWER_HISTORY,
   CONVERSATIONS,
@@ -2860,6 +2861,7 @@ const squadView = (
             ],
           )
         : h.empty,
+      rosterView(snapshot.roster, runs, h),
       h.section(
         [h.Class('f-portfolio-next')],
         [

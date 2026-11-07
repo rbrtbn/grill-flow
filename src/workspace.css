@@ -2269,3 +2269,28 @@ body[data-gf-preview] .f-workspace {
   max-width: 100%;
   margin-top: 14px;
 }
+
+.f-roster {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+.f-roster > p {
+  margin-top: 10px;
+  max-width: 75ch;
+}
+.f-roster-table {
+  margin-top: 18px;
+  min-width: 720px;
+}
+.f-roster-work a {
+  display: block;
+}
+.f-roster-ended {
+  margin-top: 18px;
+}
+.f-roster-ended summary {
+  color: var(--link);
+  cursor: pointer;
+  font: 500 13px/1.5 var(--label);
+}

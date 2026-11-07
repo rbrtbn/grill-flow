@@ -9,6 +9,7 @@ import {
 import { Compare, titleOf } from './diagram'
 import { QuestionDrawing } from './drawings'
 import { AnswerContext, AnswerOption } from './questionContext'
+import { Roster } from './roster'
 export { AnswerContext, AnswerOption } from './questionContext'
 export { UpdateItem } from './channel'
 
@@ -503,6 +504,7 @@ export const AnswerHistoryEntry = Schema.Struct({
 
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  roster: Schema.optionalKey(Roster),
   drawings: Schema.optionalKey(Schema.Array(QuestionDrawing)),
   updates: Schema.optionalKey(Schema.Array(PublishedUpdate)),
   ownerSteps: Schema.optionalKey(Schema.Array(PublishedOwnerStep)),
