@@ -9,6 +9,7 @@ import {
   proseView,
   stateLabelFor,
 } from './diagramView'
+import { roundLabel, roundOf } from './domain'
 import {
   type AgentMessage,
   type DiffBlock,
@@ -100,10 +101,20 @@ export const view = (model: Model, h: H): Document =>
     onLoading: () => shell('Grill', notice('Loading the grill…', h), h),
     onFailure: error =>
       shell('Grill', notice(`The grill didn't load. ${error}`, h), h),
-    onStale: ({ data }) => shell(data.grill.title, pageView(model, data, h), h),
-    onRefreshing: data => shell(data.grill.title, pageView(model, data, h), h),
-    onSuccess: data => shell(data.grill.title, pageView(model, data, h), h),
+    onStale: ({ data }) =>
+      shell(documentTitle(model, data), pageView(model, data, h), h),
+    onRefreshing: data =>
+      shell(documentTitle(model, data), pageView(model, data, h), h),
+    onSuccess: data =>
+      shell(documentTitle(model, data), pageView(model, data, h), h),
   })
+
+const documentTitle = (model: Model, snapshot: Snapshot): string => {
+  const step = snapshot.grill.steps.find(
+    item => model.currentPart === `question:${item.question.id}`,
+  )
+  return `${roundLabel(snapshot.grill, step === undefined ? snapshot.grill.round : roundOf(snapshot.grill, step.question))} | ${snapshot.grill.title}`
+}
 
 const shell = (title: string, body: Html, h: H): Document => ({
   title,

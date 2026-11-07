@@ -231,7 +231,10 @@ export const Message = defineMessageUnion({
   ChangedQuestionFilter: { filter: QuestionFilter },
   ChangedQuestionGrouping: { grouping: QuestionGrouping },
   ClickedAgentGroup: { session: Schema.String },
-  ClickedTopicGroup: { topic: Schema.String },
+  ClickedRenameRound: { round: Schema.Number },
+  UpdatedRoundName: { name: Schema.String },
+  SubmittedRoundName: { round: Schema.Number },
+  CancelledRoundName: {},
   ClickedQuestionBranch: { question: Schema.String },
   UpdatedQuestionSearch: { value: Schema.String },
   ClickedRound: { round: Schema.Number },
@@ -240,6 +243,7 @@ export const Message = defineMessageUnion({
   ChangedHighlights: {},
   ChangedCollapseSentRounds: {},
   RestoredWorkspaceSettings: {
+    grouping: QuestionGrouping,
     highlightTerms: Schema.Boolean,
     collapseSentRounds: Schema.Boolean,
   },
@@ -627,11 +631,17 @@ export const update = (model: Model, message: Message) =>
           modifyFields(workspace, { search: () => value }),
       }),
     }),
-    ChangedQuestionGrouping: ({ grouping }) => ({
-      model: modifyFields(model, {
+    ChangedQuestionGrouping: ({ grouping }) => {
+      const next = modifyFields(model, {
         workspace: value => modifyFields(value, { grouping: () => grouping }),
-      }),
-    }),
+      })
+      return {
+        model: next,
+        commands: [
+          SaveWorkspaceSettings({ settings: JSON.stringify(next.workspace) }),
+        ],
+      }
+    },
     ClickedAgentGroup: ({ session }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -643,17 +653,40 @@ export const update = (model: Model, message: Message) =>
           }),
       }),
     }),
-    ClickedTopicGroup: ({ topic }) => ({
+    ClickedRenameRound: ({ round }) =>
+      withSnapshot(model, snapshot => ({
+        model: modifyFields(model, {
+          workspace: value =>
+            modifyFields(value, {
+              maybeEditingRound: () => Option.some(round),
+              roundNameDraft: () =>
+                snapshot.grill.roundNames?.[String(round)] ?? '',
+            }),
+        }),
+      })),
+    UpdatedRoundName: ({ name }) => ({
       model: modifyFields(model, {
-        workspace: value =>
-          modifyFields(value, {
-            foldedTopics: topics =>
-              topics.includes(topic)
-                ? topics.filter(item => item !== topic)
-                : Array.append(topics, topic),
-          }),
+        workspace: value => modifyFields(value, { roundNameDraft: () => name }),
       }),
     }),
+    CancelledRoundName: () => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, { maybeEditingRound: () => Option.none() }),
+      }),
+    }),
+    SubmittedRoundName: ({ round }) =>
+      postEvent(
+        modifyFields(model, {
+          workspace: value =>
+            modifyFields(value, { maybeEditingRound: () => Option.none() }),
+        }),
+        {
+          kind: 'renamed-round',
+          round,
+          name: model.workspace.roundNameDraft.trim(),
+        },
+      ),
     ClickedQuestionBranch: ({ question }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -707,10 +740,15 @@ export const update = (model: Model, message: Message) =>
     ChangedHighlights: () => saveWorkspaceSetting(model, 'highlightTerms'),
     ChangedCollapseSentRounds: () =>
       saveWorkspaceSetting(model, 'collapseSentRounds'),
-    RestoredWorkspaceSettings: ({ highlightTerms, collapseSentRounds }) => ({
+    RestoredWorkspaceSettings: ({
+      highlightTerms,
+      collapseSentRounds,
+      grouping,
+    }) => ({
       model: modifyFields(model, {
         workspace: value =>
           modifyFields(value, {
+            grouping: () => grouping,
             highlightTerms: () => highlightTerms,
             collapseSentRounds: () => collapseSentRounds,
           }),
@@ -2184,11 +2222,13 @@ export const RestoreWorkspaceSettings = Command.define(
       )
       const settings = Schema.decodeUnknownSync(
         Schema.Struct({
+          grouping: Schema.optionalKey(Schema.String),
           highlightTerms: Schema.optionalKey(Schema.Boolean),
           collapseSentRounds: Schema.optionalKey(Schema.Boolean),
         }),
       )(raw)
       return Message.RestoredWorkspaceSettings({
+        grouping: settings.grouping === 'Agent' ? 'Agent' : 'Round',
         highlightTerms: settings.highlightTerms ?? false,
         collapseSentRounds: settings.collapseSentRounds ?? true,
       })
@@ -2196,6 +2236,7 @@ export const RestoreWorkspaceSettings = Command.define(
       Effect.catch(() =>
         Effect.succeed(
           Message.RestoredWorkspaceSettings({
+            grouping: 'Round',
             highlightTerms: false,
             collapseSentRounds: true,
           }),

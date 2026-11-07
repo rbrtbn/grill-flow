@@ -1,6 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Command,
   all,
   change,
   click,
@@ -15,7 +16,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
 
 import { Grill } from './domain'
-import { PageData, init, update } from './main'
+import { Message, PageData, SaveWorkspaceSettings, init, update } from './main'
 import { view } from './view'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
@@ -33,15 +34,12 @@ const grill = {
       when: index === 1 ? [{ question: 'Q1', oneOf: ['a'] }] : [],
       ...(index === 0
         ? {
-            topic: 'Grants',
             urgency: 'soon' satisfies NonNullable<
               typeof first.question.urgency
             >,
             blocksAt: '2026-11-07T14:00:00+01:00',
           }
-        : index === 2
-          ? { topic: 'Grants' }
-          : {}),
+        : {}),
     },
   })),
 }
@@ -63,43 +61,41 @@ const loaded = {
   page: PageData.Success({ data: snapshot }),
 }
 
-describe('question topics and nested blockers', () => {
-  it('groups independent questions by topic, falls back to part titles and remembers folding', () => {
-    const independent = {
+describe('named rounds and nested blockers', () => {
+  it('shows named rounds in the sidebar and header, with a rename form', () => {
+    const named = {
       ...snapshot,
-      grill: {
-        ...grill,
-        steps: grill.steps.map(step => ({
-          ...step,
-          question: { ...step.question, dependsOn: [], when: [] },
-        })),
-      },
+      grill: { ...grill, roundNames: { '1': 'Stage definitions' } },
     }
     scene(
       { update, view },
-      given({ ...loaded, page: PageData.Success({ data: independent }) }),
-      change(role('combobox', { name: 'Group questions by' }), 'Topic'),
-      expect(role('navigation', { name: 'Questions by topic' })).toExist(),
-      expectAll(all.selector('.f-round')).toHaveCount(2),
-      expect(selector('.f-question-list')).toContainText(
-        fixture.parts.find(part => part.id === first.part)!.title,
+      given({ ...loaded, page: PageData.Success({ data: named }) }),
+      expect(selector('.f-round-name')).toContainText(
+        'Round 1 · Stage definitions',
       ),
-      click(role('button', { name: 'Grants · 0 of 2 sent' })),
-      expectAll(all.selector('.f-question-item')).toHaveCount(1),
-      change(role('combobox', { name: 'Group questions by' }), 'Round'),
-      expectAll(all.selector('.f-question-item')).toHaveCount(3),
-      change(role('combobox', { name: 'Group questions by' }), 'Topic'),
-      expectAll(all.selector('.f-question-item')).toHaveCount(1),
+      expect(selector('.f-current-round')).toHaveText(
+        'Round 1 · Stage definitions',
+      ),
+      click(role('button', { name: 'Rename' })),
+      expect(role('textbox', { name: 'Name for round 1' })).toHaveValue(
+        'Stage definitions',
+      ),
+      click(role('button', { name: 'Cancel' })),
+      expectAll(all.selector('.f-round-editor')).toHaveCount(0),
     )
   })
 
-  it.each(['Round', 'Agent', 'Topic'] satisfies ReadonlyArray<
+  it.each(['Round', 'Agent'] satisfies ReadonlyArray<
     typeof loaded.workspace.grouping
   >)('nests dependents and folds the branch in %s view', grouping => {
     scene(
       { update, view },
       given(loaded),
       change(role('combobox', { name: 'Group questions by' }), grouping),
+      Command.resolve(
+        SaveWorkspaceSettings,
+        Message.CompletedSaveWorkspaceSettings(),
+      ),
       expectAll(
         all.selector('.f-question-children .f-question-item'),
       ).toHaveCount(2),
@@ -115,13 +111,13 @@ describe('question topics and nested blockers', () => {
     )
   })
 
-  it('distinguishes the draft pencil from the sent checkmark inside outlined circles', () => {
+  it('distinguishes the draft and sent checkmarks inside outlined circles', () => {
     scene(
       { update, view },
       given({ ...loaded, answers: { Q1: 'a' } }),
       expect(selector('.f-question-list .f-state-draft path')).toHaveAttr(
         'd',
-        'm4 12 1-4 5-5 3 3-5 5-4 1m2-6 3 3',
+        'm4 8 3 3 5-6',
       ),
     )
     scene(

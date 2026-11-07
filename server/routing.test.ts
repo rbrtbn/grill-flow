@@ -147,6 +147,25 @@ describe('HTTP delivery routing', () => {
     ).toEqual(['failed-worker'])
   })
 
+  it('saves round names through the page event endpoint', async () => {
+    const state = await request('events', {
+      kind: 'renamed-round',
+      round: 1,
+      name: '  Stage definitions  ',
+    })
+    expect(state.grill.roundNames['1']).toBe('Stage definitions')
+    const invalid = await fetch(`${base}/api/grills/routing-fixture/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        kind: 'renamed-round',
+        round: 999,
+        name: 'Missing',
+      }),
+    })
+    expect(invalid.status).toBe(400)
+  })
+
   it('routes question asks, whole-run asks and grill-flow asks independently', async () => {
     const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
     await request('events', {

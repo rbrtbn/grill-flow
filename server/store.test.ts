@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { getGrill, loadGrill } from './store'
+import { appendEvent, getGrill, loadGrill, snapshot } from './store'
 
 const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
 const databases = new Set<Database>()
@@ -63,4 +63,19 @@ describe('reference titles on reload', () => {
     loadGrill(db, { ...fixture, refs: { 'LAB-1054': { text: 'LAB-1054' } } })
     expect(getGrill(db, fixture.id)?.refs?.['LAB-1054']?.text).toBe('LAB-1054')
   })
+})
+
+it('keeps owner round names across a writer reload without changing round memberships', () => {
+  const db = database()
+  const grill = loadGrill(db, { ...fixture, roundNames: { '1': 'Stages' } })
+  appendEvent(db, grill.id, 'renamed-round', {
+    round: 1,
+    name: 'Stage definitions',
+  })
+  loadGrill(db, { ...fixture, roundNames: { '1': 'Writer name' } })
+  const state = snapshot(db, getGrill(db, grill.id)!)
+  expect(state.grill.roundNames).toEqual({ '1': 'Stage definitions' })
+  expect(
+    state.grill.steps.map(step => [step.question.id, step.question.round]),
+  ).toEqual(grill.steps.map(step => [step.question.id, step.question.round]))
 })

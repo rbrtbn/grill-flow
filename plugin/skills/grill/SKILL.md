@@ -200,16 +200,19 @@ A squad lead's grill, gathering questions from several agents, also sets
   `from` is display metadata and never determines delivery. Use `version: 4`
   when naming per-question recipients. Review & Send lists each recipient;
   partial failures leave only the failed recipients' answers unsent.
-- `topic` on a question (version 4): a short shared label, such as `Grants`
-  or `Review policy`. Topic grouping uses it, falling back to the part's
-  title when absent or blank. Set it on your own questions.
+- `roundNames` on the grill (version 4): round numbers mapped to short work
+  descriptions, e.g. `{"1": "Stage definitions", "2": "Run grants"}`. Keep the
+  existing rounds and their question memberships; name each round by its work.
+  Question `topic` is no longer used. The page shows names in the sidebar,
+  header and browser title. Owner renames on the page survive writer reloads.
 - `blocksAt` on a question (version 4): optional ISO 8601 date/time with a
-  timezone, such as `2026-11-07T14:00:00+01:00`. Open circles fill with their
-  `urgency` colour (`blocking`, `soon`, `wait`, `fyi`); no urgency leaves the
-  circle neutral. Hover reveals urgency and the time, when supplied. Omit
-  unknown times. Drafts use an outlined pencil circle; Sent uses a check.
+  timezone, such as `2026-11-07T14:00:00+01:00`. Open circles use red for
+  `blocking`, yellow for `soon`, an empty circle for `wait`, and teal for
+  `fyi`; no urgency leaves the circle neutral. Hover reveals urgency and
+  the time, when supplied. Omit unknown times. Drafts use a dotted checkmark circle; Sent uses a solid
+  checkmark circle.
 - Dependents nest below their first unanswered blocker from `dependsOn` or
-  `when`, across Round, Agent and Topic groups. A chevron folds the branch.
+  `when`, across Round and Agent groups. A chevron folds the branch.
   Each question appears once, under its blocker's group; filtering out a
   blocker promotes matching dependents so search never hides a result.
   Answered blockers release children to their next open blocker or their own

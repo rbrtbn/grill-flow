@@ -125,7 +125,7 @@
 }
 .f-topbar {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto minmax(350px, 1fr);
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
   height: var(--bar);
@@ -377,18 +377,18 @@
   border-color: currentColor;
 }
 .f-state-open.urgency-soon {
-  color: var(--u-soon);
+  color: #a68a00;
   border-color: currentColor;
 }
 .f-state-open.urgency-wait {
-  color: var(--u-wait);
-  border-color: currentColor;
+  color: var(--muted);
+  border-color: #8c9585;
 }
 .f-state-open.urgency-fyi {
   color: var(--u-fyi);
   border-color: currentColor;
 }
-.f-state-open[class*='urgency-'] {
+.f-state-open:is(.urgency-blocking, .urgency-soon, .urgency-fyi) {
   background: currentColor;
   border-color: transparent;
 }
@@ -465,6 +465,7 @@
   padding-left: 0;
 }
 .f-state-draft {
+  border-style: dotted;
   background: transparent;
   color: var(--link);
   border-color: currentColor;
@@ -1536,7 +1537,8 @@ body[data-gf-preview] .f-workspace {
     border-top: 0;
   }
   .f-question-tools > div:first-child {
-    display: none;
+    display: flex;
+    margin-bottom: 6px;
   }
   .f-question-tools input {
     padding: 7px 9px;
@@ -1820,4 +1822,75 @@ body[data-gf-preview] .f-workspace {
   background: var(--link-wash);
   color: var(--link);
   border-radius: 4px;
+}
+
+.f-page-location {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 420px;
+}
+.f-current-round {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.f-page-location .f-current-question {
+  flex: none;
+}
+.f-round-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.f-round-heading .f-round-toggle {
+  flex: 1;
+  min-width: 0;
+}
+.f-round-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.f-round-heading > .text-button {
+  flex: none;
+  padding: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.f-round-editor {
+  padding: 6px 8px 12px;
+  font: 400 13px/1.5 var(--label);
+}
+.f-round-editor input {
+  width: 100%;
+  min-width: 0;
+  margin: 4px 0;
+  padding: 6px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 4px;
+  font: inherit;
+}
+.f-round-editor > div {
+  display: flex;
+  gap: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .f-state-open.urgency-soon {
+    color: #f2d34f;
+  }
+  .f-state-open.urgency-wait {
+    border-color: var(--muted);
+  }
+}
+
+.f-round-heading .hint {
+  flex: none;
+  white-space: nowrap;
 }

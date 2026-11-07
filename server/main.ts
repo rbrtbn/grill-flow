@@ -1,3 +1,4 @@
+import { Schema } from 'effect'
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
@@ -8,6 +9,7 @@ import {
   type Grill,
   hasTarget,
   questionSession,
+  roundOf,
 } from '../src/domain'
 import { dashboard } from './dashboard'
 import { sendAnswerBatches } from './delivery'
@@ -170,6 +172,32 @@ const handleEvent = async (
   const questionIds = new Set(grill.steps.map(step => step.question.id))
   const question = String(body.question ?? '')
   switch (body.kind) {
+    case 'renamed-round': {
+      const change = Schema.decodeUnknownResult(
+        Schema.Struct({ round: Schema.Number, name: Schema.String }),
+      )(body)
+      if (
+        change._tag === 'Failure' ||
+        !Number.isInteger(change.success.round) ||
+        change.success.name.trim().length > 80 ||
+        !grill.steps.some(
+          step => roundOf(grill, step.question) === change.success.round,
+        )
+      ) {
+        return json(
+          {
+            error:
+              'Choose an existing round and a name of at most 80 characters.',
+          },
+          400,
+        )
+      }
+      appendEvent(db, grillId, 'renamed-round', {
+        round: change.success.round,
+        name: change.success.name.trim(),
+      })
+      break
+    }
     case 'answered': {
       const step = grill.steps.find(s => s.question.id === question)
       const key = String(body.key ?? '')

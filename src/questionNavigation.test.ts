@@ -2,7 +2,7 @@ import { Option, Schema } from 'effect'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-import { Grill, questionTopic, urgencyDetail } from './domain'
+import { Grill, roundLabel, urgencyDetail } from './domain'
 import {
   adjacentQuestion,
   flattenQuestions,
@@ -26,7 +26,7 @@ const grill = {
       ...step.question,
       dependsOn: [],
       when: [],
-      ...(index === 1 ? {} : { topic: 'Grants' }),
+      round: index === 1 ? 2 : 1,
     },
   })),
 }
@@ -40,25 +40,13 @@ const snapshot = {
   sends: [],
 }
 
-describe('topic grouping and urgency', () => {
-  it('uses explicit topics, part titles and an unassigned fallback', () => {
+describe('round grouping and urgency', () => {
+  it('uses named rounds with a numbered fallback', () => {
     expect(
-      questionTopic(grill, {
-        ...first,
-        question: { ...first.question, topic: '  Grants  ' },
-      }),
-    ).toBe('Grants')
-    expect(
-      questionTopic(grill, {
-        ...first,
-        question: { ...first.question, topic: '  ' },
-      }),
-    ).toBe(grill.parts.find(part => part.id === first.part)?.title)
-    expect(questionTopic(grill, { ...first, part: 'missing' })).toBe(
-      'Other questions',
-    )
+      roundLabel({ ...grill, roundNames: { '1': 'Stage definitions' } }, 1),
+    ).toBe('Round 1 · Stage definitions')
+    expect(roundLabel(grill, 2)).toBe('Round 2')
   })
-
   it('shows blocking urgency and a supplied time without inferring a time', () => {
     expect(
       Option.getOrThrow(
@@ -80,15 +68,15 @@ describe('topic grouping and urgency', () => {
     expect(Option.isNone(urgencyDetail(first.question))).toBe(true)
   })
 
-  it('keeps topic order stable through filtering and uses it for question navigation', () => {
+  it('keeps round order stable through filtering and uses it for question navigation', () => {
     const workspace = {
       ...initialWorkspace,
-      grouping: 'Topic' satisfies typeof initialWorkspace.grouping,
+      grouping: 'Round' satisfies typeof initialWorkspace.grouping,
     }
     const labels = questionGroups(workspace, snapshot, {}, {}, {}).map(
       group => group.label,
     )
-    expect(labels).toEqual(['Grants', questionTopic(grill, grill.steps[1]!)])
+    expect(labels).toEqual(['Round 1', 'Round 2'])
     expect(
       questionGroups(
         { ...workspace, filter: 'Open' },
@@ -163,7 +151,7 @@ describe('the unblocking forest', () => {
     },
   )
 
-  it.each(['Round', 'Agent', 'Topic'] satisfies ReadonlyArray<
+  it.each(['Round', 'Agent'] satisfies ReadonlyArray<
     typeof initialWorkspace.grouping
   >)('keeps each dependent under its blocker across %s groups', grouping => {
     const state = linked([[], ['Q1'], ['Q2', 'Q1']])
@@ -210,16 +198,16 @@ describe('the unblocking forest', () => {
     expect(questionParents(state, { Q1: 'b' }).has('Q3')).toBe(false)
   })
 
-  it('opens a selected descendant’s collapsed ancestors and topic group', () => {
+  it('opens a selected descendant’s collapsed ancestors and round group', () => {
     const state = linked([[], ['Q1'], ['Q2']])
     const workspace = {
       ...initialWorkspace,
-      grouping: 'Topic' satisfies typeof initialWorkspace.grouping,
-      foldedTopics: ['Grants'],
+      grouping: 'Round' satisfies typeof initialWorkspace.grouping,
+      foldedRounds: [1],
       foldedQuestions: ['Q1', 'Q2'],
     }
     const revealed = revealQuestion(workspace, state, {}, {}, {}, 'Q3')
     expect(revealed.foldedQuestions).toEqual([])
-    expect(revealed.foldedTopics).toEqual([])
+    expect(revealed.foldedRounds).toEqual([])
   })
 })

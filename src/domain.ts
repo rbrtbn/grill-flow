@@ -70,7 +70,6 @@ export const Question = Schema.Struct({
   // The round that first asked it; untagged questions belong to round 1.
   round: Schema.optionalKey(Schema.Number),
   urgency: Schema.optionalKey(Urgency),
-  topic: Schema.optionalKey(Schema.String),
   blocksAt: Schema.optionalKey(Schema.String),
   // A `refs` key: the issue the question is mainly about.
   issue: Schema.optionalKey(Schema.String),
@@ -175,6 +174,7 @@ export const Grill = Schema.Struct({
   entities: Schema.Array(Entity),
   terms: Schema.Array(Term),
   round: Schema.Number,
+  roundNames: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   session: Schema.String,
   intro: Schema.Array(Schema.String),
   parts: Schema.Array(Part),
@@ -205,10 +205,16 @@ export const questionAgent = (grill: Grill, question?: Question): string => {
     : `${source.text}${session === '' ? '' : ` · ${session}`}`
 }
 
-export const questionTopic = (grill: Grill, step: Step): string =>
-  step.question.topic?.trim() ||
-  grill.parts.find(part => part.id === step.part)?.title ||
-  'Other questions'
+export const roundOf = (grill: Grill, question: Question): number =>
+  question.round ??
+  (grill.steps.some(step => step.question.round !== undefined)
+    ? 1
+    : grill.round)
+
+export const roundLabel = (grill: Grill, round: number): string => {
+  const name = grill.roundNames?.[String(round)]?.trim()
+  return `Round ${round}${name ? ` · ${name}` : ''}`
+}
 
 export const urgencyDetail = (question: Question): Option.Option<string> =>
   question.urgency === undefined

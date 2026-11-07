@@ -15,7 +15,8 @@ import {
   planPhaseOf,
   questionAgent,
   questionSession,
-  questionTopic,
+  roundLabel,
+  roundOf,
   statusOf,
   urgencyDetail,
 } from './domain'
@@ -99,11 +100,7 @@ const stateMark = (
             [h.ViewBox('0 0 16 16')],
             [
               h.path([
-                h.D(
-                  state === 'Sent'
-                    ? 'm4 8 3 3 5-6'
-                    : 'm4 12 1-4 5-5 3 3-5 5-4 1m2-6 3 3',
-                ),
+                h.D('m4 8 3 3 5-6'),
                 h.Fill('none'),
                 h.Stroke('currentColor'),
                 h.StrokeWidth('1.5'),
@@ -155,7 +152,7 @@ const questionNodeView = (
                   : 'false',
               ),
               h.Title(
-                `${step.question.id} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${questionTopic(snapshot.grill, step)} · Round ${step.question.round ?? 1}${urgency === '' ? '' : ` · ${urgency}`}`,
+                `${step.question.id} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question))}${urgency === '' ? '' : ` · ${urgency}`}`,
               ),
             ],
             [
@@ -352,13 +349,30 @@ export const workspaceView = (
             [h.Href('/'), h.Class('f-run-name'), h.Title('All grills')],
             [grill.title],
           ),
-          h.span(
-            [h.Class('f-current-question')],
+          h.div(
+            [h.Class('f-page-location')],
             [
-              Option.match(question, {
-                onSome: step => step.question.id,
-                onNone: () => workspacePageName(model.currentPart),
-              }),
+              h.span(
+                [h.Class('f-current-round')],
+                [
+                  roundLabel(
+                    grill,
+                    Option.match(question, {
+                      onSome: step => roundOf(grill, step.question),
+                      onNone: () => grill.round,
+                    }),
+                  ),
+                ],
+              ),
+              h.span(
+                [h.Class('f-current-question')],
+                [
+                  Option.match(question, {
+                    onSome: step => step.question.id,
+                    onNone: () => workspacePageName(model.currentPart),
+                  }),
+                ],
+              ),
             ],
           ),
           h.nav(
@@ -563,17 +577,13 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   h.Value(model.workspace.grouping),
                   h.OnChange(value =>
                     Message.ChangedQuestionGrouping({
-                      grouping:
-                        value === 'Agent' || value === 'Topic'
-                          ? value
-                          : 'Round',
+                      grouping: value === 'Agent' ? value : 'Round',
                     }),
                   ),
                 ],
                 [
                   h.option([h.Value('Round')], ['By round']),
                   h.option([h.Value('Agent')], ['By agent']),
-                  h.option([h.Value('Topic')], ['By topic']),
                 ],
               ),
             ],
@@ -642,48 +652,108 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               `${model.workspace.grouping}-${group.key}`,
               [h.Class('f-round')],
               [
-                h.button(
+                h.div(
+                  [h.Class('f-round-heading')],
                   [
-                    h.Class('f-round-toggle'),
-                    h.AriaLabel(
-                      `${group.label} · ${sent} of ${steps.length} sent`,
-                    ),
-                    h.AriaExpanded(!collapsed),
-                    h.OnClick(
-                      model.workspace.grouping === 'Agent'
-                        ? Message.ClickedAgentGroup({ session: group.key })
-                        : model.workspace.grouping === 'Topic'
-                          ? Message.ClickedTopicGroup({ topic: group.key })
-                          : Message.ClickedRound({ round: Number(group.key) }),
-                    ),
-                  ],
-                  [
-                    h.svg(
+                    h.button(
                       [
-                        h.ViewBox('0 0 16 16'),
-                        h.Class(collapsed ? '' : 'is-open'),
-                        h.AriaHidden(true),
-                      ],
-                      [
-                        h.path([
-                          h.D('m6 4 4 4-4 4'),
-                          h.Fill('none'),
-                          h.Stroke('currentColor'),
-                          h.StrokeWidth('1.5'),
-                        ]),
-                      ],
-                    ),
-                    group.label,
-                    h.span(
-                      [
-                        h.Class(
-                          `hint${sent === steps.length ? ' is-complete' : ''}`,
+                        h.Class('f-round-toggle'),
+                        h.AriaLabel(
+                          `${group.label} · ${sent} of ${steps.length} sent`,
+                        ),
+                        h.AriaExpanded(!collapsed),
+                        h.OnClick(
+                          model.workspace.grouping === 'Agent'
+                            ? Message.ClickedAgentGroup({ session: group.key })
+                            : Message.ClickedRound({
+                                round: Number(group.key),
+                              }),
                         ),
                       ],
-                      [`${sent}/${steps.length} sent`],
+                      [
+                        h.svg(
+                          [
+                            h.ViewBox('0 0 16 16'),
+                            h.Class(collapsed ? '' : 'is-open'),
+                            h.AriaHidden(true),
+                          ],
+                          [
+                            h.path([
+                              h.D('m6 4 4 4-4 4'),
+                              h.Fill('none'),
+                              h.Stroke('currentColor'),
+                              h.StrokeWidth('1.5'),
+                            ]),
+                          ],
+                        ),
+                        h.span([h.Class('f-round-name')], [group.label]),
+                        h.span(
+                          [
+                            h.Class(
+                              `hint${sent === steps.length ? ' is-complete' : ''}`,
+                            ),
+                          ],
+                          [`${sent}/${steps.length} sent`],
+                        ),
+                      ],
                     ),
+                    model.workspace.grouping === 'Round'
+                      ? link(
+                          'Rename',
+                          Message.ClickedRenameRound({
+                            round: Number(group.key),
+                          }),
+                          h,
+                        )
+                      : h.empty,
                   ],
                 ),
+                model.workspace.grouping === 'Round' &&
+                Option.contains(
+                  model.workspace.maybeEditingRound,
+                  Number(group.key),
+                )
+                  ? h.form(
+                      [
+                        h.Class('f-round-editor'),
+                        h.OnSubmit(
+                          Message.SubmittedRoundName({
+                            round: Number(group.key),
+                          }),
+                        ),
+                      ],
+                      [
+                        h.label(
+                          [h.For(`round-name-${group.key}`)],
+                          [`Name for round ${group.key}`],
+                        ),
+                        h.input([
+                          h.Id(`round-name-${group.key}`),
+                          h.Value(model.workspace.roundNameDraft),
+                          h.Maxlength(80),
+                          h.Placeholder('What are these questions about?'),
+                          h.OnInput(name => Message.UpdatedRoundName({ name })),
+                        ]),
+                        h.div(
+                          [],
+                          [
+                            h.button(
+                              [h.Type('submit'), h.Class('text-button')],
+                              ['Save'],
+                            ),
+                            h.button(
+                              [
+                                h.Type('button'),
+                                h.Class('text-button'),
+                                h.OnClick(Message.CancelledRoundName()),
+                              ],
+                              ['Cancel'],
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : h.empty,
                 collapsed
                   ? h.empty
                   : h.ul(

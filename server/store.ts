@@ -16,6 +16,7 @@ export const ROOT = join(import.meta.dir, '..')
 const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
 
 export type EventKind =
+  | 'renamed-round'
   | 'loaded'
   | 'answered'
   | 'cleared'
@@ -262,6 +263,7 @@ const sentLines = (
 }
 
 export const snapshot = (db: Database, grill: Grill): Snapshot => {
+  const roundNames: Record<string, string> = { ...grill.roundNames }
   const answers: Record<string, string> = {}
   const notes: Record<string, string> = {}
   const own: Record<string, string> = {}
@@ -335,9 +337,22 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
       case 'replied':
         replies.push({ id: event.id, text: String(p.text), at: event.at })
         break
+      case 'renamed-round':
+        roundNames[String(p.round)] = String(p.name)
+        break
       case 'loaded':
         break
     }
   }
-  return { grill, answers, notes, own, asks, revisions, sends, sent, replies }
+  return {
+    grill: { ...grill, roundNames },
+    answers,
+    notes,
+    own,
+    asks,
+    revisions,
+    sends,
+    sent,
+    replies,
+  }
 }

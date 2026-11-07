@@ -11,7 +11,8 @@ import {
   isSent,
   questionAgent,
   questionSession,
-  questionTopic,
+  roundLabel,
+  roundOf,
   sendableLines,
   statusOf,
 } from './domain'
@@ -27,7 +28,7 @@ export const RUN_TARGET = 'run'
 
 export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 export type QuestionFilter = typeof QuestionFilter.Type
-export const QuestionGrouping = Schema.Literals(['Round', 'Agent', 'Topic'])
+export const QuestionGrouping = Schema.Literals(['Round', 'Agent'])
 
 export const CatalogData = AsyncData.Schema(
   Schema.Array(Snapshot),
@@ -50,7 +51,8 @@ export const Workspace = Schema.Struct({
   filter: QuestionFilter,
   grouping: QuestionGrouping,
   foldedAgents: Schema.Array(Schema.String),
-  foldedTopics: Schema.Array(Schema.String),
+  maybeEditingRound: Schema.Option(Schema.Number),
+  roundNameDraft: Schema.String,
   foldedQuestions: Schema.Array(Schema.String),
   search: Schema.String,
   foldedRounds: Schema.Array(Schema.Number),
@@ -73,7 +75,8 @@ export const initialWorkspace: Workspace = {
   filter: 'All',
   grouping: 'Round',
   foldedAgents: [],
-  foldedTopics: [],
+  maybeEditingRound: Option.none(),
+  roundNameDraft: '',
   foldedQuestions: [],
   search: '',
   foldedRounds: [],
@@ -159,7 +162,7 @@ export const visibleQuestions = (
           step.question.ask,
           step.question.issue ?? '',
           questionAgent(snapshot.grill, step.question),
-          questionTopic(snapshot.grill, step),
+          roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question)),
           step.heading,
         ]
           .join(' ')
@@ -216,7 +219,7 @@ export const roundIsCollapsed = (
   (workspace.collapseSentRounds &&
     !workspace.expandedRounds.includes(round) &&
     snapshot.grill.steps
-      .filter(step => (step.question.round ?? 1) === round)
+      .filter(step => roundOf(snapshot.grill, step.question) === round)
       .every(
         step =>
           statusOf(snapshot.grill, answers, step.question.id)._tag ===
@@ -299,9 +302,7 @@ export const questionGroups = (
   const keyOf = (step: Step) =>
     workspace.grouping === 'Agent'
       ? questionSession(snapshot.grill, step.question)
-      : workspace.grouping === 'Topic'
-        ? questionTopic(snapshot.grill, step)
-        : String(step.question.round ?? 1)
+      : String(roundOf(snapshot.grill, step.question))
   const keys = Array.dedupe(snapshot.grill.steps.map(keyOf)).filter(key =>
     roots.some(node => keyOf(node.step) === key),
   )
@@ -318,26 +319,20 @@ export const questionGroups = (
       label:
         workspace.grouping === 'Agent'
           ? questionAgent(snapshot.grill, first?.question)
-          : workspace.grouping === 'Topic'
-            ? key
-            : nodes.every(node => node.step.question.round === undefined)
-              ? 'No round'
-              : `Round ${key}`,
+          : roundLabel(snapshot.grill, Number(key)),
       steps,
       roots: nodes,
       collapsed:
         workspace.grouping === 'Agent'
           ? workspace.foldedAgents.includes(key)
-          : workspace.grouping === 'Topic'
-            ? workspace.foldedTopics.includes(key)
-            : roundIsCollapsed(
-                workspace,
-                snapshot,
-                Number(key),
-                answers,
-                notes,
-                own,
-              ),
+          : roundIsCollapsed(
+              workspace,
+              snapshot,
+              Number(key),
+              answers,
+              notes,
+              own,
+            ),
     }
   })
 }
@@ -367,10 +362,6 @@ export const revealQuestion = (
     foldedQuestions: ids => ids.filter(item => !ancestors.has(item)),
     foldedAgents: ids =>
       workspace.grouping === 'Agent'
-        ? ids.filter(item => item !== group?.key)
-        : ids,
-    foldedTopics: ids =>
-      workspace.grouping === 'Topic'
         ? ids.filter(item => item !== group?.key)
         : ids,
     foldedRounds: rounds =>

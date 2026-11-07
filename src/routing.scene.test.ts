@@ -1,6 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Command,
   Mount,
   all,
   change,
@@ -17,7 +18,14 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import { FillBox, Message, PageData, init, update } from './main'
+import {
+  FillBox,
+  Message,
+  PageData,
+  SaveWorkspaceSettings,
+  init,
+  update,
+} from './main'
 import { view } from './view'
 import { CONVERSATIONS, REVIEW, initialWorkspace } from './workspace'
 
@@ -62,13 +70,25 @@ describe('asking agents in the workspace', () => {
       given(loaded),
       expectAll(all.selector('.f-round')).toHaveCount(3),
       change(role('combobox', { name: 'Group questions by' }), 'Agent'),
+      Command.resolve(
+        SaveWorkspaceSettings,
+        Message.CompletedSaveWorkspaceSettings(),
+      ),
       expectAll(all.selector('.f-round')).toHaveCount(2),
       expect(role('navigation', { name: 'Questions by agent' })).toExist(),
       click(role('button', { name: 'worker · 0 of 1 sent' })),
       expectAll(all.selector('.f-question-item')).toHaveCount(2),
       change(role('combobox', { name: 'Group questions by' }), 'Round'),
+      Command.resolve(
+        SaveWorkspaceSettings,
+        Message.CompletedSaveWorkspaceSettings(),
+      ),
       expectAll(all.selector('.f-question-item')).toHaveCount(3),
       change(role('combobox', { name: 'Group questions by' }), 'Agent'),
+      Command.resolve(
+        SaveWorkspaceSettings,
+        Message.CompletedSaveWorkspaceSettings(),
+      ),
       expectAll(all.selector('.f-question-item')).toHaveCount(2),
     )
   })
