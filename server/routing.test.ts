@@ -73,6 +73,7 @@ if (process.argv[3] === 'failed-worker') { console.error('worker unavailable'); 
         ...step,
         question: {
           ...step.question,
+          row: `routing-card/Q${index + 1}`,
           ...(index === 0
             ? { session: 'homelab/worker' }
             : index === 2
@@ -195,4 +196,36 @@ describe('HTTP delivery routing', () => {
     expect(calls[2]?.[2]).not.toContain('GF_OUTBOX')
     expect(state.maintainerSession).toBe('maintainer')
   })
+
+  it.each([
+    { size: 'short', text: 'Short page text.' },
+    { size: 'long', text: 'Long page text. '.repeat(230) },
+  ])(
+    'wraps every terminal path in one page-marked block for $size text',
+    async ({ text }) => {
+      const fixture = JSON.parse(
+        readFileSync('src/fixtures/grill.json', 'utf8'),
+      )
+      const start = received().length
+      for (const stepId of [
+        fixture.steps[0].id,
+        `part:${fixture.steps[0].part}`,
+        'card:routing-card',
+        'run',
+        'grill-flow',
+      ]) {
+        await request('events', { kind: 'asked', stepId, text })
+      }
+      await request('events', { kind: 'noted', question: 'Q1', text })
+      await request('send', { questions: ['Q1'], message: text })
+      const calls = received().slice(start)
+      expect(calls).toHaveLength(6)
+      calls.forEach(call => {
+        expect(call).toHaveLength(3)
+        expect(call[2].startsWith('<grill-flow source="page">\n')).toBe(true)
+        expect(call[2].endsWith('\n</grill-flow>')).toBe(true)
+        expect(call[2]).toContain(text.trim())
+      })
+    },
+  )
 })

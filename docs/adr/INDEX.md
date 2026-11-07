@@ -11,3 +11,4 @@
 | [0007](0007-name-rounds-instead-of-question-topics.md) | Name rounds instead of question topics | accepted |
 | [0008](0008-compose-squad-pages-from-independent-grills.md) | Compose squad pages from independent grills | accepted |
 | [0009](0009-retire-source-grills-with-events.md) | Retire source grills with events | accepted |
+| [0010](0010-mark-page-deliveries-as-page-messages.md) | Mark page deliveries as page messages | accepted |

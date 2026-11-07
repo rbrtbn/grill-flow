@@ -12,7 +12,7 @@ import {
   roundOf,
 } from '../src/domain'
 import { dashboard } from './dashboard'
-import { askMessage } from './messages'
+import { askMessage, pageMessage } from './messages'
 import { startRemotes } from './remote'
 import { selectSend } from './sendSelection'
 import { eventDestination, listPages, readPage, sendPageAnswers } from './squad'
@@ -114,9 +114,7 @@ const asset = (pathname: string): Response => {
   return new Response(Bun.file(path))
 }
 
-// hc types the text into the agent's terminal and presses Enter, as if Rob had typed it.
-// A grill without a session has no terminal to type into: its asks and answers stay in the
-// store for the agent to collect with `gf wait`.
+// Page deliveries remain refused as typed authority without hc identity (docs/adr/0010).
 const sendToSession = async (
   session: string,
   text: string,
@@ -125,7 +123,7 @@ const sendToSession = async (
     return { ok: true, detail: 'left for the agent to pick up' }
   }
   try {
-    const child = Bun.spawn(['hc', 'send', session, text], {
+    const child = Bun.spawn(['hc', 'send', session, pageMessage(text)], {
       stdout: 'pipe',
       stderr: 'pipe',
     })

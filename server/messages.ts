@@ -1,6 +1,9 @@
 import { GRILL_FLOW_TARGET, isWholeTarget } from '../src/domain'
 import { ROOT } from './store'
 
+export const pageMessage = (text: string): string =>
+  `<grill-flow source="page">\n${text}\n</grill-flow>`
+
 /**
  * The text an ask arrives as in the agent's terminal, or from `gf wait`. `gf` is how the agent
  * runs the CLI where it is: this checkout here, or its own checkout with its outbox elsewhere.
