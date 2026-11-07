@@ -7,13 +7,16 @@ authorized by this document.
 
 ## Recommendation
 
-Build updates, on-demand drawings and stable question links as bounded improvements.
-Prove queued delivery and sender attribution before promising paste-free conversations.
+Build updates, on-demand drawings and stable question links as bounded
+improvements.
+Prove queued delivery and sender attribution before promising paste-free
+conversations.
 Keep Rob’s accepted page-grant policy; coordinate its proof/readback work with
 its owner.
 Owner steps, vetoes, roster, blockers, catch-up and answer receipts can share
 the event spine.
-Do not add push or budget collectors just to make the first version look complete.
+Do not add push or budget collectors just to make the first version look
+complete.
 
 ## Current capability and limits
 
@@ -25,18 +28,22 @@ Do not add push or budget collectors just to make the first version look complet
   are not registered threads.
 - `gf wait` can read stored asks and Sends; it is not a general acknowledged
   message inbox.
-- Core `terminal.send` is explicitly terminal paste. `doc.set` is CAS, at most 1 MiB.
+- Core `terminal.send` is explicitly terminal paste. `doc.set` is CAS, at most
+  1 MiB.
 - Core lifecycle/doc events do not deliver structured messages into a model by
   themselves.
-- Core Status progress is task progress; the schema has no budget/quota reading.
+- Core Status progress is task progress; the schema has no budget/quota
+  reading.
 - Origin/cookie checks prevent other sites writing casually; they do not prove
   human authorship.
 - The exact Codex tool shell has no HC_* variables. An explicit t94 self-send
   was also visibly untagged.
 - Self-send wrapping may differ. Cross-session attribution is still
   unverified, so lead reports use a file.
-- LAB-1310 already records approved page grants and their Claude-hook/Codex limitations.
-- LAB-1280’s old assertion that page discussion is absent is superseded by shipped code.
+- LAB-1310 already records approved page grants and their Claude-hook/Codex
+  limitations.
+- LAB-1280’s old assertion that page discussion is absent is superseded by
+  shipped code.
 
 ## Size guide
 
@@ -46,7 +53,8 @@ Days assume one builder, a settled contract and existing provider access.
 Runtime, squad,
 Herdr Core and dotfiles changes need their own owning-repo work; no such files
 were edited.
-Shared foundations mean the rows must not be added into one giant build estimate.
+Shared foundations mean the rows must not be added into one giant build
+estimate.
 
 | #   | Feature                                      | Usefulness                                         | Recommended next step                         |
 | --- | -------------------------------------------- | -------------------------------------------------- | --------------------------------------------- |
@@ -519,7 +527,8 @@ The durable queue stays in grill-flow; local agents pull their own envelopes
 and acknowledge
 message ids through a runtime adapter at turn boundaries. Store author kind,
 native session,
-recipient, reply-to, source, timestamps, claim/ack outcome and an idempotency key.
+recipient, reply-to, source, timestamps, claim/ack outcome and an idempotency
+key.
 Transport acceptance, agent acknowledgement, a reply and Rob reading it are
 separate states.
 
@@ -554,8 +563,10 @@ alter their log.
 
 ## Scope of this round
 
-Questions Q1–Q10 cover the brief; Q11–Q12 are additional ideas from this session.
-Each asks for a feature priority, so all twelve are independently discussable now.
+Questions Q1–Q10 cover the brief; Q11–Q12 are additional ideas from this
+session.
+Each asks for a feature priority, so all twelve are independently discussable
+now.
 A design-first or Later recommendation does not mean build that feature now.
 After the picks, sequence only the selected work and settle any unresolved
 cross-repo interfaces.
