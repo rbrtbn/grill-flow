@@ -203,6 +203,7 @@ button {
 }
 .prose {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 /* A ``` block: a diagram or timeline drawn in text, kept to its columns and scrolled when wide. */
@@ -2088,6 +2089,9 @@ button.plan-title:hover {
 /* Labels in diagrams wrap between words, never inside one (message bodies break anywhere). */
 .compare,
 .diagram {
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
   overflow-wrap: normal;
   word-break: normal;
 }

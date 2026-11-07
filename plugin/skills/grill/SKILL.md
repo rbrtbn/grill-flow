@@ -204,7 +204,7 @@ A squad lead's grill, gathering questions from several agents, also sets
   or `Review policy`. Topic grouping uses it, falling back to the part's
   title when absent or blank. Set it on your own questions.
 - `blocksAt` on a question (version 4): optional ISO 8601 date/time with a
-  timezone, such as `2026-11-07T14:00:00+01:00`. Open circles take their
+  timezone, such as `2026-11-07T14:00:00+01:00`. Open circles fill with their
   `urgency` colour (`blocking`, `soon`, `wait`, `fyi`); no urgency leaves the
   circle neutral. Hover reveals urgency and the time, when supplied. Omit
   unknown times. Drafts use an outlined pencil circle; Sent uses a check.
