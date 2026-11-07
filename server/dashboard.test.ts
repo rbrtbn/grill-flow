@@ -181,6 +181,58 @@ describe('dashboard delivery and archives', () => {
     )
   })
 
+  it('keeps an older unsent pick active when the current round is completely sent', async () => {
+    const db = database()
+    appendEvent(db, grill.id, 'answered', { question: 'Q1', key: 'b' })
+    appendEvent(db, grill.id, 'answered', { question: 'Q17', key: 'a' })
+    loadGrill(db, {
+      ...grill,
+      round: 2,
+      steps: grill.steps.map(step => ({
+        ...step,
+        question: {
+          ...step.question,
+          round: step.question.id === 'Q1' ? 1 : 2,
+        },
+      })),
+    })
+    appendEvent(db, grill.id, 'sent', {
+      ok: true,
+      what: 'answers',
+      lines: { Q17: 'Q17 a' },
+    })
+    const document = await render(db)
+    expect(document.querySelector('.active a')?.textContent).toContain(
+      '1 not sent',
+    )
+    expect(document.querySelector('.active a')?.textContent).toContain(
+      '1 ready to send',
+    )
+  })
+
+  it('keeps a saved pick visible after its question is removed from the latest round', async () => {
+    const db = database()
+    appendEvent(db, grill.id, 'answered', { question: 'Q1', key: 'b' })
+    appendEvent(db, grill.id, 'answered', { question: 'Q17', key: 'a' })
+    loadGrill(db, {
+      ...grill,
+      round: 2,
+      steps: grill.steps.filter(step => step.question.id !== 'Q1'),
+    })
+    appendEvent(db, grill.id, 'sent', {
+      ok: true,
+      what: 'answers',
+      lines: { Q17: 'Q17 a' },
+    })
+    const document = await render(db)
+    expect(document.querySelector('.active a')?.textContent).toContain(
+      '1 not sent',
+    )
+    expect(document.querySelector('.active a')?.textContent).toContain(
+      '1 ready to send',
+    )
+  })
+
   it('counts the current round and reopens a grilling when a new round is loaded', async () => {
     const db = database()
     answerAll(db)

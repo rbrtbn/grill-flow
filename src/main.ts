@@ -56,7 +56,7 @@ import {
   WorkSection,
   Workspace,
   adjacentQuestion,
-  draftQuestions,
+  draftAnswerIds,
   initialWorkspace,
   isWorkspacePage,
   questionOnPage,
@@ -783,12 +783,12 @@ export const update = (model: Model, message: Message) =>
               excluded: () =>
                 selected
                   ? []
-                  : draftQuestions(
+                  : draftAnswerIds(
                       snapshot,
                       model.answers,
                       model.notes,
                       model.own,
-                    ).map(step => step.question.id),
+                    ),
             }),
         }),
       })),
@@ -957,14 +957,12 @@ export const update = (model: Model, message: Message) =>
         )
           return { model }
         const isWorkspace = isWorkspacePage(model.currentPart)
-        const questions = draftQuestions(
+        const questions = draftAnswerIds(
           snapshot,
           model.answers,
           model.notes,
           model.own,
-        )
-          .filter(step => !model.workspace.excluded.includes(step.question.id))
-          .map(step => step.question.id)
+        ).filter(id => !model.workspace.excluded.includes(id))
         if (isWorkspace && questions.length === 0) return { model }
         return {
           model: modifyFields(model, {

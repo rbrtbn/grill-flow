@@ -1,6 +1,11 @@
 import { Schema } from 'effect'
 
-import { OWN, type Snapshot, answerLines, replyText } from '../src/domain'
+import {
+  type Snapshot,
+  groupedAnswerText,
+  replyText,
+  sendableLines,
+} from '../src/domain'
 
 const SendRequest = Schema.Struct({
   message: Schema.optionalKey(Schema.String),
@@ -30,6 +35,12 @@ export const selectSend = (
   const request = decoded.success
   const message = (request.message ?? '').trim().slice(0, 4000)
   const grill = snapshot.grill
+  const all = sendableLines(
+    grill,
+    snapshot.answers,
+    snapshot.notes,
+    snapshot.own,
+  )
   if (request.questions === undefined) {
     return {
       ok: true,
@@ -41,7 +52,11 @@ export const selectSend = (
         snapshot.own,
         snapshot.sent,
       ),
-      lines: answerLines(grill, snapshot.answers, snapshot.notes, snapshot.own),
+      lines: Object.fromEntries(
+        Object.entries(all).filter(
+          ([id, line]) => snapshot.sent?.[id] !== line,
+        ),
+      ),
     }
   }
   const ids = request.questions
@@ -52,24 +67,7 @@ export const selectSend = (
       error: 'Select at least one distinct answer to send',
     }
   }
-  const all = answerLines(
-    grill,
-    snapshot.answers,
-    snapshot.notes,
-    snapshot.own,
-    grill.steps,
-  )
-  const invalid = ids.some(
-    id =>
-      all[id] === undefined ||
-      (snapshot.answers[id] !== OWN &&
-        !grill.steps
-          .find(step => step.question.id === id)
-          ?.question.options.some(
-            option => option.key === snapshot.answers[id],
-          )) ||
-      (snapshot.answers[id] === OWN && (snapshot.own[id] ?? '').trim() === ''),
-  )
+  const invalid = ids.some(id => all[id] === undefined)
   if (invalid) {
     return {
       ok: false,
@@ -108,6 +106,6 @@ export const selectSend = (
     ok: true,
     message,
     lines,
-    reply: ['Selected answers:', ...Object.values(lines)].join('\n'),
+    reply: groupedAnswerText(grill, lines),
   }
 }

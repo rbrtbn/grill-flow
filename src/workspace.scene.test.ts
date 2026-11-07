@@ -87,6 +87,105 @@ describe('the question workspace', () => {
     )
   })
 
+  it('marks an earlier answered question as not sent on its concept page', () => {
+    const earlier = {
+      ...snapshot,
+      grill: {
+        ...grill,
+        round: 2,
+        steps: grill.steps.map(step => ({
+          ...step,
+          question: {
+            ...step.question,
+            round: step.question.id === 'Q1' ? 1 : 2,
+          },
+        })),
+      },
+    }
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        currentPart: 'part-1',
+        answers: { Q1: 'a' },
+        page: PageData.Success({ data: earlier }),
+      }),
+      expect(selector('#q-Q1 .unsent-tag')).toHaveText('not sent'),
+    )
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        currentPart: 'part-1',
+        answers: { Q1: 'a' },
+        page: PageData.Success({ data: { ...earlier, sent: { Q1: 'Q1 a' } } }),
+      }),
+      expect(selector('#q-Q1 .sent-tag')).toHaveText('sent'),
+    )
+  })
+
+  it('includes older and unlisted picks in Review with visible round information and selectable delivery', () => {
+    const earlier = {
+      ...snapshot,
+      grill: {
+        ...grill,
+        round: 2,
+        steps: grill.steps.map(step => ({
+          ...step,
+          question: { ...step.question, round: 1 },
+        })),
+      },
+    }
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        currentPart: REVIEW,
+        answers: { Q1: 'a', Q99: 'b' },
+        page: PageData.Success({ data: earlier }),
+      }),
+      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+      expect(selector('.f-review-table')).toContainText('Round 1 (sent late)'),
+      expect(selector('.f-review-table')).toContainText(
+        'Question no longer listed · round unavailable',
+      ),
+      expect(selector('.f-review-table')).toContainText('Q99 b'),
+      expect(role('button', { name: 'Send 2 answers' })).toBeEnabled(),
+      click(role('checkbox', { name: 'Send Q99' })),
+      expect(role('button', { name: 'Send 1 answer' })).toBeEnabled(),
+    )
+  })
+
+  it('lets the legacy Send dialog send an older pick when the current round has no answers', () => {
+    const earlier = {
+      ...snapshot,
+      grill: {
+        ...grill,
+        round: 2,
+        steps: grill.steps.map(step => ({
+          ...step,
+          question: { ...step.question, round: 1 },
+        })),
+      },
+    }
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        currentPart: 'part-1',
+        isSendOpen: true,
+        answers: { Q1: 'a' },
+        page: PageData.Success({ data: earlier }),
+      }),
+      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+      expect(selector('.send-counts')).toContainText(
+        '1 answer ready to send across rounds',
+      ),
+      expect(selector('.send-preview')).toContainText('Round 1 (sent late):'),
+      expect(selector('.send-actions .send-button')).toBeEnabled(),
+    )
+  })
+
   it('keeps the authored explanation headings visible in the reading flow', () => {
     const titled = {
       ...snapshot,
