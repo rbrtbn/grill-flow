@@ -1,0 +1,62 @@
+{
+  "observedAt": "2026-11-07T15:33:04.126942+00:00",
+  "version": "hc 0.1.18",
+  "captureCommand": "hc schema",
+  "methods": [
+    {
+      "name": "terminal.send",
+      "description": "Paste text and press Enter, once nobody has typed for ~3 s; keys a person presses meanwhile are held, then delivered. Refuses a blocked program unless `force`.",
+      "params": ["caller", "force", "if", "terminal", "text", "timeout", "wait"]
+    },
+    {
+      "name": "doc.get",
+      "description": "Read an opaque JSON document and its version (zero when never written). Optional on selects another machine.",
+      "params": ["name", "on"]
+    },
+    {
+      "name": "doc.set",
+      "description": "Write an opaque JSON document (at most 1 MiB) if its version still matches. Null deletes the value but retains its version. Persists atomically and emits a doc event.",
+      "params": ["name", "on", "value", "version"]
+    },
+    {
+      "name": "events.subscribe",
+      "description": "Snapshot of matching terminals, then every fact change in order (created, lost, restarted, keep, finished, removed, status, turn, title, labels, size, doc) as `event` notifications, `heartbeat` every 15 s, and `missed` + fresh snapshot for a subscriber that fell behind.",
+      "params": ["children_of", "labels", "terminal"]
+    }
+  ],
+  "allMethodNames": [
+    "hello",
+    "server.status",
+    "server.stop",
+    "server.restart",
+    "terminal.run",
+    "templates.list",
+    "terminal.list",
+    "terminal.get",
+    "terminal.kill",
+    "terminal.rm",
+    "terminal.keep",
+    "terminal.label",
+    "terminal.read",
+    "terminal.attach",
+    "terminal.send",
+    "terminal.wait",
+    "terminal.keys",
+    "terminal.interrupt",
+    "terminal.put",
+    "machine.exec",
+    "file.read",
+    "file.write",
+    "file.edit",
+    "doc.get",
+    "doc.set",
+    "events.subscribe",
+    "machine.add",
+    "machine.list",
+    "machine.connect",
+    "machine.rename",
+    "machine.rm",
+    "rpc.discover"
+  ],
+  "budgetOrQuotaFields": []
+}
