@@ -209,7 +209,8 @@ A squad lead's grill, gathering questions from several agents, also sets
   timezone, such as `2026-11-07T14:00:00+01:00`. Open circles use red for
   `blocking`, yellow for `soon`, an empty circle for `wait`, and teal for
   `fyi`; no urgency leaves the circle neutral. Hover reveals urgency and
-  the time, when supplied. Omit unknown times. Drafts use a dotted checkmark circle; Sent uses a solid
+  the time, when supplied. Omit unknown times. Drafts use a dotted checkmark
+  circle; Sent uses a solid
   checkmark circle.
 - Dependents nest below their first unanswered blocker from `dependsOn` or
   `when`, across Round and Agent groups. A chevron folds the branch.
