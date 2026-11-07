@@ -236,6 +236,9 @@ it('delivers original IDs and reply commands, preserving failed-source drafts an
   ).toBe(true)
   expect(result.sent?.Q1).toBe('Q1 a')
   expect(result.sent?.Q3).toBeUndefined()
+  expect(result.sends.at(-1)?.ok).toBe(false)
+  expect(result.sends.at(-1)?.detail).toContain('homelab/worker')
+  expect(result.sends.at(-1)?.detail).toContain('lead')
   expect(result.answers).toEqual(page.answers)
 })
 

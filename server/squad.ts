@@ -299,8 +299,8 @@ export const readPage = (db: Database, id: string): Page | undefined => {
         ...sections.flatMap(section => section.replies),
       ].sort((a, b) => a.id - b.id),
       sends: [
-        ...root.sends,
         ...sections.flatMap(section => section.state.sends),
+        ...root.sends,
       ].sort((a, b) => a.at - b.at),
     },
   }
@@ -391,7 +391,7 @@ export const sendPageAnswers = async (
     appendEvent(db, grill.id, 'sent', { ...result, what: 'answers' })
     return
   }
-  await Promise.all(
+  const results = await Promise.all(
     batches.map(async ({ member, questions }) => {
       const grill = member.state.grill
       const local = selectSend(member.state, {
@@ -409,6 +409,13 @@ export const sendPageAnswers = async (
         gf(grill, session),
       )
       appendEvent(db, grill.id, 'sent', { ...result, what: 'answers' })
+      return result
     }),
   )
+  appendEvent(db, page.state.grill.id, 'sent', {
+    what: 'answers',
+    ok: results.every(result => result.ok),
+    detail: results.map(result => result.detail).join('; '),
+    text: results.map(result => result.text).join('\n\n'),
+  })
 }
