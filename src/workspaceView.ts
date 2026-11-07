@@ -516,6 +516,12 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
     model.notes,
     model.own,
   )
+  const drafts = draftAnswerIds(
+    snapshot,
+    model.answers,
+    model.notes,
+    model.own,
+  ).length
   const item = (label: string, hint: string, page: string) =>
     h.button(
       [
@@ -541,7 +547,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ),
           item(
             'Needs you',
-            `${open.length + draftAnswerIds(snapshot, model.answers, model.notes, model.own).length} questions`,
+            `${open.length} open${drafts > 0 ? ` · ${drafts} drafts` : ''}`,
             NEEDS,
           ),
           grill.kind === 'squad'

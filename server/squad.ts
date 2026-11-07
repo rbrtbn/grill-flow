@@ -34,7 +34,17 @@ const scope = (source: string, id: string): string => `${source}::${id}`
 const mapText = (
   text: string,
   questions: Readonly<Record<string, string>>,
-): string => text.replace(/https?:\/\/\S+|\bQ\d+\b/g, id => questions[id] ?? id)
+): string => {
+  const ids = Object.keys(questions).map(id =>
+    id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+  )
+  if (ids.length === 0) return text
+  const pattern = new RegExp(
+    `https?:\\/\\/\\S+|(?<![\\w-])(?:${ids.join('|')})(?![\\w-])`,
+    'g',
+  )
+  return text.replace(pattern, id => questions[id] ?? id)
+}
 
 const mapStructured = (
   value: unknown,
@@ -195,7 +205,9 @@ export const readPage = (db: Database, id: string): Page | undefined => {
         sent: Object.fromEntries(
           Object.entries(state.sent ?? {}).map(([key, value]) => [
             questions[key],
-            value.replace(/^Q\d+/, key => questions[key] ?? key),
+            value.startsWith(`${key} `)
+              ? `${questions[key]}${value.slice(key.length)}`
+              : value,
           ]),
         ),
         asks: state.asks.map(ask => ({

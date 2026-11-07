@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { type Snapshot, roundSteps } from '../src/domain'
+import { type Snapshot, type Step, roundSteps } from '../src/domain'
 import { grillOnMachine } from './remote'
 import { readPage } from './squad'
 import { appendEvent, getGrill, loadGrill, squadRegistrations } from './store'
@@ -364,4 +364,42 @@ it('lists every joined member explicitly in the CLI summary, including current-r
   const text = await cli('state', 'squad')
   expect(text).toContain('lead-run (lead-run, lead)')
   expect(text).toContain('worker-run (worker-run, homelab/worker)')
+})
+
+it('preserves sent receipts and references for member question IDs that are not Q numbers', async () => {
+  const member = source('custom-ids', 'custom')
+  const local = loadGrill(db, {
+    ...member,
+    steps: member.steps.map((step: Step, index: number) => ({
+      ...step,
+      prose: ['Compare grant-1 and S1.'],
+      question: {
+        ...step.question,
+        id: index === 0 ? 'grant-1' : 'S1',
+        dependsOn: index === 0 ? [] : ['grant-1'],
+      },
+    })),
+  })
+  await post(local.id, 'events', {
+    kind: 'answered',
+    question: 'grant-1',
+    key: 'a',
+  })
+  await post(local.id, 'events', { kind: 'answered', question: 'S1', key: 'b' })
+  await post(local.id, 'send', { questions: ['grant-1', 'S1'] })
+  const registration = squadRegistrations(db, 'squad').find(
+    member => member.source === local.id,
+  )!
+  const merged = await state()
+  expect(merged.sent?.[registration.questions['grant-1']!]).toBe(
+    `${registration.questions['grant-1']} a`,
+  )
+  expect(merged.sent?.[registration.questions.S1!]).toBe(
+    `${registration.questions.S1} b`,
+  )
+  expect(
+    merged.grill.steps.find(step => step.id === 'custom-ids::step-q1')?.prose,
+  ).toEqual([
+    `Compare ${registration.questions['grant-1']} and ${registration.questions.S1}.`,
+  ])
 })
