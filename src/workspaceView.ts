@@ -705,7 +705,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             ? item(
                 'Squad overview',
                 AsyncData.hasData(model.workspace.catalog)
-                  ? `${catalogSnapshots(model, snapshot).filter(state => state.grill.kind === 'squad' && state.grill.squad?.id !== state.grill.id).length} runs`
+                  ? `${squadRuns(model, snapshot).length} runs`
                   : 'Runs and work',
                 SQUAD,
               )
@@ -2715,16 +2715,23 @@ const dependenciesView = (snapshot: Snapshot, h: H): Html =>
     ],
   )
 
+const squadRuns = (
+  model: Model,
+  snapshot: Snapshot,
+): ReadonlyArray<Snapshot> => {
+  const squad = snapshot.grill.squad?.id ?? snapshot.grill.id
+  return catalogSnapshots(model, snapshot).filter(
+    state => state.grill.id !== squad && state.grill.squad?.id === squad,
+  )
+}
+
 const squadView = (
   model: Model,
   snapshot: Snapshot,
   reading: Reading,
   h: H,
 ): Html => {
-  const runs = catalogSnapshots(model, snapshot).filter(
-    state =>
-      state.grill.kind === 'squad' && state.grill.squad?.id !== state.grill.id,
-  )
+  const runs = squadRuns(model, snapshot)
   const active = runs.filter(
     state => workOf(state).current.length > 0 || neededCount(state) > 0,
   )
