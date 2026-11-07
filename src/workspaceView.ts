@@ -613,7 +613,12 @@ const questionView = (
         h.Class(`f-arrow f-arrow-${direction.toLowerCase()}`),
         h.Disabled(disabled),
         h.AriaLabel(`${direction} question`),
-        h.Title(`${direction} question`),
+        h.AriaKeyshortcuts(
+          direction === 'Previous' ? 'ArrowLeft' : 'ArrowRight',
+        ),
+        h.Title(
+          `${direction} question (${direction === 'Previous' ? 'Left' : 'Right'} arrow)`,
+        ),
         h.OnClick(Message.ClickedQuestionArrow({ direction })),
       ],
       [

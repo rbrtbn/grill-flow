@@ -65,6 +65,7 @@ import {
 } from './workspace'
 
 const POLL_INTERVAL = Duration.seconds(4)
+export const TOAST_LIFETIME_MS = 10_000
 
 export const OVERVIEW = 'overview'
 // A squad grill with a plan gets a page of which builds wait on what.
@@ -175,6 +176,8 @@ export const Model = Schema.Struct({
   // the browser's record is read), and each later one in `readIds`. Kept per grill in the browser.
   readSince: Schema.Option(Schema.Number),
   readIds: Schema.Array(Schema.String),
+  // Timeouts hide cards while their replies remain unread.
+  hiddenToastIds: Schema.Array(Schema.String),
   // The agent message the reader closed in the top bar; a newer one brings the line back. Kept
   // per grill in the browser.
   maybeClosedLine: Schema.Option(Schema.String),
@@ -222,6 +225,7 @@ export const Message = defineMessageUnion({
     result: Schema.Result(Schema.Array(Snapshot), Schema.String),
   },
   ClickedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
+  PressedQuestionArrow: { direction: Schema.Literals(['Previous', 'Next']) },
   ChangedQuestionFilter: { filter: QuestionFilter },
   UpdatedQuestionSearch: { value: Schema.String },
   ClickedRound: { round: Schema.Number },
@@ -299,6 +303,8 @@ export const Message = defineMessageUnion({
   // `inReplies` opens the message in the Replies panel; otherwise where it was said.
   ClickedAgentMessage: { id: Schema.String, inReplies: Schema.Boolean },
   DismissedAgentMessage: { id: Schema.String },
+  EndedToastCountdown: { id: Schema.String },
+  ClickedToastOverflow: {},
   SawAgentMessages: { ids: Schema.Array(Schema.String) },
   TickedClock: { now: Schema.Number },
   ClickedTalkAbout: { partId: Schema.String, about: Schema.String },
@@ -602,25 +608,8 @@ export const update = (model: Model, message: Message) =>
         : model.currentPart.startsWith(QUESTION_PAGE)
           ? reviewFromQuestion(model)
           : { model },
-    ClickedQuestionArrow: ({ direction }) =>
-      withSnapshot(model, snapshot => {
-        return Option.match(
-          adjacentQuestion(
-            model.workspace,
-            snapshot,
-            model.answers,
-            model.notes,
-            model.own,
-            model.currentPart,
-            direction,
-          ),
-          {
-            onNone: () => ({ model }),
-            onSome: step =>
-              workspaceNavigate(model, `${QUESTION_PAGE}${step.question.id}`),
-          },
-        )
-      }),
+    ClickedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
+    PressedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
     ChangedQuestionFilter: ({ filter }) => ({
       model: modifyFields(model, {
         workspace: value => modifyFields(value, { filter: () => filter }),
@@ -1387,6 +1376,23 @@ export const update = (model: Model, message: Message) =>
 
     DismissedAgentMessage: ({ id }) => markRead(model, [id]),
 
+    EndedToastCountdown: ({ id }) => ({
+      model: modifyFields(model, {
+        hiddenToastIds: ids => (ids.includes(id) ? ids : Array.append(ids, id)),
+      }),
+    }),
+
+    ClickedToastOverflow: () => {
+      if (!isWorkspacePage(model.currentPart)) {
+        return { model: modifyFields(model, { side: () => 'Replies' }) }
+      }
+      const moved = workspaceNavigate(model, REPLIES)
+      return {
+        model: modifyFields(moved.model, { side: () => 'None' }),
+        commands: moved.commands ?? [],
+      }
+    },
+
     ClickedCloseAgentLine: ({ id }) => {
       const read = markRead(model, [id])
       return {
@@ -1966,6 +1972,29 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
     }
   })
 
+const navigateQuestion = (
+  model: Model,
+  direction: 'Previous' | 'Next',
+): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    return Option.match(
+      adjacentQuestion(
+        model.workspace,
+        snapshot,
+        model.answers,
+        model.notes,
+        model.own,
+        model.currentPart,
+        direction,
+      ),
+      {
+        onNone: () => ({ model }),
+        onSome: step =>
+          workspaceNavigate(model, `${QUESTION_PAGE}${step.question.id}`),
+      },
+    )
+  })
+
 // Removing a focused editor does not fire blur, so keyboard review must save it explicitly.
 const reviewFromQuestion = (model: Model): UpdateReturn =>
   withSnapshot(model, snapshot => {
@@ -2042,6 +2071,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeResizing: Option.none(),
     readSince: Option.none(),
     readIds: [],
+    hiddenToastIds: [],
     maybeClosedLine: Option.none(),
     send: 'Idle',
     isSendOpen: false,
@@ -2956,6 +2986,47 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
                   event.target.closest('.f-discussion') !== null)
                   ? Option.none()
                   : Option.some(Message.PressedWorkspaceShortcut()),
+            }),
+    },
+  ),
+  questionArrows: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled:
+          model.currentPart.startsWith(QUESTION_PAGE) &&
+          !model.workspace.isSettingsOpen &&
+          !model.workspace.isDiscussionExpanded,
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        !enabled
+          ? Stream.empty
+          : Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event => {
+                if (
+                  (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') ||
+                  event.altKey ||
+                  event.ctrlKey ||
+                  event.metaKey ||
+                  event.shiftKey ||
+                  event.repeat ||
+                  event.isComposing ||
+                  event.defaultPrevented ||
+                  (event.target instanceof Element &&
+                    event.target.closest(
+                      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="slider"], [role="spinbutton"], [role="tab"], [role="dialog"], dialog, .f-discussion',
+                    ) !== null)
+                ) {
+                  return Option.none()
+                }
+                return Option.some(
+                  Message.PressedQuestionArrow({
+                    direction: event.key === 'ArrowLeft' ? 'Previous' : 'Next',
+                  }),
+                )
+              },
             }),
     },
   ),

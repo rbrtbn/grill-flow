@@ -78,6 +78,7 @@ import {
   PLAN,
   SIDEBAR_BOUNDS,
   STATUS,
+  TOAST_LIFETIME_MS,
   URGENCY_PAGE,
   generalTargetOf,
   isCardPage,
@@ -2931,12 +2932,13 @@ const agentWhere = (grill: Grill, message: AgentMessage): string =>
             () => message.stepId,
           )}`
 
-// Toasts stay until clicked, dismissed, or their message is seen where it was said.
 const TOASTS_SHOWN = 3
 
 const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const unread = unreadMessagesOf(model)
-  const shown = Array.reverse(Array.takeRight(unread, TOASTS_SHOWN))
+  const shown = Array.reverse(Array.takeRight(unread, TOASTS_SHOWN)).filter(
+    message => !model.hiddenToastIds.includes(message.id),
+  )
   return Array.isReadonlyArrayEmpty(shown)
     ? h.empty
     : h.div(
@@ -2945,7 +2947,10 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
           ...Array.map(shown, message =>
             h.keyed('div')(
               message.id,
-              [h.Class(`toast is-${message.kind}`)],
+              [
+                h.Class(`toast is-${message.kind}`),
+                h.Style({ '--toast-lifetime': `${TOAST_LIFETIME_MS}ms` }),
+              ],
               [
                 h.button(
                   [
@@ -2983,16 +2988,27 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   ],
                   ['×'],
                 ),
+                h.div(
+                  [h.Class('toast-countdown'), h.AriaHidden(true)],
+                  [
+                    h.span([
+                      h.Class('toast-progress'),
+                      h.OnAnimationEnd(
+                        Message.EndedToastCountdown({ id: message.id }),
+                      ),
+                    ]),
+                  ],
+                ),
               ],
             ),
           ),
-          unread.length > TOASTS_SHOWN
+          unread.length > shown.length
             ? h.button(
                 [
                   h.Class('toast-more'),
-                  h.OnClick(Message.ClickedSide({ side: 'Replies' })),
+                  h.OnClick(Message.ClickedToastOverflow()),
                 ],
-                [`${unread.length - TOASTS_SHOWN} more in Replies`],
+                [`${unread.length - shown.length} more in Replies`],
               )
             : h.empty,
         ],

@@ -33,3 +33,8 @@ cookie, a same-origin request and a JSON body. Other local processes can still r
 can reach `hc` itself.
 
 Not vendoring the Foldkit repo for now (decided 2026-11-02); read the installed package's types.
+
+### Delivery
+
+Work directly on `main`. Commit and push verified changes, then update the local app on
+127.0.0.1:4317 as each change lands. Preserve unrelated working files and live grill data.

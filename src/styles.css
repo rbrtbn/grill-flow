@@ -1942,6 +1942,34 @@ button.plan-title:hover {
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
   animation: toast-in 180ms ease-out;
 }
+.toast-countdown {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  border-radius: 0 0 7px 7px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--link) 15%, transparent);
+}
+.toast-progress {
+  display: block;
+  height: 100%;
+  background: var(--link);
+  transform-origin: left;
+  animation: toast-countdown var(--toast-lifetime) linear forwards;
+}
+@keyframes toast-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+  .toast-progress {
+    animation-timing-function: steps(10, end);
+  }
+}
 .toast-open {
   display: grid;
   gap: 4px;
