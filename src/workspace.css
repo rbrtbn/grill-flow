@@ -1992,3 +1992,211 @@ body[data-gf-preview] .f-workspace {
   white-space: pre-wrap;
   margin-top: 12px;
 }
+
+/* The app rail and round rail stay put while questions scroll (sidebar G). */
+.f-frame {
+  --nav-safe: clamp(340px, var(--nav-w), 44vw);
+}
+.f-navigation.f-navigation-g {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+}
+.f-app-rail {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 5px;
+  border-right: 1px solid var(--rule);
+  scrollbar-width: thin;
+}
+.f-app-rail .f-brand {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 24px;
+}
+.f-app-rail .f-nav-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding: 9px 3px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.f-app-rail .f-nav-item svg {
+  width: 21px;
+  height: 21px;
+  flex: none;
+}
+.f-app-rail .f-nav-item .hint {
+  display: block;
+  max-width: 100%;
+  color: var(--muted);
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.25;
+}
+.f-question-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.f-navigation-g .f-question-tools {
+  border-top: 0;
+  padding: 22px 13px 12px;
+  max-height: 65%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.f-quick-views {
+  display: grid;
+  grid-template-columns: 0.8fr 1.5fr 0.9fr 0.9fr 0.8fr;
+  gap: 2px;
+  margin-top: 10px;
+}
+.f-quick-views button {
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 8px 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: 400 12px/1.25 var(--label);
+}
+.f-quick-views button small {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.f-quick-views button:hover,
+.f-round-rail button:hover {
+  background: var(--panel);
+}
+.f-quick-views button.is-active,
+.f-round-rail button.is-current {
+  background: var(--link-wash);
+  color: var(--link);
+}
+.f-custom-filter-toggle {
+  display: block;
+  margin: 6px 0 5px auto;
+  padding: 5px 0;
+  font-size: 12px;
+}
+.f-custom-filters {
+  border-top: 1px solid var(--rule);
+  padding-bottom: 8px;
+}
+.f-filter-readout {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font: 400 12px/1.5 var(--label);
+}
+.f-filter-readout strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.f-round-browser {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  border-top: 1px solid var(--rule);
+}
+.f-round-rail {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 5px 16px;
+  border-right: 1px solid var(--rule);
+  scrollbar-width: thin;
+}
+.f-round-rail button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 48px;
+  padding: 9px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+  font: 400 12px/1.45 var(--label);
+}
+.f-round-rail small {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.f-navigation-g .f-round-section {
+  margin: 15px 5px 5px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font: 600 11px/1.4 var(--label);
+}
+.f-navigation-g .f-question-list {
+  min-width: 0;
+  grid-column: auto;
+  padding: 4px 6px 18px;
+}
+.f-navigation-g .f-question-item {
+  gap: 6px;
+  padding: 9px 5px;
+  font-size: 13px;
+}
+.f-navigation-g .f-round-heading {
+  flex-wrap: wrap;
+}
+.f-navigation-g .f-round-toggle {
+  flex-wrap: wrap;
+  padding: 9px 4px;
+  gap: 4px;
+}
+.f-navigation-g .f-round-toggle .hint {
+  font-size: 10px;
+}
+.f-navigation-g .f-round-heading > .text-button {
+  margin: -4px 0 4px 20px;
+  font-size: 11px;
+}
+@media (max-width: 700px) {
+  .f-navigation.f-navigation-g {
+    grid-template-columns: 70px minmax(0, 1fr);
+    height: min(440px, 55dvh);
+  }
+  .f-app-rail {
+    padding-top: 12px;
+  }
+  .f-app-rail .f-brand {
+    margin-bottom: 12px;
+  }
+  .f-navigation-g .f-question-tools {
+    padding: 12px 10px 8px;
+    max-height: 68%;
+  }
+  .f-round-browser {
+    grid-template-columns: 85px minmax(0, 1fr);
+  }
+  .f-navigation-g .f-question-list {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .f-quick-views button {
+    min-height: 51px;
+    font-size: 11px;
+  }
+}

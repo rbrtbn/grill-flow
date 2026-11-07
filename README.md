@@ -16,9 +16,12 @@ the currently selected unsent drafts across rounds, keeping any answers you unch
 excluded and including your saved review message. It saves visible notes and custom answer text
 first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
 
-The question sidebar combines state, urgency and search. State and urgency choices are saved
-with the browser's workspace settings and restored after reload. All urgencies includes questions
-without an urgency; Unspecified selects only those questions.
+The question sidebar has separate app and round rails beside the scrolling question list. Named
+rounds show their name; unnamed rounds use Round N. Quick views combine state and urgency while
+keeping the round and search: Needs attention means Open with Blocking or Soon urgency. Custom
+filters expose every state and urgency, including Unspecified. Counts follow the round and search.
+State, urgency and each grill's round scope are saved in the browser and restored on reload.
+Explicit question links reveal the target round; older Agent grouping preferences become Round.
 
 In a discussion, Enter sends and Shift + Enter adds a line. Sending moves to the bottom;
 new agent answers follow only when you were already there, leaving older reading undisturbed.

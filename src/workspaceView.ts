@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect'
 import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   answerHistoryView,
@@ -53,6 +54,9 @@ import {
   questionOnPage,
   questionState,
   questionUrgencyFilterFrom,
+  quickViews,
+  selectedRound,
+  sidebarRoundName,
   visibleQuestions,
   workspaceLines,
 } from './workspace'
@@ -319,7 +323,7 @@ export const workspaceView = (
   const expanded =
     model.workspace.isDiscussionExpanded || model.currentPart === CONVERSATIONS
   const styles = {
-    '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 276)}px`,
+    '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 438)}px`,
     '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
   }
   const content =
@@ -584,22 +588,93 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
     model.notes,
     model.own,
   ).length
+  const count = (
+    filter: typeof model.workspace.filter,
+    urgencyFilter: typeof model.workspace.urgencyFilter,
+  ) =>
+    visibleQuestions(
+      modifyFields(model.workspace, {
+        filter: () => filter,
+        urgencyFilter: () => urgencyFilter,
+      }),
+      snapshot,
+      model.answers,
+      model.notes,
+      model.own,
+    ).length
+  const scope = selectedRound(model.workspace, snapshot)
+  const rounds = Array.dedupe(
+    grill.steps.map(step => roundOf(grill, step.question)),
+  ).sort((a, b) => {
+    const sections = Array.dedupe(
+      grill.steps.map(
+        step => grill.roundSections?.[String(roundOf(grill, step.question))],
+      ),
+    )
+    return (
+      sections.indexOf(grill.roundSections?.[String(a)]) -
+        sections.indexOf(grill.roundSections?.[String(b)]) ||
+      (grill.roundNumbers?.[String(a)] ?? a) -
+        (grill.roundNumbers?.[String(b)] ?? b)
+    )
+  })
+  const roundMatches = visibleQuestions(
+    modifyFields(model.workspace, {
+      roundScopes: () => ({}),
+    }),
+    snapshot,
+    model.answers,
+    model.notes,
+    model.own,
+  )
+  const urgencyNames = {
+    All: 'All urgencies',
+    urgent: 'Blocking or Soon',
+    blocking: 'Blocking',
+    soon: 'Soon',
+    wait: 'Can wait',
+    fyi: 'FYI',
+    unspecified: 'Unspecified',
+  }
+  const icon = (page: string) =>
+    h.svg(
+      [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
+      [
+        h.path([
+          h.D(
+            page === NEEDS
+              ? 'M12 4v9m0 4v1M4 21h16L12 3Z'
+              : page.startsWith(QUESTION_PAGE)
+                ? 'M5 4h14v16H5ZM8 8h8m-8 4h8m-8 4h5'
+                : page === UPDATES
+                  ? 'M4 5h16v14H4Zm4 4h8m-8 4h8m-8 3h5'
+                  : page === ANSWER_HISTORY
+                    ? 'M4 12a8 8 0 1 0 2-5M4 3v5h5m3-1v5l3 2'
+                    : 'M4 4h6v6H4Zm10 0h6v6h-6ZM4 14h6v6H4Zm10 0h6v6h-6Z',
+          ),
+          h.Fill('none'),
+          h.Stroke('currentColor'),
+          h.StrokeWidth('1.5'),
+        ]),
+      ],
+    )
   const item = (label: string, hint: string, page: string) =>
     h.button(
       [
         h.Class(`f-nav-item${model.currentPart === page ? ' is-current' : ''}`),
         h.OnClick(Message.ClickedWorkspacePage({ page })),
         h.AriaCurrent(model.currentPart === page ? 'page' : 'false'),
+        h.Title(`${label} · ${hint}`),
       ],
-      [h.span([], [label]), h.span([h.Class('hint')], [hint])],
+      [icon(page), h.span([], [label]), h.span([h.Class('hint')], [hint])],
     )
   return h.aside(
-    [h.Class('f-navigation'), h.AriaLabel('Grill navigation')],
+    [h.Class('f-navigation f-navigation-g'), h.AriaLabel('Grill navigation')],
     [
       h.div(
-        [h.Class('f-nav-top')],
+        [h.Class('f-app-rail')],
         [
-          h.a([h.Href('/'), h.Class('f-brand')], ['grill-flow']),
+          h.a([h.Href('/'), h.Class('f-brand')], ['gf']),
           priority === undefined
             ? h.empty
             : item(
@@ -660,240 +735,393 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
         ],
       ),
       h.div(
-        [h.Class('f-question-tools')],
+        [h.Class('f-question-pane')],
         [
           h.div(
-            [],
+            [h.Class('f-question-tools')],
             [
-              h.strong([], ['Questions']),
-              h.span([h.Class('hint')], [String(grill.steps.length)]),
-              h.select(
+              h.div(
+                [],
                 [
-                  h.AriaLabel('Group questions by'),
-                  h.Value(model.workspace.grouping),
-                  h.OnChange(value =>
-                    Message.ChangedQuestionGrouping({
-                      grouping: value === 'Agent' ? value : 'Round',
-                    }),
-                  ),
-                ],
-                [
-                  h.option([h.Value('Round')], ['By round']),
-                  h.option([h.Value('Agent')], ['By agent']),
+                  h.strong([], ['Questions']),
+                  h.span([h.Class('hint')], [String(grill.steps.length)]),
                 ],
               ),
-            ],
-          ),
-          h.input([
-            h.Type('search'),
-            h.Placeholder('Find question or issue…'),
-            h.AriaLabel('Find question or issue'),
-            h.Value(model.workspace.search),
-            h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
-          ]),
-          h.div(
-            [
-              h.Class('f-filters'),
-              h.Role('group'),
-              h.AriaLabel('Question state'),
-            ],
-            (
-              ['All', 'Open', 'Draft', 'Sent'] satisfies ReadonlyArray<
-                typeof model.workspace.filter
-              >
-            ).map(filter =>
+              h.input([
+                h.Type('search'),
+                h.Placeholder('Find question or issue…'),
+                h.AriaLabel('Find question or issue'),
+                h.Value(model.workspace.search),
+                h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
+              ]),
+              h.div(
+                [
+                  h.Class('f-quick-views'),
+                  h.Role('group'),
+                  h.AriaLabel('Quick views'),
+                ],
+                quickViews.map(preset =>
+                  h.button(
+                    [
+                      h.Class(
+                        model.workspace.filter === preset.filter &&
+                          model.workspace.urgencyFilter === preset.urgencyFilter
+                          ? 'is-active'
+                          : '',
+                      ),
+                      h.AriaPressed(
+                        String(
+                          model.workspace.filter === preset.filter &&
+                            model.workspace.urgencyFilter ===
+                              preset.urgencyFilter,
+                        ),
+                      ),
+                      h.OnClick(
+                        Message.SelectedQuestionView({
+                          filter: preset.filter,
+                          urgencyFilter: preset.urgencyFilter,
+                        }),
+                      ),
+                    ],
+                    [
+                      h.span([], [preset.label]),
+                      h.small(
+                        [],
+                        [String(count(preset.filter, preset.urgencyFilter))],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               h.button(
                 [
-                  h.Class(model.workspace.filter === filter ? 'is-active' : ''),
-                  h.AriaPressed(String(model.workspace.filter === filter)),
-                  h.OnClick(Message.ChangedQuestionFilter({ filter })),
+                  h.Class('text-button f-custom-filter-toggle'),
+                  h.AriaExpanded(model.workspace.customFilters === 'Expanded'),
+                  h.OnClick(Message.ClickedCustomFilters()),
                 ],
                 [
-                  filter === 'All' ? h.empty : stateMark(filter, undefined, h),
-                  filter,
+                  model.workspace.customFilters === 'Expanded'
+                    ? 'Close custom filters'
+                    : 'Custom filters',
                 ],
               ),
-            ),
-          ),
-          h.label(
-            [h.Class('f-urgency-filter')],
-            [
-              h.span([], ['Urgency']),
-              h.select(
+              model.workspace.customFilters === 'Expanded'
+                ? h.div(
+                    [h.Class('f-custom-filters')],
+                    [
+                      h.div(
+                        [
+                          h.Class('f-filters'),
+                          h.Role('group'),
+                          h.AriaLabel('Question state'),
+                        ],
+                        (
+                          [
+                            'All',
+                            'Open',
+                            'Draft',
+                            'Sent',
+                          ] satisfies ReadonlyArray<
+                            typeof model.workspace.filter
+                          >
+                        ).map(filter =>
+                          h.button(
+                            [
+                              h.Class(
+                                model.workspace.filter === filter
+                                  ? 'is-active'
+                                  : '',
+                              ),
+                              h.AriaPressed(
+                                String(model.workspace.filter === filter),
+                              ),
+                              h.OnClick(
+                                Message.ChangedQuestionFilter({ filter }),
+                              ),
+                            ],
+                            [
+                              filter === 'All'
+                                ? h.empty
+                                : stateMark(filter, undefined, h),
+                              filter,
+                            ],
+                          ),
+                        ),
+                      ),
+                      h.label(
+                        [h.Class('f-urgency-filter')],
+                        [
+                          h.span([], ['Urgency']),
+                          h.select(
+                            [
+                              h.AriaLabel('Urgency filter'),
+                              h.Value(model.workspace.urgencyFilter),
+                              h.OnChange(value =>
+                                Message.ChangedQuestionUrgencyFilter({
+                                  urgencyFilter:
+                                    questionUrgencyFilterFrom(value),
+                                }),
+                              ),
+                            ],
+                            [
+                              { value: 'All', label: 'All urgencies' },
+                              { value: 'urgent', label: 'Blocking or Soon' },
+                              { value: 'blocking', label: 'Blocking' },
+                              { value: 'soon', label: 'Soon' },
+                              { value: 'wait', label: 'Can wait' },
+                              { value: 'fyi', label: 'FYI' },
+                              { value: 'unspecified', label: 'Unspecified' },
+                            ].map(({ value, label }) =>
+                              h.option([h.Value(value)], [label]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : h.empty,
+              h.p(
+                [h.Class('f-filter-readout')],
                 [
-                  h.AriaLabel('Urgency filter'),
-                  h.Value(model.workspace.urgencyFilter),
-                  h.OnChange(value =>
-                    Message.ChangedQuestionUrgencyFilter({
-                      urgencyFilter: questionUrgencyFilterFrom(value),
-                    }),
-                  ),
+                  h.strong([], [String(visible.length)]),
+                  ` match · ${model.workspace.filter === 'All' ? 'All states' : model.workspace.filter} · ${urgencyNames[model.workspace.urgencyFilter]}`,
                 ],
-                [
-                  { value: 'All', label: 'All urgencies' },
-                  { value: 'blocking', label: 'Blocking' },
-                  { value: 'soon', label: 'Soon' },
-                  { value: 'wait', label: 'Can wait' },
-                  { value: 'fyi', label: 'FYI' },
-                  { value: 'unspecified', label: 'Unspecified' },
-                ].map(({ value, label }) =>
-                  h.option([h.Value(value)], [label]),
-                ),
               ),
             ],
           ),
-        ],
-      ),
-      h.nav(
-        [
-          h.Class('f-question-list'),
-          h.AriaLabel(`Questions by ${model.workspace.grouping.toLowerCase()}`),
-        ],
-        [
-          ...(Array.isReadonlyArrayEmpty(visible)
-            ? [
-                h.p(
-                  [h.Class('hint f-empty-nav')],
-                  [
-                    'No questions match. Clear the search or adjust the filters.',
-                  ],
-                ),
-              ]
-            : []),
-          ...groups.map((group, index) => {
-            const steps = group.steps
-            const sent = steps.filter(
-              step =>
-                questionState(
-                  snapshot,
-                  step,
-                  model.answers,
-                  model.notes,
-                  model.own,
-                ) === 'Sent',
-            ).length
-            const collapsed = group.collapsed
-            return h.keyed('section')(
-              `${model.workspace.grouping}-${group.key}`,
-              [h.Class('f-round')],
-              [
-                group.section !== undefined &&
-                group.section !== groups[index - 1]?.section
-                  ? h.h3([h.Class('f-agent-section')], [group.section])
-                  : h.empty,
-                h.div(
-                  [h.Class('f-round-heading')],
-                  [
-                    h.button(
+          h.div(
+            [h.Class('f-round-browser')],
+            [
+              h.nav(
+                [h.Class('f-round-rail'), h.AriaLabel('Choose a round')],
+                [
+                  h.button(
+                    [
+                      h.Class(scope === undefined ? 'is-current' : ''),
+                      h.AriaPressed(String(scope === undefined)),
+                      h.OnClick(
+                        Message.SelectedRoundScope({
+                          maybeRound: Option.none(),
+                        }),
+                      ),
+                    ],
+                    [
+                      h.span([], ['All rounds']),
+                      h.small([], [`${roundMatches.length} match`]),
+                    ],
+                  ),
+                  ...rounds.map((round, index) => {
+                    const section = grill.roundSections?.[String(round)]
+                    const previousSection =
+                      grill.roundSections?.[String(rounds[index - 1])]
+                    return h.keyed('div')(
+                      String(round),
+                      [],
                       [
-                        h.Class('f-round-toggle'),
-                        h.AriaLabel(
-                          `${group.label} · ${sent} of ${steps.length} sent`,
-                        ),
-                        h.AriaExpanded(!collapsed),
-                        h.OnClick(
-                          model.workspace.grouping === 'Agent'
-                            ? Message.ClickedAgentGroup({ session: group.key })
-                            : Message.ClickedRound({
-                                round: Number(group.key),
+                        section !== undefined && section !== previousSection
+                          ? h.h3([h.Class('f-round-section')], [section])
+                          : h.empty,
+                        h.button(
+                          [
+                            h.Class(scope === round ? 'is-current' : ''),
+                            h.AriaPressed(String(scope === round)),
+                            h.Title(
+                              `${section === undefined ? '' : `${section} · `}${sidebarRoundName(snapshot, round)}`,
+                            ),
+                            h.OnClick(
+                              Message.SelectedRoundScope({
+                                maybeRound: Option.some(round),
                               }),
-                        ),
-                      ],
-                      [
-                        h.svg(
-                          [
-                            h.ViewBox('0 0 16 16'),
-                            h.Class(collapsed ? '' : 'is-open'),
-                            h.AriaHidden(true),
-                          ],
-                          [
-                            h.path([
-                              h.D('m6 4 4 4-4 4'),
-                              h.Fill('none'),
-                              h.Stroke('currentColor'),
-                              h.StrokeWidth('1.5'),
-                            ]),
-                          ],
-                        ),
-                        h.span([h.Class('f-round-name')], [group.label]),
-                        h.span(
-                          [
-                            h.Class(
-                              `hint${sent === steps.length ? ' is-complete' : ''}`,
                             ),
                           ],
-                          [`${sent}/${steps.length} sent`],
-                        ),
-                      ],
-                    ),
-                    model.workspace.grouping === 'Round'
-                      ? link(
-                          'Rename',
-                          Message.ClickedRenameRound({
-                            round: Number(group.key),
-                          }),
-                          h,
-                        )
-                      : h.empty,
-                  ],
-                ),
-                model.workspace.grouping === 'Round' &&
-                Option.contains(
-                  model.workspace.maybeEditingRound,
-                  Number(group.key),
-                )
-                  ? h.form(
-                      [
-                        h.Class('f-round-editor'),
-                        h.OnSubmit(
-                          Message.SubmittedRoundName({
-                            round: Number(group.key),
-                          }),
-                        ),
-                      ],
-                      [
-                        h.label(
-                          [h.For(`round-name-${group.key}`)],
-                          [`Name for round ${group.key}`],
-                        ),
-                        h.input([
-                          h.Id(`round-name-${group.key}`),
-                          h.Value(model.workspace.roundNameDraft),
-                          h.Maxlength(80),
-                          h.Placeholder('What are these questions about?'),
-                          h.OnInput(name => Message.UpdatedRoundName({ name })),
-                        ]),
-                        h.div(
-                          [],
                           [
-                            h.button(
-                              [h.Type('submit'), h.Class('text-button')],
-                              ['Save'],
-                            ),
-                            h.button(
+                            h.span([], [sidebarRoundName(snapshot, round)]),
+                            h.small(
+                              [],
                               [
-                                h.Type('button'),
-                                h.Class('text-button'),
-                                h.OnClick(Message.CancelledRoundName()),
+                                `${roundMatches.filter(step => roundOf(grill, step.question) === round).length} match`,
                               ],
-                              ['Cancel'],
                             ),
                           ],
                         ),
                       ],
                     )
-                  : h.empty,
-                collapsed
-                  ? h.empty
-                  : h.ul(
-                      [h.Class('f-question-tree')],
-                      group.roots.map(node =>
-                        questionNodeView(model, snapshot, node, h),
-                      ),
-                    ),
-              ],
-            )
-          }),
+                  }),
+                ],
+              ),
+              h.nav(
+                [
+                  h.Class('f-question-list'),
+                  h.AriaLabel(
+                    `Questions by ${model.workspace.grouping.toLowerCase()}`,
+                  ),
+                ],
+                [
+                  ...(Array.isReadonlyArrayEmpty(visible)
+                    ? [
+                        h.p(
+                          [h.Class('hint f-empty-nav')],
+                          [
+                            'No questions match. Clear the search or adjust the filters.',
+                          ],
+                        ),
+                      ]
+                    : []),
+                  ...groups.map((group, index) => {
+                    const steps = group.steps
+                    const sent = steps.filter(
+                      step =>
+                        questionState(
+                          snapshot,
+                          step,
+                          model.answers,
+                          model.notes,
+                          model.own,
+                        ) === 'Sent',
+                    ).length
+                    const collapsed = group.collapsed
+                    return h.keyed('section')(
+                      `${model.workspace.grouping}-${group.key}`,
+                      [h.Class('f-round')],
+                      [
+                        group.section !== undefined &&
+                        group.section !== groups[index - 1]?.section
+                          ? h.h3([h.Class('f-agent-section')], [group.section])
+                          : h.empty,
+                        h.div(
+                          [h.Class('f-round-heading')],
+                          [
+                            h.button(
+                              [
+                                h.Class('f-round-toggle'),
+                                h.AriaLabel(
+                                  `${sidebarRoundName(snapshot, Number(group.key))} · ${sent} of ${steps.length} sent`,
+                                ),
+                                h.AriaExpanded(!collapsed),
+                                h.OnClick(
+                                  model.workspace.grouping === 'Agent'
+                                    ? Message.ClickedAgentGroup({
+                                        session: group.key,
+                                      })
+                                    : Message.ClickedRound({
+                                        round: Number(group.key),
+                                      }),
+                                ),
+                              ],
+                              [
+                                h.svg(
+                                  [
+                                    h.ViewBox('0 0 16 16'),
+                                    h.Class(collapsed ? '' : 'is-open'),
+                                    h.AriaHidden(true),
+                                  ],
+                                  [
+                                    h.path([
+                                      h.D('m6 4 4 4-4 4'),
+                                      h.Fill('none'),
+                                      h.Stroke('currentColor'),
+                                      h.StrokeWidth('1.5'),
+                                    ]),
+                                  ],
+                                ),
+                                h.span(
+                                  [h.Class('f-round-name')],
+                                  [
+                                    sidebarRoundName(
+                                      snapshot,
+                                      Number(group.key),
+                                    ),
+                                  ],
+                                ),
+                                h.span(
+                                  [
+                                    h.Class(
+                                      `hint${sent === steps.length ? ' is-complete' : ''}`,
+                                    ),
+                                  ],
+                                  [`${sent}/${steps.length} sent`],
+                                ),
+                              ],
+                            ),
+                            model.workspace.grouping === 'Round'
+                              ? link(
+                                  'Rename',
+                                  Message.ClickedRenameRound({
+                                    round: Number(group.key),
+                                  }),
+                                  h,
+                                )
+                              : h.empty,
+                          ],
+                        ),
+                        model.workspace.grouping === 'Round' &&
+                        Option.contains(
+                          model.workspace.maybeEditingRound,
+                          Number(group.key),
+                        )
+                          ? h.form(
+                              [
+                                h.Class('f-round-editor'),
+                                h.OnSubmit(
+                                  Message.SubmittedRoundName({
+                                    round: Number(group.key),
+                                  }),
+                                ),
+                              ],
+                              [
+                                h.label(
+                                  [h.For(`round-name-${group.key}`)],
+                                  [`Name for round ${group.key}`],
+                                ),
+                                h.input([
+                                  h.Id(`round-name-${group.key}`),
+                                  h.Value(model.workspace.roundNameDraft),
+                                  h.Maxlength(80),
+                                  h.Placeholder(
+                                    'What are these questions about?',
+                                  ),
+                                  h.OnInput(name =>
+                                    Message.UpdatedRoundName({ name }),
+                                  ),
+                                ]),
+                                h.div(
+                                  [],
+                                  [
+                                    h.button(
+                                      [
+                                        h.Type('submit'),
+                                        h.Class('text-button'),
+                                      ],
+                                      ['Save'],
+                                    ),
+                                    h.button(
+                                      [
+                                        h.Type('button'),
+                                        h.Class('text-button'),
+                                        h.OnClick(Message.CancelledRoundName()),
+                                      ],
+                                      ['Cancel'],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : h.empty,
+                        collapsed
+                          ? h.empty
+                          : h.ul(
+                              [h.Class('f-question-tree')],
+                              group.roots.map(node =>
+                                questionNodeView(model, snapshot, node, h),
+                              ),
+                            ),
+                      ],
+                    )
+                  }),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     ],

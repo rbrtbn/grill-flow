@@ -1,9 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
-  Command,
   all,
-  change,
   click,
   expect,
   expectAll,
@@ -16,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
 
 import { Grill } from './domain'
-import { Message, PageData, SaveWorkspaceSettings, init, update } from './main'
+import { PageData, init, update } from './main'
 import { view } from './view'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
@@ -70,9 +68,7 @@ describe('named rounds and nested blockers', () => {
     scene(
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: named }) }),
-      expect(selector('.f-round-name')).toContainText(
-        'Round 1 · Stage definitions',
-      ),
+      expect(selector('.f-round-name')).toContainText('Stage definitions'),
       expect(selector('.f-current-round')).toHaveText(
         'Round 1 · Stage definitions',
       ),
@@ -85,17 +81,10 @@ describe('named rounds and nested blockers', () => {
     )
   })
 
-  it.each(['Round', 'Agent'] satisfies ReadonlyArray<
-    typeof loaded.workspace.grouping
-  >)('nests dependents and folds the branch in %s view', grouping => {
+  it('nests dependents and folds the branch in the round question list', () => {
     scene(
       { update, view },
       given(loaded),
-      change(role('combobox', { name: 'Group questions by' }), grouping),
-      Command.resolve(
-        SaveWorkspaceSettings,
-        Message.CompletedSaveWorkspaceSettings(),
-      ),
       expectAll(
         all.selector('.f-question-children .f-question-item'),
       ).toHaveCount(2),

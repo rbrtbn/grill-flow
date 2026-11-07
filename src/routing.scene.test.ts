@@ -4,7 +4,6 @@ import {
   Command,
   Mount,
   all,
-  change,
   click,
   expect,
   expectAll,
@@ -67,32 +66,39 @@ const start = init(
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
 describe('asking agents in the workspace', () => {
-  it('switches between round and agent grouping with independent group folding', () => {
+  it('selects a round without changing its asking-session routing', () => {
     scene(
       { update, view },
       given(loaded),
       expectAll(all.selector('.f-round')).toHaveCount(3),
-      change(role('combobox', { name: 'Group questions by' }), 'Agent'),
+      expectAll(
+        all.role('combobox', { name: 'Group questions by' }),
+      ).toHaveCount(0),
+      click(
+        within(
+          role('navigation', { name: 'Choose a round' }),
+          role('button', { name: 'Round 21 match' }),
+        ),
+      ),
       Command.resolve(
         SaveWorkspaceSettings,
         Message.CompletedSaveWorkspaceSettings(),
       ),
-      expectAll(all.selector('.f-round')).toHaveCount(2),
-      expect(role('navigation', { name: 'Questions by agent' })).toExist(),
-      click(role('button', { name: 'worker · 0 of 1 sent' })),
-      expectAll(all.selector('.f-question-item')).toHaveCount(2),
-      change(role('combobox', { name: 'Group questions by' }), 'Round'),
+      expectAll(all.selector('.f-question-item')).toHaveCount(1),
+      expect(selector('.f-question-item')).toContainText('Q2'),
+      expect(role('navigation', { name: 'Questions by round' })).toExist(),
+      click(
+        within(
+          role('navigation', { name: 'Choose a round' }),
+          role('button', { name: 'All rounds3 match' }),
+        ),
+      ),
       Command.resolve(
         SaveWorkspaceSettings,
         Message.CompletedSaveWorkspaceSettings(),
       ),
       expectAll(all.selector('.f-question-item')).toHaveCount(3),
-      change(role('combobox', { name: 'Group questions by' }), 'Agent'),
-      Command.resolve(
-        SaveWorkspaceSettings,
-        Message.CompletedSaveWorkspaceSettings(),
-      ),
-      expectAll(all.selector('.f-question-item')).toHaveCount(2),
+      expect(selector('.f-question-meta')).toContainText('worker'),
     )
   })
 

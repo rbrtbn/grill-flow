@@ -71,6 +71,7 @@ import {
   questionUrgencyFilterFrom,
   revealQuestion,
   roundIsCollapsed,
+  roundScopesFrom,
   workspaceLines,
 } from './workspace'
 
@@ -126,7 +127,7 @@ export type SidebarEdge = typeof SidebarEdge.Type
 export const SIDEBAR_BOUNDS: Readonly<
   Record<SidebarEdge, Readonly<{ min: number; max: number }>>
 > = {
-  Nav: { min: 180, max: 480 },
+  Nav: { min: 340, max: 640 },
   Side: { min: 320, max: 960 },
 }
 
@@ -270,6 +271,12 @@ export const Message = defineMessageUnion({
   ChangedQuestionFilter: { filter: QuestionFilter },
   ChangedQuestionUrgencyFilter: { urgencyFilter: QuestionUrgencyFilter },
   ChangedQuestionGrouping: { grouping: QuestionGrouping },
+  SelectedQuestionView: {
+    filter: QuestionFilter,
+    urgencyFilter: QuestionUrgencyFilter,
+  },
+  SelectedRoundScope: { maybeRound: Schema.Option(Schema.Number) },
+  ClickedCustomFilters: {},
   ClickedAgentGroup: { session: Schema.String },
   ClickedRenameRound: { round: Schema.Number },
   UpdatedRoundName: { name: Schema.String },
@@ -283,9 +290,13 @@ export const Message = defineMessageUnion({
   ChangedHighlights: {},
   ChangedCollapseSentRounds: {},
   RestoredWorkspaceSettings: {
+    navigation: Schema.optionalKey(Schema.Literals(['Reload', 'Navigate'])),
     filter: QuestionFilter,
     urgencyFilter: QuestionUrgencyFilter,
     grouping: QuestionGrouping,
+    roundScopes: Schema.optionalKey(
+      Schema.Record(Schema.String, Schema.Number),
+    ),
     highlightTerms: Schema.Boolean,
     collapseSentRounds: Schema.Boolean,
   },
@@ -881,6 +892,43 @@ export const update = (model: Model, message: Message) =>
           urgencyFilter: () => urgencyFilter,
         }),
       ),
+    SelectedQuestionView: ({ filter, urgencyFilter }) =>
+      saveWorkspacePreferences(
+        model,
+        modifyFields(model.workspace, {
+          filter: () => filter,
+          urgencyFilter: () => urgencyFilter,
+        }),
+      ),
+    SelectedRoundScope: ({ maybeRound }) =>
+      withSnapshot(model, snapshot =>
+        saveWorkspacePreferences(
+          model,
+          modifyFields(model.workspace, {
+            roundScopes: scopes =>
+              Option.match(maybeRound, {
+                onNone: () => Record.remove(scopes, snapshot.grill.id),
+                onSome: round => Record.set(scopes, snapshot.grill.id, round),
+              }),
+            expandedRounds: rounds =>
+              Option.match(maybeRound, {
+                onNone: () => rounds,
+                onSome: round => Array.dedupe([...rounds, round]),
+              }),
+            foldedRounds: rounds =>
+              rounds.filter(round => !Option.contains(maybeRound, round)),
+          }),
+        ),
+      ),
+    ClickedCustomFilters: () => ({
+      model: modifyFields(model, {
+        workspace: workspace =>
+          modifyFields(workspace, {
+            customFilters: value =>
+              value === 'Expanded' ? 'Collapsed' : 'Expanded',
+          }),
+      }),
+    }),
     UpdatedQuestionSearch: ({ value }) => ({
       model: modifyFields(model, {
         workspace: workspace =>
@@ -997,19 +1045,43 @@ export const update = (model: Model, message: Message) =>
       urgencyFilter,
       highlightTerms,
       collapseSentRounds,
-      grouping,
-    }) => ({
-      model: modifyFields(model, {
+      roundScopes,
+      navigation,
+    }) => {
+      const restored: Model = modifyFields(model, {
         workspace: value =>
           modifyFields(value, {
             filter: () => filter,
             urgencyFilter: () => urgencyFilter,
-            grouping: () => grouping,
+            grouping: () => 'Round',
+            roundScopes: () => roundScopesFrom(roundScopes),
+            scopeRestoration: () =>
+              navigation === 'Reload' ? 'Preserve' : 'Reveal',
             highlightTerms: () => highlightTerms,
             collapseSentRounds: () => collapseSentRounds,
           }),
-      }),
-    }),
+      })
+      return withSnapshot(restored, snapshot => ({
+        model: modifyFields(restored, {
+          workspace: workspace =>
+            navigation === 'Reload'
+              ? workspace
+              : Option.match(questionOnPage(snapshot, model.currentPart), {
+                  onNone: () => workspace,
+                  onSome: step =>
+                    revealQuestion(
+                      workspace,
+                      snapshot,
+                      model.answers,
+                      model.notes,
+                      model.own,
+                      step.question.id,
+                    ),
+                }),
+        }),
+        commands: [ScrollToTop()],
+      }))
+    },
     CompletedSaveWorkspaceSettings: () => ({ model }),
     RestoredDiscussionState: ({ state }) => ({
       model: modifyFields(model, {
@@ -1517,13 +1589,27 @@ export const update = (model: Model, message: Message) =>
               model: modifyFields(goTo(model, snapshot.grill, page), {
                 maybeJustAnswered: () => Option.none(),
                 workspace: value =>
-                  modifyFields(value, {
-                    maybeDiscussionTarget: () =>
-                      Option.map(
-                        questionOnPage(snapshot, page),
-                        step => step.id,
-                      ),
-                  }),
+                  modifyFields(
+                    Option.match(questionOnPage(snapshot, page), {
+                      onNone: () => value,
+                      onSome: step =>
+                        revealQuestion(
+                          value,
+                          snapshot,
+                          model.answers,
+                          model.notes,
+                          model.own,
+                          step.question.id,
+                        ),
+                    }),
+                    {
+                      maybeDiscussionTarget: () =>
+                        Option.map(
+                          questionOnPage(snapshot, page),
+                          step => step.id,
+                        ),
+                    },
+                  ),
               }),
               commands: [ScrollToTop()],
             }
@@ -2314,7 +2400,23 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
     currentPart: current => (first ? startingPart(snapshot) : current),
   })
   return {
-    model: next,
+    model: modifyFields(next, {
+      workspace: workspace =>
+        workspace.scopeRestoration === 'Preserve'
+          ? workspace
+          : Option.match(questionOnPage(snapshot, next.currentPart), {
+              onNone: () => workspace,
+              onSome: step =>
+                revealQuestion(
+                  workspace,
+                  snapshot,
+                  next.answers,
+                  next.notes,
+                  next.own,
+                  step.question.id,
+                ),
+            }),
+    }),
     commands: [
       ...(first
         ? [
@@ -2323,6 +2425,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
             }),
           ]
         : []),
+      ScrollToTop(),
       RestoreRead({ grillId: snapshot.grill.id }),
       RestoreClosedLine({ grillId: snapshot.grill.id }),
       ...([SQUAD, GRILLS].includes(next.currentPart)
@@ -2673,6 +2776,7 @@ export const RestoreWorkspaceSettings = Command.define(
           filter: Schema.optionalKey(Schema.Unknown),
           urgencyFilter: Schema.optionalKey(Schema.Unknown),
           grouping: Schema.optionalKey(Schema.String),
+          roundScopes: Schema.optionalKey(Schema.Unknown),
           highlightTerms: Schema.optionalKey(Schema.Boolean),
           collapseSentRounds: Schema.optionalKey(Schema.Boolean),
         }),
@@ -2680,7 +2784,13 @@ export const RestoreWorkspaceSettings = Command.define(
       return Message.RestoredWorkspaceSettings({
         filter: questionFilterFrom(settings.filter),
         urgencyFilter: questionUrgencyFilterFrom(settings.urgencyFilter),
-        grouping: settings.grouping === 'Agent' ? 'Agent' : 'Round',
+        grouping: 'Round',
+        roundScopes: roundScopesFrom(settings.roundScopes),
+        navigation: performance
+          .getEntriesByType('navigation')
+          .some(entry => 'type' in entry && entry.type === 'reload')
+          ? 'Reload'
+          : 'Navigate',
         highlightTerms: settings.highlightTerms ?? false,
         collapseSentRounds: settings.collapseSentRounds ?? true,
       })
@@ -2948,6 +3058,16 @@ export const ScrollToTop = Command.define('ScrollToTop', {
   execute: pipe(
     Dom.scrollIntoViewAfterPaint('#workspace-top'),
     Effect.catch(() => Effect.sync(() => window.scrollTo({ top: 0 }))),
+    Effect.flatMap(() =>
+      Effect.all([
+        Dom.scrollIntoViewIfNotVisible('.f-question-item.is-current', {
+          block: 'nearest',
+        }).pipe(Effect.catch(() => Effect.void)),
+        Dom.scrollIntoViewIfNotVisible('.f-round-rail button.is-current', {
+          block: 'nearest',
+        }).pipe(Effect.catch(() => Effect.void)),
+      ]),
+    ),
     Effect.map(() => Message.CompletedScroll()),
   ),
 })

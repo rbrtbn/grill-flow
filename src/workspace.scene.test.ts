@@ -452,6 +452,7 @@ it('filters sidebar questions by urgency and preserves an explicit unspecified c
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: state }) }),
+    click(role('button', { name: 'Custom filters' })),
     expect(role('combobox', { name: 'Urgency filter' })).toHaveValue('All'),
     change(role('combobox', { name: 'Urgency filter' }), 'blocking'),
     Command.resolve(

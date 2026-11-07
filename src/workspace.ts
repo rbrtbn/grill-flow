@@ -37,6 +37,7 @@ export const QuestionUrgencyFilter = Schema.Literals([
   'wait',
   'fyi',
   'unspecified',
+  'urgent',
 ])
 export type QuestionUrgencyFilter = typeof QuestionUrgencyFilter.Type
 
@@ -74,6 +75,9 @@ export const Workspace = Schema.Struct({
   filter: QuestionFilter,
   urgencyFilter: QuestionUrgencyFilter,
   grouping: QuestionGrouping,
+  roundScopes: Schema.Record(Schema.String, Schema.Number),
+  customFilters: Schema.Literals(['Collapsed', 'Expanded']),
+  scopeRestoration: Schema.Literals(['Preserve', 'Reveal']),
   foldedAgents: Schema.Array(Schema.String),
   maybeEditingRound: Schema.Option(Schema.Number),
   roundNameDraft: Schema.String,
@@ -101,6 +105,9 @@ export const initialWorkspace: Workspace = {
   filter: 'All',
   urgencyFilter: 'All',
   grouping: 'Round',
+  roundScopes: {},
+  customFilters: 'Collapsed',
+  scopeRestoration: 'Reveal',
   foldedAgents: [],
   maybeEditingRound: Option.none(),
   roundNameDraft: '',
@@ -193,6 +200,49 @@ export const questionState = (
       : 'Draft'
 }
 
+export const roundScopesFrom = (
+  value: unknown,
+): Readonly<Record<string, number>> => {
+  const result = Schema.decodeUnknownResult(
+    Schema.Record(Schema.String, Schema.Number),
+  )(value)
+  return result._tag === 'Success'
+    ? Object.fromEntries(
+        Object.entries(result.success).filter(
+          ([, round]) => Number.isSafeInteger(round) && round > 0,
+        ),
+      )
+    : {}
+}
+
+export const selectedRound = (
+  workspace: Workspace,
+  snapshot: Snapshot,
+): number | undefined => {
+  const round = workspace.roundScopes[snapshot.grill.id]
+  return snapshot.grill.steps.some(
+    step => roundOf(snapshot.grill, step.question) === round,
+  )
+    ? round
+    : undefined
+}
+
+export const sidebarRoundName = (snapshot: Snapshot, round: number): string =>
+  snapshot.grill.roundNames?.[String(round)]?.trim() ||
+  `Round ${snapshot.grill.roundNumbers?.[String(round)] ?? round}`
+
+export const quickViews: ReadonlyArray<{
+  label: string
+  filter: QuestionFilter
+  urgencyFilter: QuestionUrgencyFilter
+}> = [
+  { label: 'All', filter: 'All', urgencyFilter: 'All' },
+  { label: 'Needs attention', filter: 'Open', urgencyFilter: 'urgent' },
+  { label: 'Open', filter: 'Open', urgencyFilter: 'All' },
+  { label: 'Drafts', filter: 'Draft', urgencyFilter: 'All' },
+  { label: 'Sent', filter: 'Sent', urgencyFilter: 'All' },
+]
+
 export const visibleQuestions = (
   workspace: Workspace,
   snapshot: Snapshot,
@@ -201,8 +251,11 @@ export const visibleQuestions = (
   own: Notes,
 ): ReadonlyArray<Step> => {
   const search = workspace.search.trim().toLocaleLowerCase()
+  const round = selectedRound(workspace, snapshot)
   return snapshot.grill.steps.filter(
     step =>
+      (round === undefined ||
+        roundOf(snapshot.grill, step.question) === round) &&
       (workspace.filter !== 'Open' ||
         statusOf(snapshot.grill, answers, step.question.id)._tag !==
           'NotNeeded') &&
@@ -210,9 +263,12 @@ export const visibleQuestions = (
         questionState(snapshot, step, answers, notes, own) ===
           workspace.filter) &&
       (workspace.urgencyFilter === 'All' ||
-        (workspace.urgencyFilter === 'unspecified'
-          ? step.question.urgency === undefined
-          : step.question.urgency === workspace.urgencyFilter)) &&
+        (workspace.urgencyFilter === 'urgent'
+          ? step.question.urgency === 'blocking' ||
+            step.question.urgency === 'soon'
+          : workspace.urgencyFilter === 'unspecified'
+            ? step.question.urgency === undefined
+            : step.question.urgency === workspace.urgencyFilter)) &&
       (search === '' ||
         [
           step.question.id,
@@ -434,13 +490,22 @@ export const revealQuestion = (
       filter: () => 'All',
       urgencyFilter: () => 'All',
       search: () => '',
+      roundScopes: () => ({}),
     }),
     snapshot,
     answers,
     notes,
     own,
   ).find(item => item.steps.some(step => step.question.id === id))
+  const target = snapshot.grill.steps.find(step => step.question.id === id)
   return modifyFields(workspace, {
+    roundScopes: scopes =>
+      selectedRound(workspace, snapshot) !== undefined && target !== undefined
+        ? {
+            ...scopes,
+            [snapshot.grill.id]: roundOf(snapshot.grill, target.question),
+          }
+        : scopes,
     foldedQuestions: ids => ids.filter(item => !ancestors.has(item)),
     foldedAgents: ids =>
       workspace.grouping === 'Agent'
@@ -482,6 +547,7 @@ export const adjacentQuestion = (
           filter: () => 'All',
           urgencyFilter: () => 'All',
           search: () => '',
+          roundScopes: () => ({}),
         }),
         snapshot,
         answers,

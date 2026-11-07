@@ -10,6 +10,8 @@ import {
   questionFilterFrom,
   questionUrgencyFilterFrom,
   revealQuestion,
+  roundScopesFrom,
+  sidebarRoundName,
   visibleQuestions,
 } from './workspace'
 
@@ -141,7 +143,7 @@ it('locates filtered-out current questions for navigation and group reveal', () 
   expect(revealed.urgencyFilter).toBe('soon')
 })
 
-it.each([undefined, null, 123, false, {}, [], 'urgent', ''])(
+it.each([undefined, null, 123, false, {}, [], 'invalid', ''])(
   'defaults invalid saved filters %j safely',
   value => {
     expect(questionFilterFrom(value)).toBe('All')
@@ -153,4 +155,125 @@ it('keeps valid saved status and urgency values', () => {
   expect(questionFilterFrom('Sent')).toBe('Sent')
   expect(questionUrgencyFilterFrom('unspecified')).toBe('unspecified')
   expect(questionUrgencyFilterFrom('blocking')).toBe('blocking')
+})
+
+it('combines the attention view with the selected round and search', () => {
+  const state = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      steps: grill.steps.map((step, index) => ({
+        ...step,
+        question: { ...step.question, round: index < 2 ? 1 : 2 },
+      })),
+    },
+  }
+  const workspace = {
+    ...initialWorkspace,
+    filter: questionFilterFrom('Open'),
+    urgencyFilter: questionUrgencyFilterFrom('urgent'),
+    roundScopes: { [grill.id]: 1 },
+  }
+  expect(
+    visibleQuestions(workspace, state, state.answers, {}, {}).map(
+      step => step.question.id,
+    ),
+  ).toEqual(['Q1', 'Q2'])
+  expect(
+    visibleQuestions(
+      { ...workspace, search: 'question 2' },
+      state,
+      state.answers,
+      {},
+      {},
+    ).map(step => step.question.id),
+  ).toEqual(['Q2'])
+  expect(
+    visibleQuestions(
+      { ...workspace, roundScopes: { [grill.id]: 2 } },
+      state,
+      state.answers,
+      {},
+      {},
+    ),
+  ).toEqual([])
+  expect(
+    visibleQuestions(
+      { ...workspace, roundScopes: { [grill.id]: 999 } },
+      state,
+      state.answers,
+      {},
+      {},
+    ).map(step => step.question.id),
+  ).toEqual(['Q1', 'Q2'])
+})
+
+it('uses round scope for arrows and reveals the target round without discarding filters', () => {
+  const state = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      steps: grill.steps.map((step, index) => ({
+        ...step,
+        question: { ...step.question, round: index < 2 ? 1 : 2 },
+      })),
+    },
+  }
+  const workspace = {
+    ...initialWorkspace,
+    roundScopes: { [grill.id]: 2, 'another-grill': 4 },
+    search: 'Filter question',
+  }
+  expect(
+    Option.getOrThrow(
+      adjacentQuestion(
+        workspace,
+        state,
+        state.answers,
+        {},
+        {},
+        'question:Q1',
+        'Next',
+      ),
+    ).question.id,
+  ).toBe('Q3')
+  expect(
+    Option.isNone(
+      adjacentQuestion(
+        workspace,
+        state,
+        state.answers,
+        {},
+        {},
+        'question:Q3',
+        'Previous',
+      ),
+    ),
+  ).toBe(true)
+  const revealed = revealQuestion(workspace, state, state.answers, {}, {}, 'Q2')
+  expect(revealed.roundScopes).toEqual({ [grill.id]: 1, 'another-grill': 4 })
+  expect(revealed.search).toBe(workspace.search)
+})
+
+it('validates persisted round scopes and uses trimmed names with a numbered fallback', () => {
+  expect(
+    roundScopesFrom({
+      alpha: 2,
+      negative: -1,
+      fractional: 1.5,
+      huge: Infinity,
+    }),
+  ).toEqual({ alpha: 2 })
+  expect(roundScopesFrom({ alpha: '2' })).toEqual({})
+  expect(roundScopesFrom(null)).toEqual({})
+  const state = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      roundNames: { '1': '  Feature choices  ', '2': '  ' },
+      roundNumbers: { '2': 7 },
+    },
+  }
+  expect(sidebarRoundName(state, 1)).toBe('Feature choices')
+  expect(sidebarRoundName(state, 2)).toBe('Round 7')
 })

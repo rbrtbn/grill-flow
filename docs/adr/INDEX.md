@@ -14,3 +14,4 @@
 | [0010](0010-mark-page-deliveries-as-page-messages.md) | Mark page deliveries as page messages | accepted |
 | [0011](0011-freeze-ordinary-page-answer-receipts.md) | Freeze ordinary page answer receipts | accepted |
 | [0012](0012-publish-source-owned-updates-and-read-models.md) | Publish source-owned updates and read models | accepted |
+| [0013](0013-use-independent-round-scope-in-sidebar.md) | Use independent round scope in the sidebar | accepted |

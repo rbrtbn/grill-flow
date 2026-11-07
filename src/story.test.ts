@@ -168,12 +168,12 @@ describe('resizing a sidebar', () => {
         MeasureSidebar,
         Message.CompletedMeasureSidebar({
           edge: 'Nav',
-          maybeWidth: Option.some(250),
+          maybeWidth: Option.some(438),
           step: 16,
         }),
       ),
       model(current => {
-        expect(current.maybeNavWidth).toEqual(Option.some(266))
+        expect(current.maybeNavWidth).toEqual(Option.some(454))
       }),
       Command.resolve(SaveSidebarWidths, Message.CompletedSaveSidebarWidths()),
       message(Message.DoubleClickedResizeHandle({ edge: 'Nav' })),
@@ -195,7 +195,7 @@ describe('resizing a sidebar', () => {
         }),
       ),
       model(current => {
-        expect(current.maybeNavWidth).toEqual(Option.some(180))
+        expect(current.maybeNavWidth).toEqual(Option.some(340))
         expect(current.maybeSideWidth).toEqual(Option.none())
       }),
     )
