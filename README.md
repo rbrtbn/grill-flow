@@ -112,6 +112,11 @@ bun run gf up          # builds the page and starts the server at http://127.0.0
 bun run gf load examples/decision-sample.json
 ```
 
+When starting a maintainer-enabled server, run
+`GF_MAINTAINER_SESSION=<builder-address> bun run gf up`. `gf up` forwards explicitly supplied
+`GF_*` server settings through Herdr's `env` command; it does not infer the maintainer from the
+terminal that starts it. An already-running server keeps its configured maintainer until restart.
+
 Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill, or `http://127.0.0.1:4317/`
 for every grill the server holds, grouped by the machine it came from; a grill page's title links
 back there. An agent on another machine can keep its grills there and still have them served here:

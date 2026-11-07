@@ -145,6 +145,20 @@ switch (command) {
         'grill-flow',
         '--cwd',
         ROOT,
+        'env',
+        ...[
+          'GF_PORT',
+          'GF_DB',
+          'GF_DIST',
+          'GF_PREVIEW',
+          'GF_POLL_REMOTES',
+          'GF_SESSION',
+          'GF_MAINTAINER_SESSION',
+        ].flatMap(name =>
+          process.env[name] === undefined
+            ? []
+            : [`${name}=${process.env[name]}`],
+        ),
         'bun',
         'run',
         'serve',
