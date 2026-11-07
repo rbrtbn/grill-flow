@@ -1,6 +1,7 @@
 import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Mount,
   all,
   click,
   expect,
@@ -14,8 +15,17 @@ import { readFileSync } from 'node:fs'
 import { expect as assert, describe, it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import { Message, PageData, init, unreadMessagesOf, update } from './main'
+import {
+  FillBox,
+  Message,
+  PageData,
+  RestoreDiscussionScroll,
+  init,
+  unreadMessagesOf,
+  update,
+} from './main'
 import { view } from './view'
+import { CONVERSATIONS } from './workspace'
 
 const grill = Schema.decodeUnknownSync(Grill)(
   JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),
@@ -50,6 +60,7 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given(loaded),
+      expect(selector('.f-main .toasts')).toExist(),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
       expect(role('button', { name: 'Hide 5 unread notifications' })).toExist(),
@@ -147,6 +158,19 @@ describe('agent toast notifications', () => {
       given({ ...loaded, readSince: Option.some(5) }),
       expectAll(all.selector('.notification-tray-toggle')).toHaveCount(0),
       expectAll(all.selector('.toast')).toHaveCount(0),
+    )
+  })
+
+  it('leaves the full Conversations page free of toast overlays', () => {
+    scene(
+      { update, view },
+      given({ ...loaded, currentPart: CONVERSATIONS }),
+      Mount.resolveAll(
+        [FillBox, Message.CompletedFillBox()],
+        [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+      ),
+      expect(selector('.f-discussion-compose')).toExist(),
+      expectAll(all.selector('.toasts')).toHaveCount(0),
     )
   })
 })

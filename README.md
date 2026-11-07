@@ -25,6 +25,8 @@ new agent answers follow only when you were already there, leaving older reading
 
 Hide notifications collapses the toast stack without marking replies read. Its badge keeps the
 full unread count after the cards expire; click Notifications to reopen the newest unread cards.
+Toasts stay inside the main reading section and hide when Discussion takes that space. Agent
+messages visible in Discussion count as seen after a short dwell; hidden messages stay unread.
 
 ## Two kinds of grill
 

@@ -3491,10 +3491,16 @@ const onScreenAgent = (ids: ReadonlyArray<string>): ReadonlyArray<string> =>
   Array.filter(ids, id =>
     Array.some([`talk-agent-${id}`, `agent-${id}`], elementId => {
       const element = document.getElementById(elementId)
-      if (element === null) {
+      if (
+        element === null ||
+        getComputedStyle(element).visibility !== 'visible'
+      ) {
         return false
       }
       const box = element.getBoundingClientRect()
+      if (box.width <= 0 || box.height <= 0) {
+        return false
+      }
       const frame = (
         element.closest(
           '.messages, .replies-list, .f-discussion-messages, .f-page-scroller',
@@ -3502,7 +3508,12 @@ const onScreenAgent = (ids: ReadonlyArray<string>): ReadonlyArray<string> =>
       ).getBoundingClientRect()
       const top = Math.max(box.top, frame.top, 0)
       const bottom = Math.min(box.bottom, frame.bottom, window.innerHeight)
-      return bottom - top >= Math.min(40, box.height)
+      const left = Math.max(box.left, frame.left, 0)
+      const right = Math.min(box.right, frame.right, window.innerWidth)
+      return (
+        bottom - top >= Math.min(40, box.height) &&
+        right - left >= Math.min(40, box.width)
+      )
     }),
   )
 

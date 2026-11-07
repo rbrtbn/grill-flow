@@ -522,6 +522,12 @@
   position: relative;
   padding: 0;
 }
+.f-main > .toasts {
+  position: absolute;
+  width: min(380px, calc(100% - 36px));
+  max-height: calc(100% - 36px);
+  overflow-y: auto;
+}
 #workspace-top {
   height: 0;
   outline: none;

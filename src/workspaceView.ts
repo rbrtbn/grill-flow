@@ -344,7 +344,6 @@ export const workspaceView = (
       ),
     ],
     [
-      reading.notices(h),
       Option.isSome(model.maybeSaveError)
         ? h.div(
             [h.Class('f-save-error'), h.Role('alert')],
@@ -512,6 +511,9 @@ export const workspaceView = (
                       content,
                     ],
                   ),
+              model.currentPart !== CONVERSATIONS
+                ? reading.notices(h)
+                : h.empty,
             ],
           ),
           isDiscussion && model.currentPart !== CONVERSATIONS
