@@ -525,3 +525,26 @@ it('follows the displayed agent groups when moving to the next question', () => 
     ).question.id,
   ).toBe('Q2')
 })
+
+it('restores an open discussion with its target, expanded view and thread position', () => {
+  const state = {
+    open: true,
+    expanded: true,
+    target: 'run',
+    scroll: { run: 240 },
+  }
+  const restored = update(
+    loaded,
+    Message.RestoredDiscussionState({ state }),
+  ).model
+  expect(restored.side).toBe('Talk')
+  expect(restored.workspace.maybeDiscussionTarget).toEqual(Option.some('run'))
+  expect(restored.workspace.isDiscussionExpanded).toBe(true)
+  expect(restored.workspace.discussionScroll).toEqual({ run: 240 })
+  expect(restored.workspace.discussionRestored).toBe(true)
+  const scrolled = update(
+    restored,
+    Message.ScrolledDiscussion({ target: 'run', top: 360 }),
+  ).model
+  expect(scrolled.workspace.discussionScroll).toEqual({ run: 360 })
+})

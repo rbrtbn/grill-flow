@@ -11,6 +11,7 @@ import {
   role,
   scene,
   selector,
+  within,
 } from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
@@ -19,9 +20,11 @@ import { Grill, type Snapshot } from './domain'
 import {
   CloseWorkspaceSettings,
   FillBox,
+  FocusTalkBox,
   Message,
   OpenWorkspaceSettings,
   PageData,
+  RestoreDiscussionScroll,
   init,
   update,
 } from './main'
@@ -236,7 +239,10 @@ describe('the question workspace', () => {
           maybeDiscussionTarget: Option.some('step-q1'),
         },
       }),
-      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+      Mount.resolveAll(
+        [FillBox, Message.CompletedFillBox()],
+        [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+      ),
       expect(selector('.f-context h3')).toContainText('Q1'),
       expect(selector('.f-context')).toContainText(
         grill.steps[0]!.question.ask,
@@ -317,4 +323,27 @@ describe('the question workspace', () => {
       Command.resolve(CloseWorkspaceSettings, Message.CompletedFocus()),
     )
   })
+})
+
+it('opens this question discussion from between the note and skip actions', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    expect(selector('.f-answer-actions')).toContainText(
+      'Add a noteDiscussSkip for now',
+    ),
+    click(
+      within(
+        selector('.f-answer-actions'),
+        role('button', { name: 'Discuss' }),
+      ),
+    ),
+    Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
+      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+    ),
+    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    expect(selector('.f-discussion')).toExist(),
+    expect(role('textbox', { name: 'Ask about Q1' })).toExist(),
+  )
 })

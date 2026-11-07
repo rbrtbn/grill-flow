@@ -61,6 +61,8 @@ export const Workspace = Schema.Struct({
   highlightTerms: Schema.Boolean,
   collapseSentRounds: Schema.Boolean,
   isDiscussionExpanded: Schema.Boolean,
+  discussionRestored: Schema.Boolean,
+  discussionScroll: Schema.Record(Schema.String, Schema.Number),
   maybeDiscussionTarget: Schema.Option(Schema.String),
   excluded: Schema.Array(Schema.String),
 })
@@ -85,6 +87,8 @@ export const initialWorkspace: Workspace = {
   highlightTerms: false,
   collapseSentRounds: true,
   isDiscussionExpanded: false,
+  discussionRestored: false,
+  discussionScroll: {},
   maybeDiscussionTarget: Option.none(),
   excluded: [],
 }

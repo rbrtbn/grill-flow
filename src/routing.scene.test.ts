@@ -22,6 +22,8 @@ import {
   FillBox,
   Message,
   PageData,
+  RestoreDiscussionPosition,
+  RestoreDiscussionScroll,
   SaveWorkspaceSettings,
   init,
   update,
@@ -126,13 +128,20 @@ describe('asking agents in the workspace', () => {
           maybeDiscussionTarget: Option.some('step-q1'),
         },
       }),
-      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+      Mount.resolveAll(
+        [FillBox, Message.CompletedFillBox()],
+        [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+      ),
       expect(selector('.f-discussion-head')).toContainText('worker'),
       click(
         within(
           role('group', { name: 'Conversation scope' }),
           role('button', { name: 'Grill-flow' }),
         ),
+      ),
+      Command.resolve(
+        RestoreDiscussionPosition,
+        Message.CompletedRestoreDiscussionPosition(),
       ),
       expect(selector('.f-discussion-head')).toContainText(
         'Grill-flow · builder',
@@ -149,6 +158,10 @@ describe('asking agents in the workspace', () => {
           role('group', { name: 'Conversation scope' }),
           role('button', { name: 'This question · Q1' }),
         ),
+      ),
+      Command.resolve(
+        RestoreDiscussionPosition,
+        Message.CompletedRestoreDiscussionPosition(),
       ),
       expect(selector('.f-context')).toContainText('Q1'),
     )

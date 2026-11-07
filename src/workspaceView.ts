@@ -24,6 +24,7 @@ import {
   FillBox,
   Message,
   type Model,
+  RestoreDiscussionScroll,
   type SidebarEdge,
   threadDraftKey,
 } from './main'
@@ -1075,6 +1076,7 @@ const answersView = (
             Message.ClickedQuestionNote({ question: q.id }),
             h,
           ),
+          link('Discuss', Message.ClickedDiscussion({ target: step.id }), h),
           link('Skip for now', Message.ClickedSkip({ question: q.id }), h),
           selected === undefined
             ? h.empty
@@ -1633,7 +1635,15 @@ const discussionView = (
         ],
       ),
       h.div(
-        [h.Class('f-discussion-messages')],
+        [
+          h.Class('f-discussion-messages'),
+          h.OnScroll(top => Message.ScrolledDiscussion({ target, top })),
+          h.OnMount(
+            RestoreDiscussionScroll({
+              top: model.workspace.discussionScroll[target] ?? 0,
+            }),
+          ),
+        ],
         [
           expanded || step !== undefined ? context : h.empty,
           ...(Array.isReadonlyArrayEmpty(thread)

@@ -191,6 +191,19 @@ export type Model = typeof Model.Type
 
 // MESSAGE
 
+export const DiscussionState = Schema.Struct({
+  open: Schema.Boolean,
+  expanded: Schema.Boolean,
+  target: Schema.String,
+  scroll: Schema.Record(Schema.String, Schema.Number),
+})
+const closedDiscussion: typeof DiscussionState.Type = {
+  open: false,
+  expanded: false,
+  target: '',
+  scroll: {},
+}
+
 export const Message = defineMessageUnion({
   CompletedLoadGrill: { result: Schema.Result(Snapshot, Schema.String) },
   TickedPoll: {},
@@ -248,6 +261,12 @@ export const Message = defineMessageUnion({
     collapseSentRounds: Schema.Boolean,
   },
   CompletedSaveWorkspaceSettings: {},
+  RestoredDiscussionState: { state: DiscussionState },
+  ChangedDiscussionState: { grillId: Schema.String, state: DiscussionState },
+  CompletedSaveDiscussionState: {},
+  ScrolledDiscussion: { target: Schema.String, top: Schema.Number },
+  CompletedRestoreDiscussionScroll: {},
+  CompletedRestoreDiscussionPosition: {},
   ClickedDiscussion: { target: Schema.String },
   ClickedCloseDiscussion: {},
   ClickedExpandDiscussion: {},
@@ -755,6 +774,33 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
     CompletedSaveWorkspaceSettings: () => ({ model }),
+    RestoredDiscussionState: ({ state }) => ({
+      model: modifyFields(model, {
+        side: side => (state.open ? 'Talk' : side),
+        workspace: value =>
+          modifyFields(value, {
+            discussionRestored: () => true,
+            isDiscussionExpanded: () => state.expanded,
+            maybeDiscussionTarget: () =>
+              state.target === '' ? Option.none() : Option.some(state.target),
+            discussionScroll: () => state.scroll,
+          }),
+      }),
+    }),
+    ChangedDiscussionState: ({ grillId, state }) => ({
+      model,
+      commands: [SaveDiscussionState({ grillId, json: JSON.stringify(state) })],
+    }),
+    CompletedSaveDiscussionState: () => ({ model }),
+    CompletedRestoreDiscussionScroll: () => ({ model }),
+    CompletedRestoreDiscussionPosition: () => ({ model }),
+    ScrolledDiscussion: ({ target, top }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, { discussionScroll: Record.set(target, top) }),
+      }),
+    }),
+
     ClickedDiscussion: ({ target }) => ({
       model: modifyFields(model, {
         side: () => 'Talk',
@@ -808,6 +854,11 @@ export const update = (model: Model, message: Message) =>
             maybeDiscussionTarget: () => Option.some(target),
           }),
       }),
+      commands: [
+        RestoreDiscussionPosition({
+          top: model.workspace.discussionScroll[target] ?? 0,
+        }),
+      ],
     }),
     ClickedConversationStarter: ({ target, text }) => ({
       model: modifyFields(model, {
@@ -2193,12 +2244,78 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     RestoreNavFolded(),
     RestoreSidebarWidths(),
     RestoreWorkspaceSettings(),
+    RestoreDiscussionState(),
   ],
 })
 
 // COMMAND
 
 const WORKSPACE_SETTINGS_KEY = 'grill-flow:workspace-settings'
+
+const discussionKey = (grillId: string) => `grill-flow:discussion:${grillId}`
+
+export const RestoreDiscussionState = Command.define('RestoreDiscussionState', {
+  messages: [Message.RestoredDiscussionState],
+  execute: Effect.sync(() => {
+    const id = decodeURIComponent(window.location.pathname.split('/')[2] ?? '')
+    const state = Schema.decodeUnknownSync(DiscussionState)(
+      JSON.parse(
+        localStorage.getItem(discussionKey(id)) ??
+          JSON.stringify(closedDiscussion),
+      ),
+    )
+    return Message.RestoredDiscussionState({ state })
+  }).pipe(
+    Effect.catch(() =>
+      Effect.succeed(
+        Message.RestoredDiscussionState({ state: closedDiscussion }),
+      ),
+    ),
+  ),
+})
+
+export const SaveDiscussionState = Command.define('SaveDiscussionState', {
+  args: { grillId: Schema.String, json: Schema.String },
+  messages: [Message.CompletedSaveDiscussionState],
+  execute: ({ grillId, json }) =>
+    Effect.sync(() => localStorage.setItem(discussionKey(grillId), json)).pipe(
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedSaveDiscussionState()),
+    ),
+})
+
+export const RestoreDiscussionPosition = Command.define(
+  'RestoreDiscussionPosition',
+  {
+    args: { top: Schema.Number },
+    messages: [Message.CompletedRestoreDiscussionPosition],
+    execute: ({ top }) =>
+      afterCommit.pipe(
+        Effect.andThen(() =>
+          Effect.sync(() => {
+            const element = document.querySelector('.f-discussion-messages')
+            if (element instanceof HTMLElement) {
+              element.scrollTop = top
+            }
+          }),
+        ),
+        Effect.catch(() => Effect.void),
+        Effect.map(() => Message.CompletedRestoreDiscussionPosition()),
+      ),
+  },
+)
+
+export const RestoreDiscussionScroll = Mount.define('RestoreDiscussionScroll', {
+  args: { top: Schema.Number },
+  messages: [Message.CompletedRestoreDiscussionScroll],
+  execute: ({ element, top }) =>
+    Effect.sync(() => {
+      if (element instanceof HTMLElement) {
+        element.scrollTop = top
+      }
+      return Message.CompletedRestoreDiscussionScroll()
+    }),
+})
 
 export const SaveWorkspaceSettings = Command.define('SaveWorkspaceSettings', {
   args: { settings: Schema.String },
@@ -3056,6 +3173,31 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  discussionState: entry(
+    { ready: Schema.Boolean, grillId: Schema.String, state: DiscussionState },
+    {
+      modelToDependencies: model => ({
+        ready: model.workspace.discussionRestored,
+        grillId: Option.match(AsyncData.getData(model.page), {
+          onNone: () => '',
+          onSome: snapshot => snapshot.grill.id,
+        }),
+        state: {
+          open: model.side === 'Talk',
+          expanded: model.workspace.isDiscussionExpanded,
+          target: Option.getOrElse(
+            model.workspace.maybeDiscussionTarget,
+            () => '',
+          ),
+          scroll: model.workspace.discussionScroll,
+        },
+      }),
+      dependenciesToStream: ({ ready, grillId, state }) =>
+        ready && grillId !== ''
+          ? Stream.succeed(Message.ChangedDiscussionState({ grillId, state }))
+          : Stream.empty,
+    },
+  ),
   workspaceShortcut: entry(
     { page: Schema.String },
     {
