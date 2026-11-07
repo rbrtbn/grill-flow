@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Grill, type Snapshot, answerLines } from './domain'
 import {
+  FocusTalkBox,
   Message,
   PageData,
   PostEvent,
@@ -547,6 +548,39 @@ it('restores an open discussion with its target, expanded view and thread positi
     Message.ScrolledDiscussion({ target: 'run', top: 360 }),
   ).model
   expect(scrolled.workspace.discussionScroll).toEqual({ run: 360 })
+})
+
+it('refocuses the cleared discussion composer after sending a nonempty message', () => {
+  const body = JSON.stringify({
+    kind: 'asked',
+    stepId: 'run',
+    text: 'Synthetic dictation',
+  })
+  story(
+    update,
+    given(loaded),
+    message(
+      Message.ReadWorkspaceDiscussion({
+        target: 'run',
+        text: 'Synthetic dictation',
+      }),
+    ),
+    Command.expectExact(
+      PostEvent({ grillId: 'fixture', body }),
+      FocusTalkBox(),
+    ),
+    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    Command.resolve(
+      PostEvent,
+      Message.CompletedPostEvent({ result: Result.succeed(snapshot), body }),
+    ),
+  )
+  const empty = update(
+    loaded,
+    Message.ReadWorkspaceDiscussion({ target: 'run', text: '  ' }),
+  )
+  expect(empty.model).toBe(loaded)
+  expect(empty.commands).toBeUndefined()
 })
 
 describe('live shared answer synchronization', () => {

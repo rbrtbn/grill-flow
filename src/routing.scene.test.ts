@@ -20,6 +20,7 @@ import { describe, it } from 'vitest'
 import { Grill, type Snapshot } from './domain'
 import {
   FillBox,
+  FocusTalkBox,
   Message,
   PageData,
   RestoreDiscussionPosition,
@@ -143,6 +144,7 @@ describe('asking agents in the workspace', () => {
         RestoreDiscussionPosition,
         Message.CompletedRestoreDiscussionPosition(),
       ),
+      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
       expect(selector('.f-discussion-head')).toContainText(
         'Grill-flow · builder',
       ),
@@ -163,6 +165,7 @@ describe('asking agents in the workspace', () => {
         RestoreDiscussionPosition,
         Message.CompletedRestoreDiscussionPosition(),
       ),
+      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
       expect(selector('.f-context')).toContainText('Q1'),
     )
   })

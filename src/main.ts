@@ -858,6 +858,7 @@ export const update = (model: Model, message: Message) =>
         RestoreDiscussionPosition({
           top: model.workspace.discussionScroll[target] ?? 0,
         }),
+        FocusTalkBox(),
       ],
     }),
     ClickedConversationStarter: ({ target, text }) => ({
@@ -876,16 +877,22 @@ export const update = (model: Model, message: Message) =>
       model,
       commands: [ReadWorkspaceDiscussionBox({ target })],
     }),
-    ReadWorkspaceDiscussion: ({ target, text }) =>
-      text.trim() === ''
-        ? { model }
-        : postEvent(
-            modifyFields(model, {
-              talkDrafts: Record.remove(threadDraftKey(target)),
-              talkGeneration: count => count + 1,
-            }),
-            { kind: 'asked', stepId: target, text: text.trim() },
-          ),
+    ReadWorkspaceDiscussion: ({ target, text }) => {
+      if (text.trim() === '') {
+        return { model }
+      }
+      const posted = postEvent(
+        modifyFields(model, {
+          talkDrafts: Record.remove(threadDraftKey(target)),
+          talkGeneration: count => count + 1,
+        }),
+        { kind: 'asked', stepId: target, text: text.trim() },
+      )
+      return {
+        model: posted.model,
+        commands: [...(posted.commands ?? []), FocusTalkBox()],
+      }
+    },
     ToggledReviewAnswer: ({ question }) => ({
       model: modifyFields(model, {
         workspace: value =>

@@ -24,6 +24,7 @@ import {
   Message,
   OpenWorkspaceSettings,
   PageData,
+  RestoreDiscussionPosition,
   RestoreDiscussionScroll,
   init,
   update,
@@ -345,5 +346,35 @@ it('opens this question discussion from between the note and skip actions', () =
     Command.resolve(FocusTalkBox, Message.CompletedFocus()),
     expect(selector('.f-discussion')).toExist(),
     expect(role('textbox', { name: 'Ask about Q1' })).toExist(),
+  )
+})
+
+it('returns to the composer and restores thread position when switching discussion scope', () => {
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      side: 'Talk',
+      workspace: {
+        ...loaded.workspace,
+        maybeDiscussionTarget: Option.some('step-q1'),
+        discussionScroll: { run: 240 },
+      },
+    }),
+    Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
+      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+    ),
+    click(role('button', { name: 'Whole run' })),
+    expect(role('textbox', { name: 'Ask about the run' })).toExist(),
+    Command.expectExact(
+      RestoreDiscussionPosition({ top: 240 }),
+      FocusTalkBox(),
+    ),
+    Command.resolve(
+      RestoreDiscussionPosition,
+      Message.CompletedRestoreDiscussionPosition(),
+    ),
+    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
   )
 })
