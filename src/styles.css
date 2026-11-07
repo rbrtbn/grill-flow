@@ -2676,3 +2676,10 @@ button.plan-title:hover {
   color: var(--muted);
   font: 500 0.75rem var(--label);
 }
+
+.ref-state {
+  overflow-wrap: anywhere;
+  margin-left: 0.3em;
+  font-weight: 400;
+  white-space: normal;
+}

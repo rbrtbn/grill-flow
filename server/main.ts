@@ -23,6 +23,8 @@ import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { pageDrawings, requestDrawing } from './drawings'
 import { askMessage, pageMessage } from './messages'
+import { readProviderCommand } from './providerReads'
+import { createReferenceReader } from './referenceReader'
 import { startRemotes } from './remote'
 import { createRosterReader, readRosterCommand } from './roster'
 import { SendRequest, selectSend } from './sendSelection'
@@ -164,6 +166,7 @@ const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
 const readRoster = createRosterReader(readRosterCommand)
+const readReferences = createReferenceReader(db, readProviderCommand)
 
 const clientSnapshot = (grill: Grill) => {
   const page = readPage(db, grill.id)
@@ -171,14 +174,21 @@ const clientSnapshot = (grill: Grill) => {
   const sources = page?.members.length
     ? page.members.map(member => member.state.grill.id)
     : [grill.id]
+  const references =
+    PREVIEW || process.env.GF_POLL_PROVIDERS === '0'
+      ? undefined
+      : readReferences(page ?? { state, members: [] })
   return {
     ...state,
+    ...(references === undefined
+      ? {}
+      : { grill: references.grill, referenceReadings: references.readings }),
     ...(state.grill.squad === undefined || PREVIEW
       ? {}
       : { roster: readRoster(state.grill.squad.id) }),
     drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
-    ...attentionSnapshot(db, sources),
+    ...attentionSnapshot(db, sources, Date.now(), references?.readings),
     updates: publishedUpdates(db, sources).map(entry => ({
       ...entry,
       displayBody:

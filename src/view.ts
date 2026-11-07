@@ -290,6 +290,9 @@ const refView = (key: string, ref: Ref, h: H): Html => {
           [GLYPHS[ref.type] ?? ''],
         ),
     key,
+    ...(ref.state === undefined
+      ? []
+      : [h.span([h.Class('ref-state')], [ref.state])]),
   ]
   const attributes = [
     h.Class('ref-link'),

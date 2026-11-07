@@ -3,6 +3,7 @@ import { Schema } from 'effect'
 
 import { type ChannelItem, VetoReceipt } from '../src/channel'
 import { RecordedAnswer, type Snapshot, statusOf } from '../src/domain'
+import { type ProviderReading, referenceKey } from '../src/references'
 import { questionRevisions } from './answerReceipts'
 import { itemHistory, latestItems } from './channel'
 import type { SessionSender } from './delivery'
@@ -295,6 +296,7 @@ const conditionState = (
   db: Database,
   item: Extract<ChannelItem, { kind: 'blocker' }>,
   now: number,
+  providerReadings?: ReadonlyArray<ProviderReading>,
 ): BlockerStatus => {
   const condition = item.condition
   const source = getGrill(db, condition.source)
@@ -379,6 +381,43 @@ const conditionState = (
       proof: progress.proof,
     }
   }
+  const primary = providerReadings?.find(
+    reading =>
+      referenceKey(reading.reference) === referenceKey(condition.reference),
+  )
+  if (primary !== undefined) {
+    if (
+      dependency?.item.kind !== 'evidence' ||
+      referenceKey(dependency.item.reference) !==
+        referenceKey(condition.reference)
+    ) {
+      return unknown(
+        'The named evidence item is unavailable or names a different reference.',
+      )
+    }
+    if (
+      primary.freshness !== 'fresh' ||
+      primary.checkedAt === null ||
+      primary.checkedAt > now ||
+      primary.validUntil === null ||
+      primary.validUntil <= now ||
+      primary.states.includes('unknown') ||
+      ((condition.state === 'passed' || condition.state === 'failed') &&
+        ['unknown', 'not-applicable'].includes(primary.checks))
+    ) {
+      return unknown(
+        'Primary provider evidence is unavailable, stale or unknown.',
+        primary.checkedAt,
+        primary.url,
+      )
+    }
+    return {
+      state: primary.states.includes(condition.state) ? 'clear' : 'blocked',
+      checkedAt: primary.checkedAt,
+      proof: primary.url,
+      detail: `Primary ${primary.reference.provider} evidence is ${primary.status}; checks ${primary.checks}; required ${condition.state}.`,
+    }
+  }
   if (
     dependency?.item.kind !== 'evidence' ||
     dependency.item.state === 'unknown' ||
@@ -407,6 +446,7 @@ export const attentionSnapshot = (
   db: Database,
   sources: ReadonlyArray<string>,
   now = Date.now(),
+  providerReadings?: ReadonlyArray<ProviderReading>,
 ): Pick<Snapshot, 'ownerSteps' | 'decisions' | 'blockers' | 'channelNow'> => {
   const latest = sources.flatMap(source => latestItems(db, source))
   return {
@@ -434,7 +474,7 @@ export const attentionSnapshot = (
             {
               ...entry,
               item: entry.item,
-              ...conditionState(db, entry.item, now),
+              ...conditionState(db, entry.item, now, providerReadings),
             },
           ]
         : [],

@@ -40,6 +40,7 @@ const environment = {
   GF_PORT: String(port),
   GF_PREVIEW: '0',
   GF_POLL_REMOTES: '0',
+  GF_POLL_PROVIDERS: '0',
   GF_SESSION: undefined,
   GF_DIST: join(dir, 'dist'),
 }

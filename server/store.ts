@@ -34,6 +34,7 @@ export type EventKind =
   | 'drawing-requested'
   | 'drawing-delivery'
   | 'drawing-published'
+  | 'reference-checked'
   | 'replied'
   | 'retired'
   | 'restored'

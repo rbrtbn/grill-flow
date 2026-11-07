@@ -31,6 +31,8 @@ Step 4 ships each part separately. Draw this shipped in 318a3c5 with frozen requ
 compare/flow responses; roster, primary-provider refresh and What changed follow in order.
 The roster reads existing Herdr labels through a bounded cache, separates observed Core status
 from explicit page waits and leaves budgets unreported. It adds no terminal actions or storage.
+Live reference refresh uses fixed read-only GitHub/Linear adapters, checked identity, bounded
+queues and normalized source-owned events. Primary evidence cannot satisfy owner or grant work.
 
 ## Shared implementation
 

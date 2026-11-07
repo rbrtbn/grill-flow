@@ -10,6 +10,7 @@ import {
   questionSession,
   roundOf,
 } from '../src/domain'
+import { mergeReferences } from '../src/references'
 import {
   SubmissionConflict,
   freezeSubmission,
@@ -277,7 +278,13 @@ export const readPage = (db: Database, id: string): Page | undefined => {
           `${section.grill.squad!.section}: ${mapText(text, members.find(member => member.state.grill.id === section.grill.id)!.registration.questions)}`,
       ),
     ),
-    refs: merge(sections.map(section => section.grill.refs ?? {})),
+    refs: mergeReferences(
+      sections.map(section => section.grill.refs ?? {}),
+      key => ({
+        text: `${key} names conflicting source references. Open the source page for its exact link.`,
+        state: 'Ambiguous',
+      }),
+    ),
     sources: merge(sections.map(section => section.sources)),
     decided: sections.flatMap(section =>
       (section.grill.decided ?? []).map(decision => ({

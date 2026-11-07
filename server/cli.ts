@@ -194,6 +194,7 @@ switch (command) {
           'GF_DIST',
           'GF_PREVIEW',
           'GF_POLL_REMOTES',
+          'GF_POLL_PROVIDERS',
           'GF_SESSION',
           'GF_MAINTAINER_SESSION',
         ].flatMap(name =>
