@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+/node_modules
 
 # Build outputs
 dist/
@@ -33,3 +33,5 @@ grills/
 
 # Project-local agent tooling: Impeccable (github.com/pbakaus/impeccable) and local settings.
 .claude/
+
+.vite-focus-cache/

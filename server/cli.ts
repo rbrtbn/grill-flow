@@ -22,7 +22,7 @@ const usage = `gf: grill-flow's agent-side commands
   gf up                                start the server unless it already answers
   gf load <grill.json>                 load or replace a grill
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
-  gf revise <grill-id> <step-id | part:<part-id> | card:<card>> --file <path> [--ask <id>] [--kind rewrite|comment]
+  gf revise <grill-id> <step-id | part:<part-id> | card:<card> | run> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
                                        or reply with a comment; a concept takes comments only
   gf reply <grill-id> --file <path>    after a Send arrives: tell the user what you decided and

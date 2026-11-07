@@ -1396,35 +1396,12 @@ textarea::placeholder {
   white-space: nowrap;
   text-decoration: none;
 }
-.ref-link {
-  position: relative;
-}
 a.ref-link:hover {
   text-decoration: underline;
 }
 .ref-glyph {
   font-weight: 400;
   margin-right: 0.2em;
-}
-/* The summary shows on hover and on keyboard focus, while the click still opens the link. */
-.ref-link:hover::after,
-.ref-link:focus-visible::after {
-  content: attr(data-summary);
-  position: absolute;
-  left: 0;
-  top: 1.7em;
-  z-index: 20;
-  width: max-content;
-  max-width: 300px;
-  white-space: normal;
-  font: 500 0.82rem/1.4 var(--label);
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  padding: 8px 10px;
-  box-shadow: 0 8px 20px rgb(0 0 0 / 0.15);
-  pointer-events: none;
 }
 .from {
   font: 600 0.8rem var(--label);

@@ -349,17 +349,19 @@ export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
     (a, b) => a === b,
   )
 
-/** An ask's target that is a whole concept (`part:<id>`) or a whole card (`card:<card>`). */
+/** A conversation about the run, a concept (`part:<id>`) or a card (`card:<card>`). */
 export const isWholeTarget = (target: string): boolean =>
-  target.startsWith('part:') || target.startsWith('card:')
+  target === 'run' || target.startsWith('part:') || target.startsWith('card:')
 
-/** Whether an ask or reply can be about this target: a step, a concept, or a card. */
+/** Whether this grill contains the step, concept, card or whole-run reply target. */
 export const hasTarget = (grill: Grill, target: string): boolean =>
-  target.startsWith('part:')
-    ? grill.parts.some(part => `part:${part.id}` === target)
-    : target.startsWith('card:')
-      ? cardsOf(grill).some(card => `card:${card}` === target)
-      : grill.steps.some(step => step.id === target)
+  target === 'run'
+    ? true
+    : target.startsWith('part:')
+      ? grill.parts.some(part => `part:${part.id}` === target)
+      : target.startsWith('card:')
+        ? cardsOf(grill).some(card => `card:${card}` === target)
+        : grill.steps.some(step => step.id === target)
 
 export const urgencyOf = (question: Question): UrgencyLevel =>
   question.urgency ?? 'unset'
@@ -703,9 +705,10 @@ export const answerLines = (
   answers: Answers,
   notes: Notes,
   own: Notes = {},
+  steps: ReadonlyArray<Step> = roundSteps(grill),
 ): Readonly<Record<string, string>> =>
   Record.fromEntries(
-    Array.flatMap(roundSteps(grill), step => {
+    Array.flatMap(steps, step => {
       const status = statusOf(grill, answers, step.question.id)
       return status._tag === 'Answered'
         ? [
@@ -830,6 +833,11 @@ export type Segment =
   | Readonly<{ _tag: 'Ref'; text: string; ref: Ref }>
   | Readonly<{ _tag: 'Question'; text: string }>
   | Readonly<{ _tag: 'Link'; text: string; url: string }>
+  | Readonly<{
+      _tag: 'Strong' | 'Emphasis'
+      text: string
+      parts: ReadonlyArray<Segment>
+    }>
 
 const escapeRegExp = (text: string): string =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -927,6 +935,92 @@ export const segments = (
     Array.filter(segment => segment.text !== ''),
   )
 
+const mapTextSegments = (
+  parts: ReadonlyArray<Segment>,
+  mark: (text: string) => ReadonlyArray<Segment>,
+): ReadonlyArray<Segment> =>
+  Array.flatMap(parts, (part): ReadonlyArray<Segment> =>
+    part._tag === 'Text'
+      ? mark(part.text)
+      : part._tag === 'Strong' || part._tag === 'Emphasis'
+        ? [
+            {
+              _tag: part._tag,
+              text: part.text,
+              parts: mapTextSegments(part.parts, mark),
+            },
+          ]
+        : [part],
+  )
+
+export const withEmphasis = (
+  parts: ReadonlyArray<Segment>,
+  entities: ReadonlyArray<Entity> = [],
+): ReadonlyArray<Segment> => {
+  const tokens = Array.flatMap(
+    parts,
+    (part): ReadonlyArray<string | Segment> =>
+      part._tag === 'Text'
+        ? part.text
+            .split(/((?<!\\)\*{1,3}|(?<!\\)_{1,3})/g)
+            .filter(text => text !== '')
+            .map(text =>
+              /^(?:\*{1,3}|_{1,3})$/.test(text) ? text : { _tag: 'Text', text },
+            )
+        : [part],
+  )
+  const textAt = (index: number): string => {
+    const token = tokens[index]
+    return typeof token === 'string' ? token : (token?.text ?? '')
+  }
+  const flanks = (index: number, opening: boolean): boolean => {
+    const before = textAt(index - 1).slice(-1)
+    const after = textAt(index + 1).slice(0, 1)
+    const inside = opening ? after : before
+    return (
+      inside !== '' &&
+      !/\s/.test(inside) &&
+      !(textAt(index).startsWith('_') && /\w/.test(before) && /\w/.test(after))
+    )
+  }
+  const parse = (start: number, end: number): ReadonlyArray<Segment> => {
+    const token = tokens[start]
+    if (start >= end || token === undefined) {
+      return []
+    }
+    if (typeof token !== 'string') {
+      return [token, ...parse(start + 1, end)]
+    }
+    const closing =
+      start + 1 < end && flanks(start, true)
+        ? Array.findFirst(
+            Array.range(start + 1, end - 1),
+            index => tokens[index] === token && flanks(index, false),
+          )
+        : Option.none()
+    return Option.match(closing, {
+      onNone: () => [{ _tag: 'Text', text: token }, ...parse(start + 1, end)],
+      onSome: index => {
+        const children = parse(start + 1, index)
+        const text = children.map(part => part.text).join('')
+        const emphasized: Segment = { _tag: 'Emphasis', text, parts: children }
+        const formatted: Segment =
+          token.length === 1
+            ? emphasized
+            : {
+                _tag: 'Strong',
+                text,
+                parts: token.length === 3 ? [emphasized] : children,
+              }
+        return [formatted, ...parse(index + 1, end)]
+      },
+    })
+  }
+  return mapTextSegments(parse(0, tokens.length), text =>
+    splitEntities(text.replace(/\\([*_])/g, '$1'), entities),
+  )
+}
+
 const refPatternCache = new WeakMap<Readonly<Record<string, Ref>>, RegExp>()
 
 const refPattern = (refs: Readonly<Record<string, Ref>>): RegExp => {
@@ -954,19 +1048,17 @@ export const withRefs = (
     return parts
   }
   const pattern = refPattern(refs)
-  return Array.flatMap(parts, (segment): ReadonlyArray<Segment> =>
-    segment._tag !== 'Text'
-      ? [segment]
-      : pipe(
-          segment.text.split(pattern),
-          Array.map((text, index): Segment => {
-            const ref = refs[text]
-            return index % 2 === 1 && ref !== undefined
-              ? { _tag: 'Ref', text, ref }
-              : { _tag: 'Text', text }
-          }),
-          Array.filter(part => part.text !== ''),
-        ),
+  return mapTextSegments(parts, text =>
+    pipe(
+      text.split(pattern),
+      Array.map((text, index): Segment => {
+        const ref = refs[text]
+        return index % 2 === 1 && ref !== undefined
+          ? { _tag: 'Ref', text, ref }
+          : { _tag: 'Text', text }
+      }),
+      Array.filter(part => part.text !== ''),
+    ),
   )
 }
 
@@ -982,18 +1074,14 @@ export const withQuestions = (
   const pattern = new RegExp(
     `(?<![\\w-])(${Array.join(Array.map(ids, escapeRegExp), '|')})(?![\\w-])`,
   )
-  return Array.flatMap(parts, (segment): ReadonlyArray<Segment> =>
-    segment._tag !== 'Text'
-      ? [segment]
-      : pipe(
-          segment.text.split(pattern),
-          Array.map((text, index): Segment =>
-            index % 2 === 1
-              ? { _tag: 'Question', text }
-              : { _tag: 'Text', text },
-          ),
-          Array.filter(part => part.text !== ''),
-        ),
+  return mapTextSegments(parts, text =>
+    pipe(
+      text.split(pattern),
+      Array.map((text, index): Segment =>
+        index % 2 === 1 ? { _tag: 'Question', text } : { _tag: 'Text', text },
+      ),
+      Array.filter(part => part.text !== ''),
+    ),
   )
 }
 
@@ -1364,12 +1452,9 @@ export const withTerms = (
   }
   const pattern = termPattern(terms)
   const marked = new Set<string>()
-  return Array.flatMap(parts, (part): ReadonlyArray<Segment> => {
-    if (part._tag !== 'Text') {
-      return [part]
-    }
-    return Array.flatMap(
-      part.text.split(pattern),
+  return mapTextSegments(parts, text =>
+    Array.flatMap(
+      text.split(pattern),
       (piece, index): ReadonlyArray<Segment> => {
         if (piece === '') {
           return []
@@ -1388,8 +1473,8 @@ export const withTerms = (
         marked.add(term.term)
         return [{ _tag: 'Term', text: piece, term }]
       },
-    )
-  })
+    ),
+  )
 }
 
 // RELATIONS

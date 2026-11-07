@@ -56,6 +56,7 @@ import {
   urgencyOf,
   urgencyRank,
   usesUrgency,
+  withEmphasis,
   withQuestions,
   withRefs,
   withTerms,
@@ -71,7 +72,6 @@ import {
   DECIDED,
   FillBox,
   ISSUE_PAGE,
-  LONG_CONCEPT,
   Message,
   OVERVIEW,
   PLAN,
@@ -87,6 +87,8 @@ import {
   threadDraftKey,
   unreadMessagesOf,
 } from './main'
+import { isWorkspacePage } from './workspace'
+import { workspaceView } from './workspaceView'
 
 type H = HtmlBuilder<MessageType>
 
@@ -141,8 +143,11 @@ const tipBody = (
   Array.map(
     withQuestions(
       links
-        ? withRefs(segments(text, grill.entities), grill.refs)
-        : segments(text, grill.entities),
+        ? withRefs(
+            withEmphasis(segments(text, grill.entities), grill.entities),
+            grill.refs,
+          )
+        : withEmphasis(segments(text, grill.entities), grill.entities),
       grill,
     ),
     segment => segmentView(segment, grill, { tips: false, links }, h),
@@ -157,6 +162,16 @@ const segmentView = (
   Match.value(segment).pipe(
     Match.tagsExhaustive({
       Code: ({ text }) => h.code([], [text]),
+      Strong: ({ parts }) =>
+        h.strong(
+          [],
+          Array.map(parts, part => segmentView(part, grill, mode, h)),
+        ),
+      Emphasis: ({ parts }) =>
+        h.em(
+          [],
+          Array.map(parts, part => segmentView(part, grill, mode, h)),
+        ),
       Entity: ({ text, entity }) => {
         const tone = `entity tone-${entity.tone}`
         return mode.tips
@@ -189,7 +204,9 @@ const segmentView = (
                 h.Target('_blank'),
                 h.Rel('noreferrer'),
               ],
-              [text],
+              Array.map(withEmphasis([{ _tag: 'Text', text }]), part =>
+                segmentView(part, grill, { tips: false, links: false }, h),
+              ),
             )
           : text,
       Question: ({ text: id }) =>
@@ -251,7 +268,7 @@ const refView = (key: string, ref: Ref, h: H): Html => {
   ]
   const attributes = [
     h.Class('ref-link'),
-    h.DataAttribute('summary', refSummary(key, ref)),
+    h.Title(refSummary(key, ref)),
     h.AriaLabel(refSummary(key, ref)),
   ]
   return ref.url === undefined
@@ -367,7 +384,10 @@ const inline = (
   Array.map(
     withQuestions(
       withRefs(
-        withTerms(segments(text, grill.entities), grill.terms),
+        withTerms(
+          withEmphasis(segments(text, grill.entities), grill.entities),
+          grill.terms,
+        ),
         grill.refs,
       ),
       grill,
@@ -380,8 +400,9 @@ const plain = (
   grill: Grill,
   h: H,
 ): ReadonlyArray<Html | string> =>
-  Array.map(segments(text, grill.entities), segment =>
-    segmentView(segment, grill, { tips: true, links: false }, h),
+  Array.map(
+    withEmphasis(segments(text, grill.entities), grill.entities),
+    segment => segmentView(segment, grill, { tips: true, links: false }, h),
   )
 
 const paragraphView = (paragraph: string, grill: Grill, h: H): Html => {
@@ -428,6 +449,7 @@ const proseContext = (
       ),
   }),
   entities: grill.entities,
+  showTitles: isWorkspacePage(model.currentPart),
 })
 
 /** Agent-written text with its ```diagram blocks drawn and its paragraph titles kept. */
@@ -518,10 +540,7 @@ const isOpen = (model: Model, grill: Grill, step: Step): boolean => {
     onSome: open => open,
     onNone: () => {
       const status = statusIn(model, grill, id)
-      if (status._tag === 'Answered' || status._tag === 'NotNeeded') {
-        return false
-      }
-      return stepsIn(grill, step.part).length <= LONG_CONCEPT
+      return status._tag !== 'Answered' && status._tag !== 'NotNeeded'
     },
   })
 }
@@ -723,6 +742,90 @@ const toSession = (grill: Grill): string =>
 
 const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const grill = snapshot.grill
+  if (isWorkspacePage(model.currentPart)) {
+    return workspaceView(
+      model,
+      snapshot,
+      {
+        source: (step, builder) =>
+          step.question.from === undefined
+            ? builder.span(
+                [],
+                [grill.session === '' ? 'Agent' : `Session ${grill.session}`],
+              )
+            : fromView(model, grill, step, builder),
+        heading: (text, builder) =>
+          withRefs(
+            withTerms(
+              withEmphasis(segments(text, grill.entities), grill.entities),
+              grill.terms,
+            ),
+            grill.refs,
+          ).map(segment =>
+            segmentView(segment, grill, { tips: true, links: true }, builder),
+          ),
+        inline: (text, builder) => inline(text, grill, builder),
+        prose: (text, builder) =>
+          h.div(
+            [h.Class('prose')],
+            richProse(
+              model,
+              grill,
+              splitParagraphs(text),
+              'workspace',
+              Option.none(),
+              builder,
+            ),
+          ),
+        answer: (text, builder) => plain(text, grill, builder),
+        status: (step, builder) =>
+          statusLine(
+            model,
+            grill,
+            step,
+            statusIn(model, grill, step.question.id),
+            builder,
+          ),
+        comparison: (step, builder) =>
+          step.question.compare === undefined
+            ? builder.empty
+            : compareView(
+                step.question.compare,
+                step.question.options.map(option => ({
+                  key: option.key,
+                  label: `${option.key} · ${plainLabel(option.label)}`,
+                  recommended: option.recommended,
+                })),
+                Option.filter(
+                  Record.get(model.answers, step.question.id),
+                  key =>
+                    step.question.options.some(option => option.key === key),
+                ),
+                grill.entities,
+                builder,
+              ),
+        related: (step, builder) =>
+          hasOutside(snapshot, step)
+            ? outsideView(model, snapshot, step, builder)
+            : builder.empty,
+        reasoning: (step, builder) =>
+          reasoningView(model, snapshot, step, builder),
+        thread: (target, builder) =>
+          saidOn(
+            model,
+            snapshot,
+            target,
+            grill.steps.find(step => step.id === target)?.question.id ?? target,
+            builder,
+          ).map(message => saidView(message, builder)),
+        overview: builder => overviewView(model, snapshot, builder),
+        decided: builder => decidedPageView(model, snapshot, builder),
+        resize: (edge, builder) => resizeHandleView(model, edge, builder),
+        notices: builder => toastsView(model, snapshot, builder),
+      },
+      h,
+    )
+  }
   const maybePart = currentPartOf(model, grill)
   const side =
     model.side === 'Map'
@@ -2739,7 +2842,9 @@ const diffLineView = (
   h: H,
 ): ReadonlyArray<Html | string> =>
   Array.map(line, part => {
-    const content = plain(part.text, grill, h)
+    const content = Array.map(segments(part.text, grill.entities), segment =>
+      segmentView(segment, grill, { tips: true, links: false }, h),
+    )
     return part._tag === 'Added'
       ? h.ins([], content)
       : part._tag === 'Removed'

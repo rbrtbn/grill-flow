@@ -177,9 +177,10 @@ When questions are about Linear issues or PRs, any grill can add:
 - `issue` on each question: the `refs` key of the issue it is about. Parts
   stay concepts; the sidebar then also lists the questions by issue.
 - `refs`: every Linear id, PR or ADR the text names, as `{text, url, state,
-  type}`, where `type` is Linear's state type or `pr`. Each mention links to
-  `url` and shows its state on hover. Look the states up at every load and
-  set `refsAt` to that time.
+  type}`, where `type` is Linear's state type or `pr`. `text` is the full
+  issue, PR or ADR title; the map key supplies its ID. Each mention links to
+  `url` and shows its title and state on hover. Look titles and states up at
+  every load and set `refsAt` to that time.
 - `decided`: the earlier decisions as `{id, text}`, listed under Decided so
   far.
 

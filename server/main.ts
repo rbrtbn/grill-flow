@@ -12,6 +12,7 @@ import {
 import { dashboard } from './dashboard'
 import { askMessage } from './messages'
 import { startRemotes } from './remote'
+import { selectSend } from './sendSelection'
 import {
   ROOT,
   appendEvent,
@@ -23,10 +24,13 @@ import {
 } from './store'
 
 const PORT = Number(process.env.GF_PORT ?? 4317)
+const PREVIEW = process.env.GF_PREVIEW === '1'
 const HOST = '127.0.0.1'
+// Cookies ignore ports; previews must not replace the live server's write cookie.
+const COOKIE_NAME = PORT === 4317 ? 'gf_token' : `gf_token_${PORT}`
 const DIST = join(ROOT, 'dist')
 const db = open()
-startRemotes(db)
+if (!PREVIEW) startRemotes(db)
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
@@ -49,7 +53,7 @@ const cookieToken = (request: Request): string | undefined =>
   (request.headers.get('cookie') ?? '')
     .split(';')
     .map(part => part.trim().split('='))
-    .find(([name]) => name === 'gf_token')?.[1]
+    .find(([name]) => name === COOKIE_NAME)?.[1]
 
 const writeAllowed = (request: Request): boolean => {
   const origin = request.headers.get('origin')
@@ -93,10 +97,16 @@ const page = (): Response => {
       status: 503,
     })
   }
-  return new Response(Bun.file(index), {
+  const content = PREVIEW
+    ? readFileSync(index, 'utf8').replace(
+        '<body>',
+        '<body data-gf-preview="true"><div class="f-preview-notice" role="status">Working preview · copied data · sends stay local</div>',
+      )
+    : Bun.file(index)
+  return new Response(content, {
     headers: {
       'content-type': 'text/html; charset=utf-8',
-      'set-cookie': `gf_token=${token}; Path=/; HttpOnly; SameSite=Strict`,
+      'set-cookie': `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict`,
     },
   })
 }
@@ -140,7 +150,7 @@ const sendToSession = async (
 }
 
 const sessionFor = (grillSession: string): string =>
-  process.env.GF_SESSION ?? grillSession
+  PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
 const handleEvent = async (
   grillId: string,
@@ -222,8 +232,6 @@ const gfFor = (grillId: string): string | undefined => {
     : `GF_OUTBOX=${dirname(remote.dir)} bun run --cwd ~/repos/rbrtbn/grill-flow gf`
 }
 
-const MESSAGE_LIMIT = 4000
-
 const handleSend = async (
   grillId: string,
   request: Request,
@@ -232,23 +240,15 @@ const handleSend = async (
   if (!grill) {
     return json({ error: 'no such grill' }, 404)
   }
-  const body = (await request.json()) as Record<string, unknown>
-  const message =
-    typeof body.message === 'string'
-      ? body.message.trim().slice(0, MESSAGE_LIMIT)
-      : ''
-  const state = snapshot(db, grill)
-  const reply = replyText(
-    grill,
-    state.answers,
-    state.notes,
-    state.own,
-    state.sent,
-  )
+  const body: unknown = await request.json().catch(() => null)
+  const selection = selectSend(snapshot(db, grill), body)
+  if (!selection.ok) {
+    return json({ error: selection.error }, selection.status)
+  }
   const gf = gfFor(grillId) ?? `bun run --cwd ${ROOT} gf`
   const text = [
     `[grill-flow] Answers from the ${grill.title} page:`,
-    sentAnswers(reply, message),
+    sentAnswers(selection.reply, selection.message),
     `Once you've taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run`,
     `${gf} reply ${grill.id} --file <path>`,
   ].join('\n')
@@ -257,7 +257,7 @@ const handleSend = async (
     ...result,
     what: 'answers',
     text,
-    lines: answerLines(grill, state.answers, state.notes, state.own),
+    lines: selection.lines,
   })
   return json(snapshot(db, grill))
 }
