@@ -56,6 +56,7 @@ import {
   urgencyOf,
   urgencyRank,
   usesUrgency,
+  withEmphasis,
   withQuestions,
   withRefs,
   withTerms,
@@ -71,7 +72,6 @@ import {
   DECIDED,
   FillBox,
   ISSUE_PAGE,
-  LONG_CONCEPT,
   Message,
   OVERVIEW,
   PLAN,
@@ -141,8 +141,11 @@ const tipBody = (
   Array.map(
     withQuestions(
       links
-        ? withRefs(segments(text, grill.entities), grill.refs)
-        : segments(text, grill.entities),
+        ? withRefs(
+            withEmphasis(segments(text, grill.entities), grill.entities),
+            grill.refs,
+          )
+        : withEmphasis(segments(text, grill.entities), grill.entities),
       grill,
     ),
     segment => segmentView(segment, grill, { tips: false, links }, h),
@@ -157,6 +160,16 @@ const segmentView = (
   Match.value(segment).pipe(
     Match.tagsExhaustive({
       Code: ({ text }) => h.code([], [text]),
+      Strong: ({ parts }) =>
+        h.strong(
+          [],
+          Array.map(parts, part => segmentView(part, grill, mode, h)),
+        ),
+      Emphasis: ({ parts }) =>
+        h.em(
+          [],
+          Array.map(parts, part => segmentView(part, grill, mode, h)),
+        ),
       Entity: ({ text, entity }) => {
         const tone = `entity tone-${entity.tone}`
         return mode.tips
@@ -189,7 +202,9 @@ const segmentView = (
                 h.Target('_blank'),
                 h.Rel('noreferrer'),
               ],
-              [text],
+              Array.map(withEmphasis([{ _tag: 'Text', text }]), part =>
+                segmentView(part, grill, { tips: false, links: false }, h),
+              ),
             )
           : text,
       Question: ({ text: id }) =>
@@ -251,7 +266,7 @@ const refView = (key: string, ref: Ref, h: H): Html => {
   ]
   const attributes = [
     h.Class('ref-link'),
-    h.DataAttribute('summary', refSummary(key, ref)),
+    h.Title(refSummary(key, ref)),
     h.AriaLabel(refSummary(key, ref)),
   ]
   return ref.url === undefined
@@ -367,7 +382,10 @@ const inline = (
   Array.map(
     withQuestions(
       withRefs(
-        withTerms(segments(text, grill.entities), grill.terms),
+        withTerms(
+          withEmphasis(segments(text, grill.entities), grill.entities),
+          grill.terms,
+        ),
         grill.refs,
       ),
       grill,
@@ -380,8 +398,9 @@ const plain = (
   grill: Grill,
   h: H,
 ): ReadonlyArray<Html | string> =>
-  Array.map(segments(text, grill.entities), segment =>
-    segmentView(segment, grill, { tips: true, links: false }, h),
+  Array.map(
+    withEmphasis(segments(text, grill.entities), grill.entities),
+    segment => segmentView(segment, grill, { tips: true, links: false }, h),
   )
 
 const paragraphView = (paragraph: string, grill: Grill, h: H): Html => {
@@ -518,10 +537,7 @@ const isOpen = (model: Model, grill: Grill, step: Step): boolean => {
     onSome: open => open,
     onNone: () => {
       const status = statusIn(model, grill, id)
-      if (status._tag === 'Answered' || status._tag === 'NotNeeded') {
-        return false
-      }
-      return stepsIn(grill, step.part).length <= LONG_CONCEPT
+      return status._tag !== 'Answered' && status._tag !== 'NotNeeded'
     },
   })
 }
@@ -2739,7 +2755,9 @@ const diffLineView = (
   h: H,
 ): ReadonlyArray<Html | string> =>
   Array.map(line, part => {
-    const content = plain(part.text, grill, h)
+    const content = Array.map(segments(part.text, grill.entities), segment =>
+      segmentView(segment, grill, { tips: true, links: false }, h),
+    )
     return part._tag === 'Added'
       ? h.ins([], content)
       : part._tag === 'Removed'

@@ -68,7 +68,29 @@ export const open = (): Database => {
 export const decodeGrill = Schema.decodeUnknownSync(Grill)
 
 export const loadGrill = (db: Database, raw: unknown): Grill => {
-  const grill = decodeGrill(raw)
+  const decoded = decodeGrill(raw)
+  const previous = getGrill(db, decoded.id)
+  const hasTitle = (key: string, text: string): boolean =>
+    text.trim() !== '' && text.trim() !== key
+  const grill =
+    decoded.refs === undefined
+      ? decoded
+      : {
+          ...decoded,
+          refs: Object.fromEntries(
+            Object.entries(decoded.refs).map(([key, ref]) => {
+              const title = previous?.refs?.[key]?.text
+              return [
+                key,
+                !hasTitle(key, ref.text) &&
+                title !== undefined &&
+                hasTitle(key, title)
+                  ? { ...ref, text: title }
+                  : ref,
+              ]
+            }),
+          ),
+        }
   db.run(
     'INSERT INTO grills (id, json, loaded_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, loaded_at = excluded.loaded_at',
     [grill.id, JSON.stringify(grill), Date.now()],

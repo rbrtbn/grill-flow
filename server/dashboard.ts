@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import { hostname } from 'node:os'
 
-import { tally } from '../src/domain'
+import { answerLines, isSent, roundSteps, tally } from '../src/domain'
 import { getGrill, lastActivity, listGrills, snapshot } from './store'
 
 const THIS_HOST = hostname().split('.')[0] ?? 'this machine'
@@ -82,6 +82,9 @@ type Row = Readonly<{
   round: number
   answered: number
   needed: number
+  sent: number
+  unsent: number
+  readyToSend: number
   pendingAsks: number
   at: number
 }>
@@ -113,8 +116,13 @@ const rows = (
       const grill = getGrill(db, id)
       if (!grill) return []
       const state = snapshot(db, grill)
-      // Counted as the page's top bar counts them, so the two agree.
-      const counts = tally(grill, state.answers)
+      const steps = roundSteps(grill)
+      const counts = tally(grill, state.answers, [], steps)
+      const lines = answerLines(grill, state.answers, state.notes, state.own)
+      const sent = steps.filter(step =>
+        isSent(state.sent ?? {}, lines, step.question.id),
+      ).length
+      const needed = counts.total - counts.notNeeded
       return [
         {
           host: remoteHost(db, id) ?? THIS_HOST,
@@ -124,7 +132,10 @@ const rows = (
           kind: grill.kind ?? 'decision',
           round: grill.round,
           answered: counts.answered,
-          needed: counts.total - counts.notNeeded,
+          needed,
+          sent,
+          unsent: needed - sent,
+          readyToSend: counts.answered - sent,
           pendingAsks: state.asks.filter(ask => !ask.answered).length,
           at: lastActivity(db, id),
         },
@@ -132,8 +143,10 @@ const rows = (
     })
     .sort((a, b) => b.at - a.at)
 
+const isArchived = (row: Row): boolean => row.needed > 0 && row.unsent === 0
+
 const rowHtml = (row: Row, now: number): string => {
-  const done = row.needed > 0 && row.answered === row.needed
+  const done = isArchived(row)
   const asks =
     row.pendingAsks > 0
       ? ` · ${row.pendingAsks} ask${row.pendingAsks === 1 ? '' : 's'} waiting`
@@ -143,9 +156,28 @@ const rowHtml = (row: Row, now: number): string => {
     <span class="title">${escape(row.title)}</span>
     <span class="who">${escape(row.who)}</span>
     <span class="meta">${row.kind === 'squad' ? 'squad' : 'decision'} · round ${row.round}${asks} · ${ago(row.at, now)}</span>
-    <span class="count${done ? ' done' : ''}">${row.answered}/${row.needed}</span>
+    <span class="progress">
+      <span class="count${done ? ' done' : ''}">${row.answered}/${row.needed} answered</span>
+      <span class="delivery${done ? ' done' : ''}">${done ? `All ${row.sent} sent` : row.needed === 0 ? 'No questions to send' : `${row.unsent} not sent`}</span>
+      ${row.readyToSend > 0 ? `<span class="ready">${row.readyToSend} ready to send</span>` : ''}
+    </span>
   </a>
 </li>`
+}
+
+const hostHtml = (
+  host: string,
+  list: ReadonlyArray<Row>,
+  now: number,
+): string => {
+  const onHost = list.filter(row => row.host === host)
+  const active = onHost.filter(row => !isArchived(row))
+  const archived = onHost.filter(isArchived)
+  return `<section>
+<h2>${escape(host)}${host === THIS_HOST ? ' <span class="here">this machine</span>' : ' <span class="here">pulled over hc</span>'}</h2>
+${active.length > 0 ? `<ul class="active">${active.map(row => rowHtml(row, now)).join('\n')}</ul>` : '<p class="empty">All grillings archived.</p>'}
+${archived.length > 0 ? `<details class="archive"><summary>Archived <span class="here">${archived.length}</span></summary><ul>${archived.map(row => rowHtml(row, now)).join('\n')}</ul></details>` : ''}
+</section>`
 }
 
 // The tokens and fonts mirror src/styles.css; this page is served without the app bundle.
@@ -159,17 +191,7 @@ export const dashboard = async (db: Database): Promise<Response> => {
   const body =
     list.length === 0
       ? '<p class="empty">No grills loaded yet. Load one with <code>bun run gf load &lt;file&gt;</code>.</p>'
-      : hosts
-          .map(
-            host => `<section>
-<h2>${escape(host)}${host === THIS_HOST ? ' <span class="here">this machine</span>' : ' <span class="here">pulled over hc</span>'}</h2>
-<ul>${list
-              .filter(row => row.host === host)
-              .map(row => rowHtml(row, now))
-              .join('\n')}</ul>
-</section>`,
-          )
-          .join('\n')
+      : hosts.map(host => hostHtml(host, list, now)).join('\n')
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -214,13 +236,27 @@ a:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 section { display: grid; gap: 8px; margin-bottom: 28px; }
 h2 { font: 700 1.05rem var(--label); margin: 0; }
 .here { font: 500 0.85rem var(--label); color: var(--muted); margin-left: 6px; }
-.count {
+.progress {
   grid-row: 1 / 4; grid-column: 2; align-self: center;
+  display: grid; justify-items: end; gap: 4px;
+  font: 600 0.9rem var(--label);
+}
+.count {
   font: 600 0.95rem var(--label); color: var(--muted);
   border: 1.5px solid var(--rule); border-radius: 999px; padding: 2px 10px;
 }
 .count.done { color: var(--paper); background: var(--link); border-color: var(--link); }
-.empty { color: var(--muted); }
+.delivery { color: var(--link); }
+.delivery.done { color: var(--muted); }
+.ready { color: var(--ink); }
+.archive { margin-top: 4px; }
+.archive summary {
+  cursor: pointer; padding: 8px;
+  font: 600 0.95rem var(--label); color: var(--muted);
+}
+.archive summary:hover { color: var(--link); }
+.archive summary:focus-visible { outline: 2px solid var(--link); }
+.empty { color: var(--muted); margin: 0; }
 code { font-size: 0.9em; }
 </style>
 </head>

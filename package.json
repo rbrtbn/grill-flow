@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt",
-    "test": "vitest run",
+    "test": "vitest run && bun test server",
     "lint": "oxlint src && effect-tsgo patch --no-typescript --oxlint && oxlint --config .oxlintrc.effect.json --deny-warnings src",
     "serve": "bun server/main.ts",
     "dev": "bun server/main.ts --watch",

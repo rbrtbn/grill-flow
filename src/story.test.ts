@@ -11,6 +11,7 @@ import {
   PageData,
   SaveClosedLine,
   SaveSidebarWidths,
+  ScrollToWhy,
   init,
   update,
 } from './main'
@@ -49,6 +50,71 @@ describe('folding a question on the page', () => {
       model(current => {
         expect(current.whyOpen['step-q2']).toBe(false)
       }),
+    )
+  })
+})
+
+describe('Talk following the question page', () => {
+  it('opens previously folded reasoning and scrolls Talk to the unanswered question', () => {
+    story(
+      update,
+      given({
+        ...loaded,
+        currentPart: 'part-2',
+        side: 'Talk',
+        whyOpen: { 'step-q2': false },
+      }),
+      message(Message.ScrolledToAbout({ partId: 'part-2', about: 'Q2' })),
+      model(current => {
+        expect(current.talkAbout['part-2']).toBe('Q2')
+        expect(current.whyOpen['step-q2']).toBe(true)
+      }),
+      Command.expectExact(ScrollToWhy({ stepId: 'step-q2' })),
+      Command.resolve(ScrollToWhy, Message.CompletedScroll()),
+      message(Message.ScrolledToAbout({ partId: 'part-2', about: 'Q3' })),
+      model(current => {
+        expect(current.talkAbout['part-2']).toBe('Q3')
+        expect(current.whyOpen['step-q3']).toBe(true)
+      }),
+      Command.expectExact(ScrollToWhy({ stepId: 'step-q3' })),
+      Command.resolve(ScrollToWhy, Message.CompletedScroll()),
+    )
+  })
+
+  it('follows a question from another concept on a card page', () => {
+    story(
+      update,
+      given({ ...loaded, currentPart: 'card:work', side: 'Talk' }),
+      message(Message.ScrolledToQuestion({ question: 'Q2' })),
+      model(current => {
+        expect(current.maybeTalkPart).toEqual(Option.some('part-2'))
+        expect(current.talkAbout['card:work']).toBe('Q2')
+        expect(current.whyOpen['step-q2']).toBe(true)
+      }),
+      Command.expectExact(ScrollToWhy({ stepId: 'step-q2' })),
+      Command.resolve(ScrollToWhy, Message.CompletedScroll()),
+    )
+  })
+
+  it('leaves answered questions and a closed Talk panel alone', () => {
+    story(
+      update,
+      given({ ...loaded, side: 'Talk', answers: { Q1: 'a' } }),
+      message(Message.ScrolledToAbout({ partId: 'part-1', about: 'Q1' })),
+      model(current => {
+        expect(current.whyOpen['step-q1']).toBeUndefined()
+      }),
+      Command.expectNone(),
+    )
+    story(
+      update,
+      given({ ...loaded, side: 'None' }),
+      message(Message.ScrolledToQuestion({ question: 'Q2' })),
+      model(current => {
+        expect(current.whyOpen['step-q2']).toBeUndefined()
+        expect(current.talkAbout).toEqual({})
+      }),
+      Command.expectNone(),
     )
   })
 })

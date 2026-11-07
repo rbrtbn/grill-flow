@@ -4,6 +4,7 @@ import {
   Duration,
   Effect,
   Option,
+  Order,
   Record,
   Result,
   Schema,
@@ -22,6 +23,7 @@ import {
   Url,
 } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
+import { afterCommit } from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 
 import { DiagramView } from './diagram'
@@ -42,9 +44,6 @@ import {
 } from './domain'
 
 const POLL_INTERVAL = Duration.seconds(4)
-
-// A concept with more questions than this opens as rows, one question at a time.
-export const LONG_CONCEPT = 6
 
 export const OVERVIEW = 'overview'
 // A squad grill with a plan gets a page of which builds wait on what.
@@ -384,7 +383,7 @@ const openAnswer = (
       onSome: step => {
         const question = step.question.id
         const page = pageForQuestion(model, snapshot, question)
-        const moved = goTo(openQuestion(model, snapshot, question), grill, page)
+        const moved = goTo(openQuestion(model, question), grill, page)
         return modifyFields(moved, {
           side: () => 'Talk',
           whyOpen: Record.set(step.id, true),
@@ -396,29 +395,39 @@ const openAnswer = (
   )
 }
 
-/** Open one question; in a long concept, close the others so one is open at a time. */
-const openQuestion = (
+const openQuestion = (model: Model, question: string): Model =>
+  modifyFields(model, { expanded: Record.set(question, true) })
+
+const followQuestion = (
   model: Model,
   snapshot: Snapshot,
+  partId: string,
   question: string,
-): Model => {
-  const partId = Option.getOrElse(partOf(snapshot, question), () => '')
-  const siblings = questionsIn(snapshot, partId)
-  const closed =
-    siblings.length > LONG_CONCEPT
-      ? Array.reduce(siblings, model.expanded, (expanded, id) =>
-          Record.set(expanded, id, false),
-        )
-      : model.expanded
-  return modifyFields(
-    siblings.length > LONG_CONCEPT
-      ? forgetAbout(
-          model,
-          Array.filter(siblings, id => id !== question),
-        )
-      : model,
-    { expanded: () => Record.set(closed, question, true) },
+): UpdateReturn => {
+  const status = statusOf(
+    snapshot.grill,
+    model.answers,
+    question,
+    model.skipped,
   )
+  if (
+    model.side !== 'Talk' ||
+    (status._tag !== 'Open' && status._tag !== 'Waiting') ||
+    Array.contains(model.skipped, question)
+  ) {
+    return { model }
+  }
+  return Option.match(stepIdOf(snapshot, question), {
+    onNone: () => ({ model }),
+    onSome: stepId => ({
+      model: modifyFields(model, {
+        maybeTalkPart: () => Option.some(partId),
+        talkAbout: Record.set(talkKeyOf(model.currentPart, partId), question),
+        whyOpen: Record.set(stepId, true),
+      }),
+      commands: [ScrollToWhy({ stepId })],
+    }),
+  })
 }
 
 const withSnapshot = (
@@ -603,23 +612,22 @@ export const update = (model: Model, message: Message) =>
 
     CompletedFillBox: () => ({ model }),
 
-    ScrolledToAbout: ({ partId, about }) => ({
-      model: modifyFields(model, { talkAbout: Record.set(partId, about) }),
-    }),
+    ScrolledToAbout: ({ partId, about }) =>
+      about === 'concept'
+        ? {
+            model: modifyFields(model, {
+              talkAbout: Record.set(partId, about),
+            }),
+          }
+        : withSnapshot(model, snapshot =>
+            followQuestion(model, snapshot, partId, about),
+          ),
 
     ScrolledToQuestion: ({ question }) =>
       withSnapshot(model, snapshot =>
         Option.match(partOf(snapshot, question), {
           onNone: () => ({ model }),
-          onSome: partId => ({
-            model: modifyFields(model, {
-              maybeTalkPart: () => Option.some(partId),
-              talkAbout: Record.set(
-                talkKeyOf(model.currentPart, partId),
-                question,
-              ),
-            }),
-          }),
+          onSome: partId => followQuestion(model, snapshot, partId, question),
         }),
       ),
 
@@ -702,7 +710,7 @@ export const update = (model: Model, message: Message) =>
         const step = maybeStep.value
         const question = step.question.id
         return {
-          model: modifyFields(openQuestion(folded, snapshot, question), {
+          model: modifyFields(openQuestion(folded, question), {
             talkAbout: Record.set(
               talkKeyOf(model.currentPart, step.part),
               question,
@@ -807,7 +815,7 @@ export const update = (model: Model, message: Message) =>
       withSnapshot(model, snapshot => {
         const toggled = modifyFields(
           open
-            ? openQuestion(model, snapshot, question)
+            ? openQuestion(model, question)
             : modifyFields(forgetAbout(model, [question]), {
                 expanded: Record.set(question, false),
               }),
@@ -852,7 +860,7 @@ export const update = (model: Model, message: Message) =>
           {
             onNone: () => ({ model: skippedModel }),
             onSome: next => ({
-              model: openQuestion(skippedModel, snapshot, next),
+              model: openQuestion(skippedModel, next),
               commands: [ScrollToQuestion({ question: next })],
             }),
           },
@@ -1099,7 +1107,7 @@ export const update = (model: Model, message: Message) =>
       withSnapshot(model, snapshot => {
         const next = modifyFields(
           goTo(
-            openQuestion(model, snapshot, question),
+            openQuestion(model, question),
             snapshot.grill,
             pageForQuestion(model, snapshot, question),
           ),
@@ -1129,7 +1137,7 @@ export const update = (model: Model, message: Message) =>
     ClickedMapNode: ({ question }) =>
       withSnapshot(model, snapshot => {
         const next = goTo(
-          openQuestion(model, snapshot, question),
+          openQuestion(model, question),
           snapshot.grill,
           pageForQuestion(model, snapshot, question),
         )
@@ -1149,7 +1157,7 @@ export const update = (model: Model, message: Message) =>
           onNone: () => ({ model }),
           onSome: partId => {
             const next = goTo(
-              openQuestion(model, snapshot, question),
+              openQuestion(model, question),
               snapshot.grill,
               partId,
             )
@@ -1589,7 +1597,25 @@ export const ScrollToWhy = Command.define('ScrollToWhy', {
   messages: [Message.CompletedScroll],
   execute: ({ stepId }) =>
     pipe(
-      Dom.scrollIntoViewAfterPaint(`#why-${stepId}`),
+      afterCommit,
+      Effect.andThen(() =>
+        Effect.try(() => {
+          const thread = document.getElementById(`why-${stepId}`)
+          const messages = thread?.closest('.messages')
+          if (thread === null || messages === null || messages === undefined) {
+            return
+          }
+          // Scrolling an ancestor chain would also move the question page.
+          messages.scrollTo({
+            top:
+              messages.scrollTop +
+              thread.getBoundingClientRect().top -
+              messages.getBoundingClientRect().top -
+              16,
+            behavior: 'instant',
+          })
+        }),
+      ),
       Effect.catch(() => Effect.void),
       Effect.map(() => Message.CompletedScroll()),
     ),
@@ -2115,38 +2141,50 @@ const pointerLeft = (
 }
 
 /**
- * What the reader is on: the concept while its title shows, else the question under a reading
- * line a third of the way down the view, or the nearest one to it.
+ * Visible unanswered questions take precedence over the concept title. A reading line a third
+ * of the way down the view keeps Talk stable while a question spans several screens.
  */
 const onScreenAbout = (): Option.Option<string> => {
   const barBottom =
     document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0
   const title = document.querySelector('.concept-title')
-  if (title !== null && title.getBoundingClientRect().bottom > barBottom) {
-    return Option.some('concept')
-  }
   const line = barBottom + (window.innerHeight - barBottom) / 3
   const distance = (box: DOMRect): number =>
     box.top <= line && box.bottom >= line
       ? 0
       : Math.min(Math.abs(box.top - line), Math.abs(box.bottom - line))
-  return Option.map(
+  const maybeQuestion = Option.map(
     Array.head(
       Array.sort(
         Array.map(
-          Array.fromIterable(
-            document.querySelectorAll('.questions .question.is-expanded'),
+          Array.filter(
+            Array.fromIterable(
+              document.querySelectorAll(
+                '.questions .question:is(.is-open, .is-waiting)',
+              ),
+            ),
+            section => {
+              const box = section.getBoundingClientRect()
+              return box.bottom > barBottom && box.top < window.innerHeight
+            },
           ),
           section => ({
             id: section.id.replace(/^q-/, ''),
             distance: distance(section.getBoundingClientRect()),
           }),
         ),
-        (a: { distance: number }, b: { distance: number }) =>
-          Math.sign(a.distance - b.distance) as -1 | 0 | 1,
+        Order.mapInput(
+          Order.Number,
+          (entry: { distance: number }) => entry.distance,
+        ),
       ),
     ),
     entry => entry.id,
+  )
+  return Option.orElse(maybeQuestion, () =>
+    title !== null && title.getBoundingClientRect().bottom > barBottom
+      ? Option.some('concept')
+      : Option.none(),
   )
 }
 
