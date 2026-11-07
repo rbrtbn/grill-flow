@@ -30,3 +30,7 @@ The application rail and round navigator stay fixed while three filter approache
 
 Counts reflect the selected round or agent and search. Needs attention means open questions
 that are Blocking or Soon. Choosing a study preserves the filter values for comparison.
+
+G is the selected direction from ask 2083: it uses rounds only, without a grouping selector.
+Its navigator uses a round's name alone, falling back to Round N when the name is missing.
+E and F retain their grouping controls for comparison. The live sidebar is not changed.

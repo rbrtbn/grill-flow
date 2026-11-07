@@ -1105,6 +1105,12 @@ h2 {
   padding: 10px 6px;
   min-height: 63px;
 }
+.mode-G .hybrid-browser .round-rail button {
+  min-height: 45px;
+}
+.mode-G .round-label {
+  line-height: 1.45;
+}
 .round-label {
   display: flex;
   align-items: baseline;

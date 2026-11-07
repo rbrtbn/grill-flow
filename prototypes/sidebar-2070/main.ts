@@ -149,9 +149,12 @@ const stateOf = (model: Model, q: Question) =>
   model.drafts.includes(q.id) ? 'Draft' : q.state
 const groupKey = (model: Model, q: Question) =>
   String(model.grouping === 'Round' ? q.round : q.agent)
+const roundName = (key: number) => rounds[key]?.trim() || `Round ${key + 1}`
 const groupName = (model: Model, key: number) =>
   model.grouping === 'Round'
-    ? `Round ${key + 1} · ${rounds[key]}`
+    ? model.variant === 'G'
+      ? roundName(key)
+      : `Round ${key + 1} · ${rounds[key]}`
     : (agents[key] ?? 'Agent')
 const urgencyMatches = (filter: typeof Urgency.Type, value: string) =>
   filter === 'All' ||
@@ -181,16 +184,27 @@ const variantUrl = Command.define('VariantUrl', {
 const chooseVariant = (model: Model, variant: typeof Variant.Type) => ({
   model: modifyFields(model, {
     variant: () => variant,
+    grouping: current => (variant === 'G' ? 'Round' : current),
+    folded: current =>
+      variant === 'G' && model.grouping !== 'Round' ? [] : current,
     scope: current =>
-      isHybrid(model.variant) && isHybrid(variant)
-        ? current
-        : variant === 'D' || isHybrid(variant)
-          ? String(
-              model.grouping === 'Round'
-                ? Math.floor((model.selected - 1) / Math.ceil(model.count / 4))
-                : (model.selected - 1) % agents.length,
+      variant === 'G' && model.grouping !== 'Round'
+        ? current === 'all'
+          ? 'all'
+          : String(
+              Math.floor((model.selected - 1) / Math.ceil(model.count / 4)),
             )
-          : 'all',
+        : isHybrid(model.variant) && isHybrid(variant)
+          ? current
+          : variant === 'D' || isHybrid(variant)
+            ? String(
+                model.grouping === 'Round'
+                  ? Math.floor(
+                      (model.selected - 1) / Math.ceil(model.count / 4),
+                    )
+                  : (model.selected - 1) % agents.length,
+              )
+            : 'all',
     filters: () => false,
   }),
   commands: [variantUrl({ variant })],
@@ -225,7 +239,7 @@ const update = (model: Model, message: Message) =>
     }),
     SelectedGrouping: ({ grouping }) => ({
       model: modifyFields(model, {
-        grouping: () => grouping,
+        grouping: () => (model.variant === 'G' ? 'Round' : grouping),
         scope: () => 'all',
         folded: () => [],
       }),
@@ -968,7 +982,7 @@ const hybridSidebar = (model: Model, h: H) =>
                 [
                   h.strong([], ['Questions']),
                   h.small([], [String(model.count)]),
-                  grouping(model, h),
+                  model.variant === 'G' ? h.empty : grouping(model, h),
                 ],
               ),
               search(model, h),
@@ -996,7 +1010,12 @@ const hybridSidebar = (model: Model, h: H) =>
             [h.Class('round-browser hybrid-browser')],
             [
               h.nav(
-                [h.Class('round-rail'), h.AriaLabel('Choose a group')],
+                [
+                  h.Class('round-rail'),
+                  h.AriaLabel(
+                    model.variant === 'G' ? 'Choose a round' : 'Choose a group',
+                  ),
+                ],
                 [
                   h.button(
                     [
@@ -1004,7 +1023,7 @@ const hybridSidebar = (model: Model, h: H) =>
                       h.OnClick(Message.SelectedScope({ scope: 'all' })),
                     ],
                     [
-                      'All groups',
+                      model.variant === 'G' ? 'All rounds' : 'All groups',
                       h.small([], [`${visible(model).length} match`]),
                     ],
                   ),
@@ -1020,9 +1039,11 @@ const hybridSidebar = (model: Model, h: H) =>
                         h.span(
                           [h.Class('round-label')],
                           [
-                            model.grouping === 'Round'
-                              ? `Round ${key + 1}`
-                              : (agents[key] ?? 'Agent'),
+                            model.variant === 'G'
+                              ? roundName(key)
+                              : model.grouping === 'Round'
+                                ? `Round ${key + 1}`
+                                : (agents[key] ?? 'Agent'),
                             h.small(
                               [],
                               [
@@ -1035,14 +1056,16 @@ const hybridSidebar = (model: Model, h: H) =>
                             ),
                           ],
                         ),
-                        h.small(
-                          [],
-                          [
-                            model.grouping === 'Round'
-                              ? (rounds[key] ?? '')
-                              : 'Agent questions',
-                          ],
-                        ),
+                        model.variant === 'G'
+                          ? h.empty
+                          : h.small(
+                              [],
+                              [
+                                model.grouping === 'Round'
+                                  ? (rounds[key] ?? '')
+                                  : 'Agent questions',
+                              ],
+                            ),
                       ],
                     ),
                   ),
