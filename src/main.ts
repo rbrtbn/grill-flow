@@ -2011,6 +2011,24 @@ const startingPart = (snapshot: Snapshot): string =>
         () => OVERVIEW,
       )
 
+const mergeRemoteRecord = (
+  previous: Readonly<Record<string, string>>,
+  local: Readonly<Record<string, string>>,
+  incoming: Readonly<Record<string, string>>,
+): Record<string, string> =>
+  Record.fromEntries(
+    Array.dedupe([
+      ...Object.keys(previous),
+      ...Object.keys(local),
+      ...Object.keys(incoming),
+    ]).flatMap(key => {
+      const value = local[key] !== previous[key] ? local[key] : incoming[key]
+      return value === undefined
+        ? []
+        : [[key, value] satisfies readonly [string, string]]
+    }),
+  )
+
 const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   if (result._tag === 'Failure') {
     return AsyncData.hasData(model.page)
@@ -2023,7 +2041,18 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   }
   const snapshot = result.success
   if (AsyncData.hasData(model.page)) {
-    return { model: refreshPage(model, snapshot) }
+    const previous = Option.getOrThrow(AsyncData.getData(model.page))
+    return {
+      model: modifyFields(refreshPage(model, snapshot), {
+        answers: local =>
+          model.pendingEvents > 0 || model.failedWrites.length > 0
+            ? mergeRemoteRecord(previous.answers, local, snapshot.answers)
+            : snapshot.answers,
+        notes: local =>
+          mergeRemoteRecord(previous.notes, local, snapshot.notes),
+        own: local => mergeRemoteRecord(previous.own, local, snapshot.own),
+      }),
+    }
   }
   const first = model.currentPart === ''
   const next = modifyFields(refreshPage(model, snapshot), {

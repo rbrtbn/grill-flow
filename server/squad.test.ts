@@ -359,3 +359,9 @@ it('keeps the lead first and remaps plan gates when the lead joins after a worke
   expect(page.state.grill.steps[0]?.id).toBe('late-owner::step-q2')
   expect(page.state.grill.plan?.issues[0]?.start).toEqual(['Q3'])
 })
+
+it('lists every joined member explicitly in the CLI summary, including current-round-only members', async () => {
+  const text = await cli('state', 'squad')
+  expect(text).toContain('lead-run (lead-run, lead)')
+  expect(text).toContain('worker-run (worker-run, homelab/worker)')
+})

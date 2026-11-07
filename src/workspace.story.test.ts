@@ -548,3 +548,48 @@ it('restores an open discussion with its target, expanded view and thread positi
   ).model
   expect(scrolled.workspace.discussionScroll).toEqual({ run: 360 })
 })
+
+describe('live shared answer synchronization', () => {
+  it('imports newly joined members saved answers and receipts on polling', () => {
+    const incoming = { ...snapshot, answers: { Q1: 'a' }, sent: { Q1: 'Q1 a' } }
+    const next = update(
+      loaded,
+      Message.CompletedLoadGrill({ result: Result.succeed(incoming) }),
+    ).model
+    expect(next.answers.Q1).toBe('a')
+    expect(
+      questionState(
+        incoming,
+        grill.steps[0]!,
+        next.answers,
+        next.notes,
+        next.own,
+      ),
+    ).toBe('Sent')
+  })
+
+  it('keeps in-flight choices, cleared answers and unsaved text while importing other answers', () => {
+    const before = {
+      ...snapshot,
+      answers: { Q1: 'a', Q2: 'a' },
+      notes: { Q1: 'Saved note' },
+      own: { Q1: 'Saved own' },
+    }
+    const active = {
+      ...loaded,
+      page: PageData.Success({ data: before }),
+      answers: { Q1: 'b' },
+      notes: { Q1: 'Editing note' },
+      own: { Q1: 'Editing own' },
+      pendingEvents: 2,
+    }
+    const incoming = { ...before, answers: { Q1: 'a', Q2: 'a', Q3: 'b' } }
+    const next = update(
+      active,
+      Message.CompletedLoadGrill({ result: Result.succeed(incoming) }),
+    ).model
+    expect(next.answers).toEqual({ Q1: 'b', Q3: 'b' })
+    expect(next.notes.Q1).toBe('Editing note')
+    expect(next.own.Q1).toBe('Editing own')
+  })
+})

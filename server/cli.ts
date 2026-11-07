@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { FORMAT_VERSION, isWholeTarget, replyText } from '../src/domain'
+import {
+  FORMAT_VERSION,
+  type Snapshot,
+  isWholeTarget,
+  replyText,
+} from '../src/domain'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
@@ -123,14 +128,31 @@ switch (command) {
   }
   case 'state': {
     const grill = requireGrill(args[0])
-    const state = readPage(db, grill.id)!.state
-    console.log(replyText(grill, state.answers, state.notes, state.own))
-    const waiting = state.asks.filter(ask => !ask.answered)
-    if (waiting.length > 0) {
-      console.log('\nAsks waiting for an answer:')
-      waiting.forEach(ask =>
-        console.log(`  ask ${ask.id} on ${ask.stepId}: ${ask.text}`),
-      )
+    const page = readPage(db, grill.id)!
+    const printWaiting = (state: Snapshot) => {
+      const waiting = state.asks.filter(ask => !ask.answered)
+      if (waiting.length > 0) {
+        console.log('\nAsks waiting for an answer:')
+        waiting.forEach(ask =>
+          console.log(`  ask ${ask.id} on ${ask.stepId}: ${ask.text}`),
+        )
+      }
+    }
+    const printState = (state: Snapshot) => {
+      console.log(replyText(state.grill, state.answers, state.notes, state.own))
+      printWaiting(state)
+    }
+    if (page.members.length === 0) {
+      printState(page.state)
+    } else {
+      console.log(`${grill.id}: ${page.members.length} member sections`)
+      page.members.forEach(({ state }) => {
+        console.log(
+          `\n${state.grill.squad!.section} (${state.grill.id}, ${state.grill.session || 'no session'})`,
+        )
+        printState(state)
+      })
+      printWaiting(snapshot(db, grill))
     }
     break
   }
