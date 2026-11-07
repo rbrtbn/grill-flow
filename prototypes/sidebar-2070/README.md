@@ -18,3 +18,15 @@ Open `http://127.0.0.1:4344/prototypes/sidebar-2070/`.
 Try search, status and urgency filters, Round/Agent grouping, foldable groups, answering a
 question, and opening Discussion. The 30/60/135 controls exercise list density. No choice has
 been promoted to the production sidebar.
+
+## Hybrid studies · ask 2074
+
+Open `http://127.0.0.1:4344/prototypes/sidebar-2070/hybrid.html?variant=E`.
+The application rail and round navigator stay fixed while three filter approaches change:
+
+- E · Visible filters: status and urgency buttons, with result counts, always in view.
+- F · Filter grid: click a status/urgency intersection directly; every cell previews its count.
+- G · Quick views: common combinations are one click, with custom controls available separately.
+
+Counts reflect the selected round or agent and search. Needs attention means open questions
+that are Blocking or Soon. Choosing a study preserves the filter values for comparison.

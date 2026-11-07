@@ -7,7 +7,7 @@ import { modifyFields } from 'foldkit/struct'
 
 import './styles.css'
 
-const Variant = Schema.Literals(['A', 'B', 'C', 'D'])
+const Variant = Schema.Literals(['A', 'B', 'C', 'D', 'E', 'F', 'G'])
 const State = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 const Urgency = Schema.Literals([
   'All',
@@ -16,6 +16,7 @@ const Urgency = Schema.Literals([
   'wait',
   'fyi',
   'unspecified',
+  'urgent',
 ])
 const Grouping = Schema.Literals(['Round', 'Agent'])
 const Page = Schema.Literals([
@@ -47,6 +48,7 @@ const Message = defineMessageUnion({
   UpdatedQuery: { query: Schema.String },
   SelectedState: { state: State },
   SelectedUrgency: { urgency: Urgency },
+  SelectedFilters: { state: State, urgency: Urgency },
   SelectedGrouping: { grouping: Grouping },
   SelectedQuestion: { id: Schema.Number },
   SelectedScope: { scope: Schema.String },
@@ -62,20 +64,29 @@ const Message = defineMessageUnion({
 type Message = typeof Message.Type
 type H = HtmlBuilder<Message>
 
-const variants = ['A', 'B', 'C', 'D'] satisfies ReadonlyArray<
-  typeof Variant.Type
->
+const baseVariants: ReadonlyArray<typeof Variant.Type> = ['A', 'B', 'C', 'D']
+const hybridVariants: ReadonlyArray<typeof Variant.Type> = ['E', 'F', 'G']
+const isHybrid = (variant: typeof Variant.Type) =>
+  hybridVariants.includes(variant)
+const variantsFor = (model: Model) =>
+  isHybrid(model.variant) ? hybridVariants : baseVariants
 const names = {
   A: 'Compact stack',
   B: 'Separate rail',
   C: 'Filters on demand',
   D: 'Round navigator',
+  E: 'Visible filters',
+  F: 'Filter grid',
+  G: 'Quick views',
 }
 const descriptions = {
   A: 'Every control is visible. Only the question list scrolls.',
   B: 'Application navigation gets its own rail, leaving more room for questions.',
   C: 'Search stays visible. Less frequent filters open together, with active choices shown.',
   D: 'Pick a round or agent, then work through a shorter list. All groups remains available.',
+  E: 'Both filter rows stay visible. Choose status and urgency directly, with counts for each.',
+  F: 'Choose a status and urgency intersection in one click. The grid previews the result counts.',
+  G: 'Frequent combinations are one click. Open Custom filters only for a less common view.',
 }
 const titles = [
   'Night grant for the runs',
@@ -108,6 +119,7 @@ const urgencyNames = {
   wait: 'Can wait',
   fyi: 'FYI',
   unspecified: 'Unspecified',
+  urgent: 'Blocking + Soon',
 }
 const questions = (count: number) =>
   Array.makeBy(count, index => ({
@@ -118,7 +130,7 @@ const questions = (count: number) =>
     state:
       index < Math.floor(count / 4)
         ? 'Sent'
-        : index % 4 === 0
+        : index % 7 === 2
           ? 'Draft'
           : 'Open',
     urgency:
@@ -141,11 +153,16 @@ const groupName = (model: Model, key: number) =>
   model.grouping === 'Round'
     ? `Round ${key + 1} · ${rounds[key]}`
     : (agents[key] ?? 'Agent')
+const urgencyMatches = (filter: typeof Urgency.Type, value: string) =>
+  filter === 'All' ||
+  (filter === 'urgent'
+    ? value === 'blocking' || value === 'soon'
+    : value === filter)
 const visible = (model: Model) =>
   questions(model.count).filter(
     q =>
       (model.state === 'All' || stateOf(model, q) === model.state) &&
-      (model.urgency === 'All' || q.urgency === model.urgency) &&
+      urgencyMatches(model.urgency, q.urgency) &&
       `Q${q.id} ${q.title} ${agents[q.agent]} ${rounds[q.round]}`
         .toLowerCase()
         .includes(model.query.trim().toLowerCase()),
@@ -164,10 +181,16 @@ const variantUrl = Command.define('VariantUrl', {
 const chooseVariant = (model: Model, variant: typeof Variant.Type) => ({
   model: modifyFields(model, {
     variant: () => variant,
-    scope: () =>
-      variant === 'D'
-        ? String(Math.floor((model.selected - 1) / Math.ceil(model.count / 4)))
-        : 'all',
+    scope: current =>
+      isHybrid(model.variant) && isHybrid(variant)
+        ? current
+        : variant === 'D' || isHybrid(variant)
+          ? String(
+              model.grouping === 'Round'
+                ? Math.floor((model.selected - 1) / Math.ceil(model.count / 4))
+                : (model.selected - 1) % agents.length,
+            )
+          : 'all',
     filters: () => false,
   }),
   commands: [variantUrl({ variant })],
@@ -178,7 +201,12 @@ const update = (model: Model, message: Message) =>
     PressedVariantArrow: ({ direction }) =>
       chooseVariant(
         model,
-        variants[(variants.indexOf(model.variant) + direction + 4) % 4] ?? 'A',
+        variantsFor(model)[
+          (variantsFor(model).indexOf(model.variant) +
+            direction +
+            variantsFor(model).length) %
+            variantsFor(model).length
+        ] ?? 'A',
       ),
     UpdatedQuery: ({ query }) => ({
       model: modifyFields(model, { query: () => query }),
@@ -189,10 +217,17 @@ const update = (model: Model, message: Message) =>
     SelectedUrgency: ({ urgency }) => ({
       model: modifyFields(model, { urgency: () => urgency }),
     }),
+    SelectedFilters: ({ state, urgency }) => ({
+      model: modifyFields(model, {
+        state: () => state,
+        urgency: () => urgency,
+      }),
+    }),
     SelectedGrouping: ({ grouping }) => ({
       model: modifyFields(model, {
         grouping: () => grouping,
         scope: () => 'all',
+        folded: () => [],
       }),
     }),
     SelectedQuestion: ({ id }) => ({
@@ -220,7 +255,7 @@ const update = (model: Model, message: Message) =>
         state: () => 'All',
         urgency: () => 'All',
         query: () => '',
-        scope: () => 'all',
+        scope: current => (isHybrid(model.variant) ? current : 'all'),
       }),
     }),
     SelectedPage: ({ page }) => ({
@@ -229,9 +264,10 @@ const update = (model: Model, message: Message) =>
     SelectedSize: ({ count }) => ({
       model: modifyFields(model, {
         count: () => count,
+        folded: () => [],
         selected: () => Math.min(model.selected, count),
         scope: current =>
-          model.variant === 'D' &&
+          (model.variant === 'D' || isHybrid(model.variant)) &&
           current !== 'all' &&
           model.grouping === 'Round'
             ? String(
@@ -380,9 +416,9 @@ const urgency = (model: Model, h: H) =>
             }),
           ),
         ],
-        Object.entries(urgencyNames).map(([value, label]) =>
-          h.option([h.Value(value)], [label]),
-        ),
+        Object.entries(urgencyNames)
+          .filter(([value]) => value !== 'urgent')
+          .map(([value, label]) => h.option([h.Value(value)], [label])),
       ),
     ],
   )
@@ -701,6 +737,325 @@ const variantD = (model: Model, h: H) =>
       ),
     ],
   )
+
+const inScope = (model: Model, q: Question) =>
+  model.scope === 'all' || groupKey(model, q) === model.scope
+const pairCount = (
+  model: Model,
+  state: typeof State.Type,
+  urgency: typeof Urgency.Type,
+) =>
+  visible(
+    modifyFields(model, { state: () => state, urgency: () => urgency }),
+  ).filter(q => inScope(model, q)).length
+const stateValues: ReadonlyArray<typeof State.Type> = [
+  'All',
+  'Open',
+  'Draft',
+  'Sent',
+]
+const urgencyValues: ReadonlyArray<typeof Urgency.Type> = [
+  'All',
+  'blocking',
+  'soon',
+  'wait',
+  'fyi',
+  'unspecified',
+]
+const shortUrgency = {
+  All: 'Any',
+  blocking: 'Blocking',
+  soon: 'Soon',
+  wait: 'Wait',
+  fyi: 'FYI',
+  unspecified: 'Unset',
+  urgent: 'Soon / now',
+}
+const hybridStatus = (model: Model, h: H) =>
+  h.div(
+    [
+      h.Class('status-controls'),
+      h.Role('group'),
+      h.AriaLabel('Question status'),
+    ],
+    stateValues.map(state =>
+      h.button(
+        [
+          h.Class(model.state === state ? 'active' : ''),
+          h.AriaPressed(String(model.state === state)),
+          h.OnClick(Message.SelectedState({ state })),
+        ],
+        [
+          state === 'All'
+            ? h.empty
+            : h.span([
+                h.Class(`state-mark ${state.toLowerCase()}`),
+                h.AriaHidden(true),
+              ]),
+          state,
+          h.small([], [String(pairCount(model, state, model.urgency))]),
+        ],
+      ),
+    ),
+  )
+const selectedUrgency = (model: Model, urgency: typeof Urgency.Type) =>
+  model.urgency === urgency ||
+  (model.urgency === 'urgent' && (urgency === 'blocking' || urgency === 'soon'))
+const hybridUrgency = (model: Model, h: H) =>
+  h.div(
+    [
+      h.Class('urgency-buttons'),
+      h.Role('group'),
+      h.AriaLabel('Question urgency'),
+    ],
+    urgencyValues.map(urgency =>
+      h.button(
+        [
+          h.Class(selectedUrgency(model, urgency) ? 'active' : ''),
+          h.AriaLabel(urgencyNames[urgency]),
+          h.AriaPressed(String(selectedUrgency(model, urgency))),
+          h.OnClick(Message.SelectedUrgency({ urgency })),
+        ],
+        [
+          h.span([], [shortUrgency[urgency]]),
+          h.small([], [String(pairCount(model, model.state, urgency))]),
+        ],
+      ),
+    ),
+  )
+const filterGrid = (model: Model, h: H) =>
+  h.table(
+    [h.Class('filter-grid'), h.AriaLabel('Choose status and urgency together')],
+    [
+      h.thead(
+        [],
+        [
+          h.tr(
+            [],
+            [
+              h.th([], ['Status']),
+              ...urgencyValues.map(urgency =>
+                h.th([h.Title(urgencyNames[urgency])], [shortUrgency[urgency]]),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody(
+        [],
+        stateValues.map(state =>
+          h.tr(
+            [],
+            [
+              h.th([], [state]),
+              ...urgencyValues.map(urgency =>
+                h.td(
+                  [],
+                  [
+                    h.button(
+                      [
+                        h.Class(
+                          model.state === state &&
+                            selectedUrgency(model, urgency)
+                            ? 'active'
+                            : '',
+                        ),
+                        h.AriaPressed(
+                          String(
+                            model.state === state &&
+                              selectedUrgency(model, urgency),
+                          ),
+                        ),
+                        h.AriaLabel(
+                          `${state} · ${urgencyNames[urgency]} · ${pairCount(model, state, urgency)} questions`,
+                        ),
+                        h.OnClick(Message.SelectedFilters({ state, urgency })),
+                      ],
+                      [String(pairCount(model, state, urgency))],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  )
+const quickViews = [
+  { label: 'All', state: 'All', urgency: 'All' },
+  { label: 'Needs attention', state: 'Open', urgency: 'urgent' },
+  { label: 'Open', state: 'Open', urgency: 'All' },
+  { label: 'Drafts', state: 'Draft', urgency: 'All' },
+  { label: 'Sent', state: 'Sent', urgency: 'All' },
+] satisfies ReadonlyArray<{
+  label: string
+  state: typeof State.Type
+  urgency: typeof Urgency.Type
+}>
+const presetFilters = (model: Model, h: H) =>
+  h.div(
+    [h.Class('preset-filters')],
+    [
+      h.div(
+        [h.Class('quick-views'), h.Role('group'), h.AriaLabel('Quick views')],
+        quickViews.map(item =>
+          h.button(
+            [
+              h.Class(
+                model.state === item.state && model.urgency === item.urgency
+                  ? 'active'
+                  : '',
+              ),
+              h.AriaPressed(
+                String(
+                  model.state === item.state && model.urgency === item.urgency,
+                ),
+              ),
+              h.OnClick(
+                Message.SelectedFilters({
+                  state: item.state,
+                  urgency: item.urgency,
+                }),
+              ),
+            ],
+            [
+              h.span([], [item.label]),
+              h.small([], [String(pairCount(model, item.state, item.urgency))]),
+            ],
+          ),
+        ),
+      ),
+      h.button(
+        [
+          h.Class('custom-filter-toggle'),
+          h.AriaExpanded(model.filters),
+          h.OnClick(Message.ToggledFilters()),
+        ],
+        [model.filters ? 'Close custom filters' : 'Custom filters'],
+      ),
+      model.filters
+        ? h.div(
+            [h.Class('custom-filter-controls')],
+            [hybridStatus(model, h), hybridUrgency(model, h)],
+          )
+        : h.empty,
+    ],
+  )
+const hybridSidebar = (model: Model, h: H) =>
+  h.aside(
+    [h.Class('sidebar variant-hybrid')],
+    [
+      h.div(
+        [h.Class('rail-wrapper')],
+        [h.div([h.Class('rail-brand')], ['gf']), nav(model, true, h)],
+      ),
+      h.div(
+        [h.Class('hybrid-question-pane')],
+        [
+          h.div(
+            [h.Class('hybrid-workspace')],
+            [
+              h.strong([], ['Squad questions']),
+              h.a([h.Href('./?variant=B')], ['Earlier studies']),
+            ],
+          ),
+          h.div(
+            [h.Class('question-controls hybrid-controls')],
+            [
+              h.div(
+                [h.Class('question-heading')],
+                [
+                  h.strong([], ['Questions']),
+                  h.small([], [String(model.count)]),
+                  grouping(model, h),
+                ],
+              ),
+              search(model, h),
+              model.variant === 'E'
+                ? h.div(
+                    [h.Class('direct-filters')],
+                    [hybridStatus(model, h), hybridUrgency(model, h)],
+                  )
+                : model.variant === 'F'
+                  ? filterGrid(model, h)
+                  : presetFilters(model, h),
+              h.p(
+                [h.Class('filter-readout')],
+                [
+                  h.strong(
+                    [],
+                    [`${visible(model).filter(q => inScope(model, q)).length}`],
+                  ),
+                  ` match · ${model.state === 'All' ? 'All states' : model.state} · ${urgencyNames[model.urgency]}`,
+                ],
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class('round-browser hybrid-browser')],
+            [
+              h.nav(
+                [h.Class('round-rail'), h.AriaLabel('Choose a group')],
+                [
+                  h.button(
+                    [
+                      h.Class(model.scope === 'all' ? 'active' : ''),
+                      h.OnClick(Message.SelectedScope({ scope: 'all' })),
+                    ],
+                    [
+                      'All groups',
+                      h.small([], [`${visible(model).length} match`]),
+                    ],
+                  ),
+                  ...Array.makeBy(4, key =>
+                    h.button(
+                      [
+                        h.Class(model.scope === String(key) ? 'active' : ''),
+                        h.OnClick(
+                          Message.SelectedScope({ scope: String(key) }),
+                        ),
+                      ],
+                      [
+                        h.span(
+                          [h.Class('round-label')],
+                          [
+                            model.grouping === 'Round'
+                              ? `Round ${key + 1}`
+                              : (agents[key] ?? 'Agent'),
+                            h.small(
+                              [],
+                              [
+                                String(
+                                  visible(model).filter(
+                                    q => groupKey(model, q) === String(key),
+                                  ).length,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        h.small(
+                          [],
+                          [
+                            model.grouping === 'Round'
+                              ? (rounds[key] ?? '')
+                              : 'Agent questions',
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              questionList(model, true, h),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+
 const questionContent = (model: Model, h: H) => {
   const q =
     questions(model.count).find(item => item.id === model.selected) ??
@@ -818,7 +1173,7 @@ const questionContent = (model: Model, h: H) => {
           h.p(
             [],
             [
-              'Use the sidebar to find what is blocking now, return to a draft, or review a completed round. The question and discussion layouts stay the same across all four studies.',
+              'Use the sidebar to find what is blocking now, return to a draft, or review a completed round. The question and discussion layouts stay the same across these sidebar studies.',
             ],
           ),
         ],
@@ -870,7 +1225,14 @@ const view = (model: Model, h: H): Document => ({
       h.div(
         [h.Class('study-strip')],
         [
-          h.strong([], ['Sidebar studies']),
+          h.strong(
+            [],
+            [
+              isHybrid(model.variant)
+                ? 'Hybrid sidebar studies'
+                : 'Sidebar studies',
+            ],
+          ),
           h.span([], ['Illustrative data · simulated actions']),
           h.div(
             [],
@@ -931,7 +1293,9 @@ const view = (model: Model, h: H): Document => ({
               ? variantB(model, h)
               : model.variant === 'C'
                 ? variantC(model, h)
-                : variantD(model, h),
+                : model.variant === 'D'
+                  ? variantD(model, h)
+                  : hybridSidebar(model, h),
           h.main(
             [h.Class('main-content')],
             [
@@ -994,7 +1358,9 @@ const view = (model: Model, h: H): Document => ({
       ),
       h.footer(
         [
-          h.Class('prototype-switcher'),
+          h.Class(
+            `prototype-switcher${isHybrid(model.variant) ? ' hybrid-switcher' : ''}`,
+          ),
           h.AriaLabel('Choose sidebar prototype'),
         ],
         [
@@ -1005,7 +1371,7 @@ const view = (model: Model, h: H): Document => ({
             ],
             ['←'],
           ),
-          ...variants.map(variant =>
+          ...variantsFor(model).map(variant =>
             h.button(
               [
                 h.Class(model.variant === variant ? 'active' : ''),
@@ -1026,7 +1392,7 @@ const view = (model: Model, h: H): Document => ({
             [],
             [
               descriptions[model.variant],
-              ` ${visible(model).filter(q => model.variant !== 'D' || model.scope === 'all' || groupKey(model, q) === model.scope).length}/${model.count} match; ${model.state}; ${urgencyNames[model.urgency]}; by ${model.grouping.toLowerCase()}${model.variant === 'D' && model.scope !== 'all' ? `; ${groupName(model, Number(model.scope))}` : ''}.`,
+              ` ${visible(model).filter(q => (model.variant !== 'D' && !isHybrid(model.variant)) || model.scope === 'all' || groupKey(model, q) === model.scope).length}/${model.count} match; ${model.state}; ${urgencyNames[model.urgency]}; by ${model.grouping.toLowerCase()}${(model.variant === 'D' || isHybrid(model.variant)) && model.scope !== 'all' ? `; ${groupName(model, Number(model.scope))}` : ''}.`,
             ],
           ),
         ],
@@ -1057,6 +1423,7 @@ const subscriptions = Subscription.make<Model, Message>()(entry => ({
     },
   ),
 }))
+const hybridEntry = window.location.pathname.endsWith('hybrid.html')
 const initialVariant = Schema.decodeUnknownOption(Variant)(
   new URLSearchParams(window.location.search).get('variant'),
 )
@@ -1065,7 +1432,9 @@ Runtime.run(
     Model,
     init: (): Update.Return<Model, Message> => ({
       model: {
-        variant: Option.getOrElse(initialVariant, () => 'A'),
+        variant: Option.getOrElse(initialVariant, () =>
+          hybridEntry ? 'E' : 'A',
+        ),
         state: 'All',
         urgency: 'All',
         grouping: 'Round',
@@ -1073,7 +1442,14 @@ Runtime.run(
         query: '',
         selected: 16,
         count: 60,
-        scope: Option.contains(initialVariant, 'D') ? '1' : 'all',
+        scope:
+          hybridEntry ||
+          Option.exists(
+            initialVariant,
+            value => value === 'D' || isHybrid(value),
+          )
+            ? '1'
+            : 'all',
         folded: ['0'],
         drafts: [],
         filters: false,
