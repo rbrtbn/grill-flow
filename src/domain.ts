@@ -70,6 +70,8 @@ export const Question = Schema.Struct({
   // The round that first asked it; untagged questions belong to round 1.
   round: Schema.optionalKey(Schema.Number),
   urgency: Schema.optionalKey(Urgency),
+  topic: Schema.optionalKey(Schema.String),
+  blocksAt: Schema.optionalKey(Schema.String),
   // A `refs` key: the issue the question is mainly about.
   issue: Schema.optionalKey(Schema.String),
   // A `sources` key, and the question's id in that asker's own rows.
@@ -202,6 +204,18 @@ export const questionAgent = (grill: Grill, question?: Question): string => {
     ? session || 'Asking agent'
     : `${source.text}${session === '' ? '' : ` · ${session}`}`
 }
+
+export const questionTopic = (grill: Grill, step: Step): string =>
+  step.question.topic?.trim() ||
+  grill.parts.find(part => part.id === step.part)?.title ||
+  'Other questions'
+
+export const urgencyDetail = (question: Question): Option.Option<string> =>
+  question.urgency === undefined
+    ? Option.none()
+    : Option.some(
+        `${{ blocking: 'Blocking', soon: 'Blocks soon', wait: 'Can wait', fyi: 'For information' }[question.urgency]}${question.blocksAt?.trim() ? ` · Starts blocking ${question.blocksAt.trim()}` : ''}`,
+      )
 
 // PLAN
 

@@ -61,6 +61,7 @@ import {
   initialWorkspace,
   isWorkspacePage,
   questionOnPage,
+  revealQuestion,
   roundIsCollapsed,
   workspaceLines,
 } from './workspace'
@@ -230,6 +231,8 @@ export const Message = defineMessageUnion({
   ChangedQuestionFilter: { filter: QuestionFilter },
   ChangedQuestionGrouping: { grouping: QuestionGrouping },
   ClickedAgentGroup: { session: Schema.String },
+  ClickedTopicGroup: { topic: Schema.String },
+  ClickedQuestionBranch: { question: Schema.String },
   UpdatedQuestionSearch: { value: Schema.String },
   ClickedRound: { round: Schema.Number },
   ClickedSettings: {},
@@ -637,6 +640,28 @@ export const update = (model: Model, message: Message) =>
               agents.includes(session)
                 ? agents.filter(agent => agent !== session)
                 : Array.append(agents, session),
+          }),
+      }),
+    }),
+    ClickedTopicGroup: ({ topic }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            foldedTopics: topics =>
+              topics.includes(topic)
+                ? topics.filter(item => item !== topic)
+                : Array.append(topics, topic),
+          }),
+      }),
+    }),
+    ClickedQuestionBranch: ({ question }) => ({
+      model: modifyFields(model, {
+        workspace: value =>
+          modifyFields(value, {
+            foldedQuestions: questions =>
+              questions.includes(question)
+                ? questions.filter(id => id !== question)
+                : Array.append(questions, question),
           }),
       }),
     }),
@@ -1964,9 +1989,21 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
   withSnapshot(model, snapshot => {
     const moved = goTo(model, snapshot.grill, page)
     const question = questionOnPage(snapshot, page)
+    const workspace = Option.match(question, {
+      onNone: () => moved.workspace,
+      onSome: step =>
+        revealQuestion(
+          moved.workspace,
+          snapshot,
+          model.answers,
+          model.notes,
+          model.own,
+          step.question.id,
+        ),
+    })
     const next = modifyFields(moved, {
-      workspace: value =>
-        modifyFields(value, {
+      workspace: () =>
+        modifyFields(workspace, {
           maybeDiscussionTarget: current =>
             page === CONVERSATIONS
               ? Option.orElse(current, () =>

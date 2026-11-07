@@ -11,6 +11,7 @@ import {
   isSent,
   questionAgent,
   questionSession,
+  questionTopic,
   sendableLines,
   statusOf,
 } from './domain'
@@ -26,7 +27,7 @@ export const RUN_TARGET = 'run'
 
 export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
 export type QuestionFilter = typeof QuestionFilter.Type
-export const QuestionGrouping = Schema.Literals(['Round', 'Agent'])
+export const QuestionGrouping = Schema.Literals(['Round', 'Agent', 'Topic'])
 
 export const CatalogData = AsyncData.Schema(
   Schema.Array(Snapshot),
@@ -49,6 +50,8 @@ export const Workspace = Schema.Struct({
   filter: QuestionFilter,
   grouping: QuestionGrouping,
   foldedAgents: Schema.Array(Schema.String),
+  foldedTopics: Schema.Array(Schema.String),
+  foldedQuestions: Schema.Array(Schema.String),
   search: Schema.String,
   foldedRounds: Schema.Array(Schema.Number),
   expandedRounds: Schema.Array(Schema.Number),
@@ -70,6 +73,8 @@ export const initialWorkspace: Workspace = {
   filter: 'All',
   grouping: 'Round',
   foldedAgents: [],
+  foldedTopics: [],
+  foldedQuestions: [],
   search: '',
   foldedRounds: [],
   expandedRounds: [],
@@ -154,6 +159,7 @@ export const visibleQuestions = (
           step.question.ask,
           step.question.issue ?? '',
           questionAgent(snapshot.grill, step.question),
+          questionTopic(snapshot.grill, step),
           step.heading,
         ]
           .join(' ')
@@ -218,6 +224,70 @@ export const roundIsCollapsed = (
           questionState(snapshot, step, answers, notes, own) === 'Sent',
       ))
 
+export type QuestionNode = Readonly<{
+  step: Step
+  children: ReadonlyArray<QuestionNode>
+}>
+
+export const questionParents = (
+  snapshot: Snapshot,
+  answers: Answers,
+): ReadonlyMap<string, string> =>
+  snapshot.grill.steps.reduce((parents, step) => {
+    const question = step.question
+    if (statusOf(snapshot.grill, answers, question.id)._tag === 'NotNeeded') {
+      return parents
+    }
+    const closesCycle = (id: string): boolean => {
+      if (id === question.id) {
+        return true
+      }
+      const parent = parents.get(id)
+      return parent === undefined ? false : closesCycle(parent)
+    }
+    const parent = Array.dedupe([
+      ...question.dependsOn,
+      ...question.when.map(condition => condition.question),
+    ]).find(id => {
+      const exists = snapshot.grill.steps.some(item => item.question.id === id)
+      const status = statusOf(snapshot.grill, answers, id)._tag
+      return (
+        exists &&
+        (status === 'Open' || status === 'Waiting') &&
+        !closesCycle(id)
+      )
+    })
+    return parent === undefined
+      ? parents
+      : new Map([...parents, [question.id, parent]])
+  }, new Map<string, string>())
+
+export const questionForest = (
+  workspace: Workspace,
+  snapshot: Snapshot,
+  answers: Answers,
+  notes: Notes,
+  own: Notes,
+): ReadonlyArray<QuestionNode> => {
+  const visible = visibleQuestions(workspace, snapshot, answers, notes, own)
+  const ids = new Set(visible.map(step => step.question.id))
+  const parents = questionParents(snapshot, answers)
+  const build = (step: Step): QuestionNode => ({
+    step,
+    children: visible
+      .filter(child => parents.get(child.question.id) === step.question.id)
+      .map(build),
+  })
+  return visible
+    .filter(step => !ids.has(parents.get(step.question.id) ?? ''))
+    .map(build)
+}
+
+export const flattenQuestions = (
+  nodes: ReadonlyArray<QuestionNode>,
+): ReadonlyArray<Step> =>
+  nodes.flatMap(node => [node.step, ...flattenQuestions(node.children)])
+
 export const questionGroups = (
   workspace: Workspace,
   snapshot: Snapshot,
@@ -225,40 +295,92 @@ export const questionGroups = (
   notes: Notes,
   own: Notes,
 ) => {
-  const visible = visibleQuestions(workspace, snapshot, answers, notes, own)
+  const roots = questionForest(workspace, snapshot, answers, notes, own)
   const keyOf = (step: Step) =>
     workspace.grouping === 'Agent'
       ? questionSession(snapshot.grill, step.question)
-      : String(step.question.round ?? 1)
-  const keys = Array.dedupe(visible.map(keyOf))
+      : workspace.grouping === 'Topic'
+        ? questionTopic(snapshot.grill, step)
+        : String(step.question.round ?? 1)
+  const keys = Array.dedupe(snapshot.grill.steps.map(keyOf)).filter(key =>
+    roots.some(node => keyOf(node.step) === key),
+  )
   const ordered =
     workspace.grouping === 'Round'
       ? keys.sort((a, b) => Number(a) - Number(b))
       : keys
   return ordered.map(key => {
-    const steps = visible.filter(step => keyOf(step) === key)
-    const first = steps[0]
+    const nodes = roots.filter(node => keyOf(node.step) === key)
+    const steps = flattenQuestions(nodes)
+    const first = nodes[0]?.step
     return {
       key,
       label:
         workspace.grouping === 'Agent'
           ? questionAgent(snapshot.grill, first?.question)
-          : steps.every(step => step.question.round === undefined)
-            ? 'No round'
-            : `Round ${key}`,
+          : workspace.grouping === 'Topic'
+            ? key
+            : nodes.every(node => node.step.question.round === undefined)
+              ? 'No round'
+              : `Round ${key}`,
       steps,
+      roots: nodes,
       collapsed:
         workspace.grouping === 'Agent'
           ? workspace.foldedAgents.includes(key)
-          : roundIsCollapsed(
-              workspace,
-              snapshot,
-              Number(key),
-              answers,
-              notes,
-              own,
-            ),
+          : workspace.grouping === 'Topic'
+            ? workspace.foldedTopics.includes(key)
+            : roundIsCollapsed(
+                workspace,
+                snapshot,
+                Number(key),
+                answers,
+                notes,
+                own,
+              ),
     }
+  })
+}
+
+export const revealQuestion = (
+  workspace: Workspace,
+  snapshot: Snapshot,
+  answers: Answers,
+  notes: Notes,
+  own: Notes,
+  id: string,
+): Workspace => {
+  const parents = questionParents(snapshot, answers)
+  const ancestry = (child: string): ReadonlyArray<string> => {
+    const parent = parents.get(child)
+    return parent === undefined ? [] : [parent, ...ancestry(parent)]
+  }
+  const ancestors = new Set(ancestry(id))
+  const group = questionGroups(
+    modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+    snapshot,
+    answers,
+    notes,
+    own,
+  ).find(item => item.steps.some(step => step.question.id === id))
+  return modifyFields(workspace, {
+    foldedQuestions: ids => ids.filter(item => !ancestors.has(item)),
+    foldedAgents: ids =>
+      workspace.grouping === 'Agent'
+        ? ids.filter(item => item !== group?.key)
+        : ids,
+    foldedTopics: ids =>
+      workspace.grouping === 'Topic'
+        ? ids.filter(item => item !== group?.key)
+        : ids,
+    foldedRounds: rounds =>
+      workspace.grouping === 'Round'
+        ? rounds.filter(round => round !== Number(group?.key))
+        : rounds,
+    expandedRounds: rounds =>
+      workspace.grouping === 'Round' && group !== undefined
+        ? Array.dedupe([...rounds, Number(group.key)])
+        : rounds,
   })
 }
 
@@ -271,13 +393,24 @@ export const adjacentQuestion = (
   page: string,
   direction: 'Previous' | 'Next',
 ): Option.Option<Step> => {
-  const ordered = questionGroups(
-    modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+  const displayed = questionGroups(
+    workspace,
     snapshot,
     answers,
     notes,
     own,
   ).flatMap(group => group.steps)
+  const ordered = displayed.some(
+    step => `${QUESTION_PAGE}${step.question.id}` === page,
+  )
+    ? displayed
+    : questionGroups(
+        modifyFields(workspace, { filter: () => 'All', search: () => '' }),
+        snapshot,
+        answers,
+        notes,
+        own,
+      ).flatMap(group => group.steps)
   const index = ordered.findIndex(
     step => `${QUESTION_PAGE}${step.question.id}` === page,
   )

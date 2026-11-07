@@ -31,6 +31,8 @@ const grill = {
     ...step,
     question: {
       ...step.question,
+      dependsOn: [],
+      when: [],
       round: index + 1,
       ...(index === 0 ? { session: 'worker' } : {}),
     },

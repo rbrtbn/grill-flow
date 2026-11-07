@@ -7,6 +7,7 @@ import {
   GRILL_FLOW_TARGET,
   OWN,
   type PlanIssue,
+  type Question,
   type Snapshot,
   type Step,
   agentMessagesOf,
@@ -14,7 +15,9 @@ import {
   planPhaseOf,
   questionAgent,
   questionSession,
+  questionTopic,
   statusOf,
+  urgencyDetail,
 } from './domain'
 import {
   FillBox,
@@ -28,6 +31,7 @@ import {
   GRILLS,
   NEEDS,
   QUESTION_PAGE,
+  type QuestionNode,
   REPLIES,
   REVIEW,
   RUN_TARGET,
@@ -71,25 +75,152 @@ const link = (label: string, message: Message, h: H): Html =>
 const pageLink = (label: string, page: string, h: H): Html =>
   link(label, Message.ClickedWorkspacePage({ page }), h)
 
-const stateMark = (state: 'Open' | 'Draft' | 'Sent', h: H): Html =>
+const stateMark = (
+  state: 'Open' | 'Draft' | 'Sent',
+  question: Question | undefined,
+  h: H,
+): Html =>
   h.span(
-    [h.Class(`f-state f-state-${state.toLowerCase()}`), h.AriaHidden(true)],
-    state === 'Sent'
-      ? [
+    [
+      h.Class(
+        `f-state f-state-${state.toLowerCase()}${state === 'Open' && question?.urgency !== undefined ? ` urgency-${question.urgency}` : ''}`,
+      ),
+      h.AriaHidden(true),
+      ...(state === 'Open' && question !== undefined
+        ? Option.toArray(
+            Option.map(urgencyDetail(question), detail => h.Title(detail)),
+          )
+        : []),
+    ],
+    state === 'Open'
+      ? []
+      : [
           h.svg(
             [h.ViewBox('0 0 16 16')],
             [
               h.path([
-                h.D('m4 8 3 3 5-6'),
+                h.D(
+                  state === 'Sent'
+                    ? 'm4 8 3 3 5-6'
+                    : 'm4 12 1-4 5-5 3 3-5 5-4 1m2-6 3 3',
+                ),
                 h.Fill('none'),
                 h.Stroke('currentColor'),
                 h.StrokeWidth('1.5'),
               ]),
             ],
           ),
-        ]
-      : [],
+        ],
   )
+
+const questionNodeView = (
+  model: Model,
+  snapshot: Snapshot,
+  node: QuestionNode,
+  h: H,
+): Html => {
+  const step = node.step
+  const state = questionState(
+    snapshot,
+    step,
+    model.answers,
+    model.notes,
+    model.own,
+  )
+  const hasChildren = Array.isReadonlyArrayNonEmpty(node.children)
+  const collapsed =
+    model.workspace.search.trim() === '' &&
+    model.workspace.foldedQuestions.includes(step.question.id)
+  const urgency = Option.getOrElse(urgencyDetail(step.question), () => '')
+  return h.keyed('li')(
+    step.id,
+    [h.Class('f-question-node'), h.Id(`question-node-${step.question.id}`)],
+    [
+      h.div(
+        [h.Class('f-question-row')],
+        [
+          h.button(
+            [
+              h.Class(
+                `f-question-item${model.currentPart === `${QUESTION_PAGE}${step.question.id}` ? ' is-current' : ''}`,
+              ),
+              h.OnClick(
+                Message.ClickedWorkspacePage({
+                  page: `${QUESTION_PAGE}${step.question.id}`,
+                }),
+              ),
+              h.AriaCurrent(
+                model.currentPart === `${QUESTION_PAGE}${step.question.id}`
+                  ? 'page'
+                  : 'false',
+              ),
+              h.Title(
+                `${step.question.id} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${questionTopic(snapshot.grill, step)} · Round ${step.question.round ?? 1}${urgency === '' ? '' : ` · ${urgency}`}`,
+              ),
+            ],
+            [
+              stateMark(state, step.question, h),
+              h.span([h.Class('f-question-number')], [step.question.id]),
+              h.span([], [step.question.title]),
+              h.span(
+                [h.Class('sr-only')],
+                [
+                  `${state}${state === 'Open' && urgency !== '' ? ` · ${urgency}` : ''}`,
+                ],
+              ),
+            ],
+          ),
+          hasChildren
+            ? h.button(
+                [
+                  h.Class('f-question-branch'),
+                  h.AriaExpanded(!collapsed),
+                  h.AriaControls(`question-children-${step.question.id}`),
+                  h.AriaLabel(
+                    `${collapsed ? 'Expand' : 'Collapse'} dependents of ${step.question.id}`,
+                  ),
+                  h.Title(`Questions waiting on ${step.question.id}`),
+                  h.OnClick(
+                    Message.ClickedQuestionBranch({
+                      question: step.question.id,
+                    }),
+                  ),
+                ],
+                [
+                  h.svg(
+                    [
+                      h.ViewBox('0 0 16 16'),
+                      h.Class(collapsed ? '' : 'is-open'),
+                      h.AriaHidden(true),
+                    ],
+                    [
+                      h.path([
+                        h.D('m6 4 4 4-4 4'),
+                        h.Fill('none'),
+                        h.Stroke('currentColor'),
+                        h.StrokeWidth('1.5'),
+                      ]),
+                    ],
+                  ),
+                ],
+              )
+            : h.empty,
+        ],
+      ),
+      hasChildren && !collapsed
+        ? h.ul(
+            [
+              h.Class('f-question-children'),
+              h.Id(`question-children-${step.question.id}`),
+            ],
+            node.children.map(child =>
+              questionNodeView(model, snapshot, child, h),
+            ),
+          )
+        : h.empty,
+    ],
+  )
+}
 
 const settingView = (model: Model, h: H): Html =>
   h.dialog(
@@ -432,13 +563,17 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   h.Value(model.workspace.grouping),
                   h.OnChange(value =>
                     Message.ChangedQuestionGrouping({
-                      grouping: value === 'Agent' ? 'Agent' : 'Round',
+                      grouping:
+                        value === 'Agent' || value === 'Topic'
+                          ? value
+                          : 'Round',
                     }),
                   ),
                 ],
                 [
                   h.option([h.Value('Round')], ['By round']),
                   h.option([h.Value('Agent')], ['By agent']),
+                  h.option([h.Value('Topic')], ['By topic']),
                 ],
               ),
             ],
@@ -467,7 +602,10 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                   h.AriaPressed(String(model.workspace.filter === filter)),
                   h.OnClick(Message.ChangedQuestionFilter({ filter })),
                 ],
-                [filter === 'All' ? h.empty : stateMark(filter, h), filter],
+                [
+                  filter === 'All' ? h.empty : stateMark(filter, undefined, h),
+                  filter,
+                ],
               ),
             ),
           ),
@@ -514,7 +652,9 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                     h.OnClick(
                       model.workspace.grouping === 'Agent'
                         ? Message.ClickedAgentGroup({ session: group.key })
-                        : Message.ClickedRound({ round: Number(group.key) }),
+                        : model.workspace.grouping === 'Topic'
+                          ? Message.ClickedTopicGroup({ topic: group.key })
+                          : Message.ClickedRound({ round: Number(group.key) }),
                     ),
                   ],
                   [
@@ -544,48 +684,14 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                     ),
                   ],
                 ),
-                ...(collapsed
-                  ? []
-                  : steps.map(step => {
-                      const state = questionState(
-                        snapshot,
-                        step,
-                        model.answers,
-                        model.notes,
-                        model.own,
-                      )
-                      return h.keyed('button')(
-                        step.id,
-                        [
-                          h.Class(
-                            `f-question-item${model.currentPart === `${QUESTION_PAGE}${step.question.id}` ? ' is-current' : ''}`,
-                          ),
-                          h.OnClick(
-                            Message.ClickedWorkspacePage({
-                              page: `${QUESTION_PAGE}${step.question.id}`,
-                            }),
-                          ),
-                          h.AriaCurrent(
-                            model.currentPart ===
-                              `${QUESTION_PAGE}${step.question.id}`
-                              ? 'page'
-                              : 'false',
-                          ),
-                          h.Title(
-                            `${step.question.id} · ${state} · ${step.question.title}`,
-                          ),
-                        ],
-                        [
-                          stateMark(state, h),
-                          h.span(
-                            [h.Class('f-question-number')],
-                            [step.question.id],
-                          ),
-                          h.span([], [step.question.title]),
-                          h.span([h.Class('sr-only')], [state]),
-                        ],
-                      )
-                    })),
+                collapsed
+                  ? h.empty
+                  : h.ul(
+                      [h.Class('f-question-tree')],
+                      group.roots.map(node =>
+                        questionNodeView(model, snapshot, node, h),
+                      ),
+                    ),
               ],
             )
           }),
@@ -694,7 +800,7 @@ const questionView = (
                       h.span(
                         [h.Class('f-state-label')],
                         [
-                          stateMark(state, h),
+                          stateMark(state, q, h),
                           state === 'Draft' ? 'Draft · not sent' : state,
                         ],
                       ),

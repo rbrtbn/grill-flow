@@ -490,6 +490,8 @@ it('follows the displayed agent groups when moving to the next question', () => 
         ...step,
         question: {
           ...step.question,
+          dependsOn: [],
+          when: [],
           session: index === 1 ? 'lead' : 'worker',
         },
       })),
