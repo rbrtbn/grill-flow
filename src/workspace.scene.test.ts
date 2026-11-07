@@ -3,6 +3,7 @@ import { Url } from 'foldkit'
 import {
   Command,
   Mount,
+  Subscription,
   all,
   click,
   expect,
@@ -376,5 +377,35 @@ it('returns to the composer and restores thread position when switching discussi
       Message.CompletedRestoreDiscussionPosition(),
     ),
     Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+  )
+})
+
+it('shows the effective send count while Command is held and restores the review label', () => {
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      answers: { Q1: 'a', Q2: 'b' },
+      workspace: { ...loaded.workspace, excluded: ['Q2'] },
+      isCommandHeld: true,
+    }),
+    expect(role('button', { name: 'Send · 1', exact: true })).toExist(),
+    expect(selector('.f-header-send-reserve')).toHaveAttr(
+      'aria-hidden',
+      'true',
+    ),
+    Subscription.emit(Message.UpdatedCommandHeld({ held: false })),
+    expect(
+      role('button', { name: 'Review & send · 2', exact: true }),
+    ).toExist(),
+  )
+})
+
+it('shows a failed quick-send on the question page with a path to the remaining drafts', () => {
+  scene(
+    { update, view },
+    given({ ...loaded, send: 'Failed', sendDetail: 'Agent unavailable' }),
+    expect(role('alert')).toContainText('Not sent: Agent unavailable'),
+    expect(role('button', { name: 'Review drafts' })).toExist(),
   )
 })

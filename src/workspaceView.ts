@@ -293,6 +293,18 @@ export const workspaceView = (
 ): Html => {
   const grill = snapshot.grill
   const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
+  const selectedDrafts = drafts.filter(
+    id => !model.workspace.excluded.includes(id),
+  )
+  const reviewLabel = `Review & send${drafts.length > 0 ? ` · ${drafts.length}` : ''}`
+  const sendLabel =
+    model.send === 'Sending'
+      ? 'Sending…'
+      : model.quickSend !== 'Idle'
+        ? 'Saving…'
+        : model.isCommandHeld
+          ? `Send${selectedDrafts.length > 0 ? ` · ${selectedDrafts.length}` : ''}`
+          : reviewLabel
   const question = questionOnPage(snapshot, model.currentPart)
   const isDiscussion =
     model.side === 'Talk' || model.currentPart === CONVERSATIONS
@@ -340,6 +352,19 @@ export const workspaceView = (
               model.failedWrites.length > 0
                 ? link('Retry saving', Message.ClickedRetrySaves(), h)
                 : h.empty,
+            ],
+          )
+        : h.empty,
+      model.send === 'Failed' && model.currentPart !== REVIEW
+        ? h.div(
+            [h.Class('f-save-error'), h.Role('alert')],
+            [
+              `Not sent: ${model.sendDetail} `,
+              link(
+                'Review drafts',
+                Message.ClickedWorkspacePage({ page: REVIEW }),
+                h,
+              ),
             ],
           )
         : h.empty,
@@ -402,11 +427,20 @@ export const workspaceView = (
               ),
               h.button(
                 [
-                  h.Class('send-button'),
+                  h.Id('workspace-review-send'),
+                  h.Class('send-button f-header-send'),
+                  h.AriaLabel(sendLabel),
+                  h.Disabled(
+                    model.send === 'Sending' || model.quickSend !== 'Idle',
+                  ),
                   h.OnClick(Message.ClickedWorkspacePage({ page: REVIEW })),
                 ],
                 [
-                  `Review & send${drafts.length > 0 ? ` · ${drafts.length}` : ''}`,
+                  h.span(
+                    [h.Class('f-header-send-reserve'), h.AriaHidden(true)],
+                    [reviewLabel],
+                  ),
+                  h.span([h.Class('f-header-send-label')], [sendLabel]),
                 ],
               ),
               h.button(

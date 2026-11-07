@@ -89,6 +89,8 @@ type PageData = typeof PageData.schema.Type
 export const SendState = Schema.Literals(['Idle', 'Sending', 'Sent', 'Failed'])
 export type SendState = typeof SendState.Type
 
+export const QuickSendState = Schema.Literals(['Idle', 'Reading', 'Saving'])
+
 export const CopyState = Schema.Literals(['Idle', 'Copied', 'Failed'])
 export type CopyState = typeof CopyState.Type
 
@@ -145,6 +147,8 @@ export const Model = Schema.Struct({
   diagramViews: Schema.Record(Schema.String, DiagramView),
   whyOpen: Schema.Record(Schema.String, Schema.Boolean),
   send: SendState,
+  quickSend: QuickSendState,
+  isCommandHeld: Schema.Boolean,
   isSendOpen: Schema.Boolean,
   sendMessage: Schema.String,
   // Bumped after each sent talk message, so the box remounts empty.
@@ -231,6 +235,14 @@ export const Message = defineMessageUnion({
   ClickedRetrySaves: {},
   ClickedWorkspacePage: { page: Schema.String },
   PressedWorkspaceShortcut: {},
+  UpdatedCommandHeld: { held: Schema.Boolean },
+  ClickedQuickSend: {},
+  CompletedReadQuickSendEditors: {
+    own: Schema.Record(Schema.String, Schema.String),
+    notes: Schema.Record(Schema.String, Schema.String),
+    message: Schema.String,
+  },
+  FailedReadQuickSendEditors: {},
   ClickedQuestionNote: { question: Schema.String },
   UpdatedReviewQuery: { value: Schema.String },
   ClickedReviewDetail: { question: Schema.String },
@@ -385,6 +397,112 @@ const postEvent = (model: Model, body: Record<string, unknown>): UpdateReturn =>
       commands: [PostEvent({ grillId, body: JSON.stringify(body) })],
     }),
   })
+
+const sendDraftAnswers = (model: Model, text: string): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    if (
+      model.send === 'Sending' ||
+      model.pendingEvents > 0 ||
+      Option.isSome(model.maybeSaveError)
+    ) {
+      return { model }
+    }
+    const isWorkspace = isWorkspacePage(model.currentPart)
+    const questions = draftAnswerIds(
+      snapshot,
+      model.answers,
+      model.notes,
+      model.own,
+    ).filter(id => !model.workspace.excluded.includes(id))
+    if (isWorkspace && Array.isArrayEmpty(questions)) {
+      return { model }
+    }
+    return {
+      model: modifyFields(model, {
+        send: () => 'Sending',
+        sendDetail: () => '',
+        sendMessage: () => text,
+      }),
+      commands: [
+        SendAnswers({
+          grillId: snapshot.grill.id,
+          message: text,
+          maybeQuestions: isWorkspace ? Option.some(questions) : Option.none(),
+          expectedLines: workspaceLines(
+            snapshot,
+            model.answers,
+            model.notes,
+            model.own,
+          ),
+        }),
+      ],
+    }
+  })
+
+const continueQuickSend = (model: Model): UpdateReturn => {
+  if (model.quickSend !== 'Saving') {
+    return { model }
+  }
+  if (
+    !isWorkspacePage(model.currentPart) ||
+    Option.isSome(model.maybeSaveError) ||
+    Array.isReadonlyArrayNonEmpty(model.failedWrites)
+  ) {
+    return { model: modifyFields(model, { quickSend: () => 'Idle' }) }
+  }
+  // Blur can post stale model text before dictation's DOM value is read.
+  if (model.pendingEvents > 0) {
+    return { model }
+  }
+  return withSnapshot(model, snapshot => {
+    const questions = snapshot.grill.steps.map(step => step.question.id)
+    const bodies: ReadonlyArray<Record<string, unknown>> = [
+      ...Object.entries(model.own).flatMap(([question, text]) =>
+        questions.includes(question) &&
+        model.answers[question] === OWN &&
+        text !== (snapshot.own[question] ?? '')
+          ? [{ kind: 'answered', question, key: OWN, text }]
+          : [],
+      ),
+      ...Object.entries(model.notes).flatMap(([question, text]) =>
+        questions.includes(question) &&
+        text !== (snapshot.notes[question] ?? '')
+          ? [{ kind: 'noted', question, text }]
+          : [],
+      ),
+    ]
+    if (
+      bodies.some(
+        body => typeof body.text === 'string' && body.text.length > 4000,
+      )
+    ) {
+      return {
+        model: modifyFields(model, {
+          quickSend: () => 'Idle',
+          send: () => 'Failed',
+          sendDetail: () =>
+            'An answer or note exceeds 4,000 characters. Shorten it and try again; your draft is kept.',
+        }),
+      }
+    }
+    if (Array.isReadonlyArrayNonEmpty(bodies)) {
+      return bodies.reduce<UpdateReturn>(
+        (pending, body) => {
+          const write = postEvent(pending.model, body)
+          return {
+            model: write.model,
+            commands: [...(pending.commands ?? []), ...(write.commands ?? [])],
+          }
+        },
+        { model },
+      )
+    }
+    return sendDraftAnswers(
+      modifyFields(model, { quickSend: () => 'Idle' }),
+      model.sendMessage,
+    )
+  })
+}
 
 const refreshPage = (model: Model, snapshot: Snapshot): Model =>
   modifyFields(model, {
@@ -637,6 +755,51 @@ export const update = (model: Model, message: Message) =>
         : model.currentPart.startsWith(QUESTION_PAGE)
           ? reviewFromQuestion(model)
           : { model },
+    UpdatedCommandHeld: ({ held }) => ({
+      model: modifyFields(model, { isCommandHeld: () => held }),
+    }),
+    ClickedQuickSend: () =>
+      withSnapshot(model, snapshot =>
+        model.send === 'Sending' ||
+        model.quickSend !== 'Idle' ||
+        Option.isSome(model.maybeSaveError)
+          ? { model }
+          : {
+              model: modifyFields(model, { quickSend: () => 'Reading' }),
+              commands: [
+                ReadQuickSendEditors({
+                  questions: snapshot.grill.steps.map(step => step.question.id),
+                  message: model.sendMessage,
+                }),
+              ],
+            },
+      ),
+    CompletedReadQuickSendEditors: ({ own, notes, message }) =>
+      model.quickSend !== 'Reading'
+        ? { model }
+        : continueQuickSend(
+            modifyFields(model, {
+              quickSend: () => 'Saving',
+              own: current =>
+                Record.fromEntries([
+                  ...Object.entries(current),
+                  ...Object.entries(own),
+                ]),
+              notes: current =>
+                Record.fromEntries([
+                  ...Object.entries(current),
+                  ...Object.entries(notes),
+                ]),
+              sendMessage: () => message,
+            }),
+          ),
+    FailedReadQuickSendEditors: () => ({
+      model: modifyFields(model, {
+        quickSend: () => 'Idle',
+        send: () => 'Failed',
+        sendDetail: () => 'Could not read your drafts. Try again.',
+      }),
+    }),
     ClickedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
     PressedQuestionArrow: ({ direction }) => navigateQuestion(model, direction),
     ChangedQuestionFilter: ({ filter }) => ({
@@ -1039,7 +1202,11 @@ export const update = (model: Model, message: Message) =>
         text: Option.getOrElse(Record.get(model.notes, question), () => ''),
       }),
 
-    CompletedPostEvent: ({ result, body }) => settleWrite(model, result, body),
+    CompletedPostEvent: ({ result, body }) =>
+      Update.combine(model, [
+        stepModel => settleWrite(stepModel, result, body),
+        continueQuickSend,
+      ]),
     ClickedRetrySaves: () =>
       Option.match(grillIdOf(model), {
         onNone: () => ({ model }),
@@ -1077,45 +1244,7 @@ export const update = (model: Model, message: Message) =>
       commands: [ReadSendBoxCommand()],
     }),
 
-    ReadSendBox: ({ text }) =>
-      withSnapshot(model, snapshot => {
-        if (
-          model.send === 'Sending' ||
-          model.pendingEvents > 0 ||
-          Option.isSome(model.maybeSaveError)
-        )
-          return { model }
-        const isWorkspace = isWorkspacePage(model.currentPart)
-        const questions = draftAnswerIds(
-          snapshot,
-          model.answers,
-          model.notes,
-          model.own,
-        ).filter(id => !model.workspace.excluded.includes(id))
-        if (isWorkspace && questions.length === 0) return { model }
-        return {
-          model: modifyFields(model, {
-            send: () => 'Sending',
-            sendDetail: () => '',
-            sendMessage: () => text,
-          }),
-          commands: [
-            SendAnswers({
-              grillId: snapshot.grill.id,
-              message: text,
-              maybeQuestions: isWorkspace
-                ? Option.some(questions)
-                : Option.none(),
-              expectedLines: workspaceLines(
-                snapshot,
-                model.answers,
-                model.notes,
-                model.own,
-              ),
-            }),
-          ],
-        }
-      }),
+    ReadSendBox: ({ text }) => sendDraftAnswers(model, text),
 
     CompletedFillBox: () => ({ model }),
 
@@ -2255,6 +2384,8 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     hiddenToastIds: [],
     maybeClosedLine: Option.none(),
     send: 'Idle',
+    quickSend: 'Idle',
+    isCommandHeld: false,
     isSendOpen: false,
     sendMessage: '',
     talkGeneration: 0,
@@ -2667,6 +2798,39 @@ const boxText = (id: string): string => {
   const element = document.getElementById(id)
   return element instanceof HTMLTextAreaElement ? element.value : ''
 }
+
+const editorTexts = (
+  prefix: string,
+  questions: ReadonlyArray<string>,
+): Record<string, string> =>
+  Record.fromEntries(
+    questions.flatMap(question => {
+      const element = document.getElementById(`${prefix}-${question}`)
+      return element instanceof HTMLTextAreaElement
+        ? [[question, element.value] satisfies readonly [string, string]]
+        : []
+    }),
+  )
+
+export const ReadQuickSendEditors = Command.define('ReadQuickSendEditors', {
+  args: { questions: Schema.Array(Schema.String), message: Schema.String },
+  messages: [
+    Message.CompletedReadQuickSendEditors,
+    Message.FailedReadQuickSendEditors,
+  ],
+  execute: ({ questions, message }) =>
+    Effect.sync(() => {
+      const composer = document.getElementById('send-message')
+      return Message.CompletedReadQuickSendEditors({
+        own: editorTexts('own', questions),
+        notes: editorTexts('note', questions),
+        message:
+          composer instanceof HTMLTextAreaElement ? composer.value : message,
+      })
+    }).pipe(
+      Effect.catch(() => Effect.succeed(Message.FailedReadQuickSendEditors())),
+    ),
+})
 
 /** Where a question's own reply box keeps its draft, beside the Talk keys. */
 export const threadDraftKey = (stepId: string): string => `ask:${stepId}`
@@ -3209,6 +3373,68 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  commandHeld: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled: isWorkspacePage(model.currentPart),
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        !enabled
+          ? Stream.empty
+          : Stream.mergeAll(
+              [
+                Dom.streamFromEvent({
+                  target: document,
+                  type: 'keydown',
+                  mapEvent: event => event.metaKey,
+                }),
+                Dom.streamFromEvent({
+                  target: document,
+                  type: 'keyup',
+                  mapEvent: event => event.metaKey,
+                }),
+                Dom.streamFromEvent({
+                  target: window,
+                  type: 'blur',
+                  mapEvent: () => false,
+                }),
+              ],
+              { concurrency: 'unbounded' },
+            ).pipe(
+              Stream.changes,
+              Stream.map(held => Message.UpdatedCommandHeld({ held })),
+            ),
+    },
+  ),
+  quickSendClick: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled: isWorkspacePage(model.currentPart),
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        !enabled
+          ? Stream.empty
+          : Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'click',
+              options: { capture: true },
+              filterMapEvent: event => {
+                if (
+                  !event.metaKey ||
+                  event.button !== 0 ||
+                  !(event.target instanceof Element) ||
+                  event.target.closest('#workspace-review-send') === null
+                ) {
+                  return Option.none()
+                }
+                event.stopPropagation()
+                return Option.some(Message.ClickedQuickSend())
+              },
+            }),
+    },
+  ),
   discussionState: entry(
     { ready: Schema.Boolean, grillId: Schema.String, state: DiscussionState },
     {

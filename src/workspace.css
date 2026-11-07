@@ -163,6 +163,16 @@
 .f-topbar nav > .text-button {
   color: var(--ink);
 }
+.f-topbar nav > .f-header-send {
+  display: inline-grid;
+}
+.f-header-send-reserve,
+.f-header-send-label {
+  grid-area: 1 / 1;
+}
+.f-header-send-reserve {
+  visibility: hidden;
+}
 .f-frame {
   --nav-safe: clamp(180px, var(--nav-w), 32vw);
   height: calc(100dvh - var(--bar) - var(--preview-bar));

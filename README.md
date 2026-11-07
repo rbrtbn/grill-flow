@@ -11,6 +11,11 @@ your answers, takes an optional message, and types it all into the agent's termi
 Everything stays on your machine. Every answer, note, ask and rewrite is kept as an event in a
 local SQLite file, so you can later mine how you use the pages.
 
+Hold Command to turn the header's **Review & send** button into **Send**. Command-click sends
+the currently selected unsent drafts across rounds, keeping any answers you unchecked in Review
+excluded and including your saved review message. It saves visible notes and custom answer text
+first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
+
 ## Two kinds of grill
 
 One page serves both; which one you get depends only on the fields the grill's file fills in.
