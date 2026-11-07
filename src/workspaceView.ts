@@ -1724,6 +1724,7 @@ const discussionView = (
       h.div(
         [
           h.Class('f-discussion-messages'),
+          h.DataAttribute('discussion-target', target),
           h.OnScroll(top => Message.ScrolledDiscussion({ target, top })),
           h.OnMount(
             RestoreDiscussionScroll({
@@ -1791,8 +1792,8 @@ const discussionView = (
                 value,
               }),
             ),
-            h.OnKeyDownPreventDefault((key, { metaKey, ctrlKey }) =>
-              key === 'Enter' && (metaKey || ctrlKey)
+            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
+              key === 'Enter' && !shiftKey
                 ? Option.some(Message.SubmittedWorkspaceDiscussion({ target }))
                 : Option.none(),
             ),
@@ -1800,7 +1801,10 @@ const discussionView = (
           h.div(
             [h.Class('f-send-foot')],
             [
-              h.span([h.Class('hint')], ['⌘ / Ctrl + Enter to send']),
+              h.span(
+                [h.Class('hint')],
+                ['Enter to send · Shift + Enter for a new line'],
+              ),
               h.button([h.Type('submit'), h.Class('send-button')], ['Ask']),
             ],
           ),

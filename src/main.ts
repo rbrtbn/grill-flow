@@ -212,7 +212,12 @@ const closedDiscussion: typeof DiscussionState.Type = {
 }
 
 export const Message = defineMessageUnion({
-  CompletedLoadGrill: { result: Schema.Result(Snapshot, Schema.String) },
+  CompletedLoadGrill: {
+    result: Schema.Result(Snapshot, Schema.String),
+    discussion: Schema.optionalKey(
+      Schema.Struct({ target: Schema.String, atBottom: Schema.Boolean }),
+    ),
+  },
   TickedPoll: {},
   CompletedCheckBuild: { maybeBuild: Schema.Option(Schema.String) },
   CompletedReloadPage: {},
@@ -701,7 +706,36 @@ const unpicked = (model: Model, question: string): UpdateReturn =>
 
 export const update = (model: Model, message: Message) =>
   Message.match<UpdateReturn>(message, {
-    CompletedLoadGrill: ({ result }) => settleLoad(model, result),
+    CompletedLoadGrill: ({ result, discussion }) => {
+      const loaded = settleLoad(model, result)
+      const previous = AsyncData.getData(model.page)
+      if (
+        result._tag === 'Failure' ||
+        !discussion?.atBottom ||
+        Option.isNone(previous)
+      ) {
+        return loaded
+      }
+      const seen = new Set(agentMessagesOf(previous.value).map(item => item.id))
+      const next = agentMessagesOf(result.success).find(
+        item =>
+          item.kind === 'answer' &&
+          item.stepId === discussion.target &&
+          !seen.has(item.id),
+      )
+      return next === undefined
+        ? loaded
+        : {
+            model: loaded.model,
+            commands: [
+              ...(loaded.commands ?? []),
+              ScrollDiscussion({
+                target: discussion.target,
+                maybeMessage: Option.some(next.id),
+              }),
+            ],
+          }
+    },
 
     ClickedWorkspacePage: ({ page }) => workspaceNavigate(model, page),
     ClickedQuestionNote: ({ question }) => ({
@@ -1217,11 +1251,33 @@ export const update = (model: Model, message: Message) =>
         text: Option.getOrElse(Record.get(model.notes, question), () => ''),
       }),
 
-    CompletedPostEvent: ({ result, body }) =>
-      Update.combine(model, [
+    CompletedPostEvent: ({ result, body }) => {
+      const written = Update.combine(model, [
         stepModel => settleWrite(stepModel, result, body),
         continueQuickSend,
-      ]),
+      ])
+      if (result._tag === 'Failure' || body === undefined) {
+        return written
+      }
+      const ask = Schema.decodeUnknownResult(
+        Schema.Struct({
+          kind: Schema.Literal('asked'),
+          stepId: Schema.String,
+        }),
+      )(JSON.parse(body))
+      return ask._tag === 'Failure'
+        ? written
+        : {
+            model: written.model,
+            commands: [
+              ...(written.commands ?? []),
+              ScrollDiscussion({
+                target: ask.success.stepId,
+                maybeMessage: Option.none(),
+              }),
+            ],
+          }
+    },
     ClickedRetrySaves: () =>
       Option.match(grillIdOf(model), {
         onNone: () => ({ model }),
@@ -2495,6 +2551,47 @@ export const RestoreDiscussionPosition = Command.define(
   },
 )
 
+export const ScrollDiscussion = Command.define('ScrollDiscussion', {
+  args: { target: Schema.String, maybeMessage: Schema.Option(Schema.String) },
+  messages: [Message.CompletedScroll],
+  execute: ({ target, maybeMessage }) =>
+    afterCommit.pipe(
+      Effect.andThen(() =>
+        Effect.sync(() => {
+          const pane = document.querySelector('.f-discussion-messages')
+          if (
+            !(pane instanceof HTMLElement) ||
+            pane.dataset.discussionTarget !== target
+          ) {
+            return
+          }
+          const message = Option.match(maybeMessage, {
+            onNone: () => null,
+            onSome: id => document.getElementById(`talk-agent-${id}`),
+          })
+          if (
+            Option.isSome(maybeMessage) &&
+            (message === null || !pane.contains(message))
+          ) {
+            return
+          }
+          pane.scrollTo({
+            top:
+              message === null
+                ? pane.scrollHeight
+                : pane.scrollTop +
+                  message.getBoundingClientRect().top -
+                  pane.getBoundingClientRect().top -
+                  16,
+            behavior: 'instant',
+          })
+        }),
+      ),
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedScroll()),
+    ),
+})
+
 export const RestoreDiscussionScroll = Mount.define('RestoreDiscussionScroll', {
   args: { top: Schema.Number },
   messages: [Message.CompletedRestoreDiscussionScroll],
@@ -2669,7 +2766,23 @@ export const LoadGrill = Command.define('LoadGrill', {
     Effect.flatMap(parts =>
       requestSnapshot(`/api/grills/${encodeURIComponent(parts[1] ?? '')}`),
     ),
-    Effect.map(result => Message.CompletedLoadGrill({ result })),
+    Effect.map(result => {
+      const pane = document.querySelector('.f-discussion-messages')
+      const target =
+        pane instanceof HTMLElement ? pane.dataset.discussionTarget : undefined
+      return Message.CompletedLoadGrill({
+        result,
+        ...(pane instanceof HTMLElement && target !== undefined
+          ? {
+              discussion: {
+                target,
+                atBottom:
+                  pane.scrollHeight - pane.clientHeight - pane.scrollTop <= 8,
+              },
+            }
+          : {}),
+      })
+    }),
   ),
 })
 

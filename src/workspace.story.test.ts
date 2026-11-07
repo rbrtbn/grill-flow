@@ -11,6 +11,7 @@ import {
   PageData,
   PostEvent,
   PushPage,
+  ScrollDiscussion,
   ScrollToTop,
   SendAnswers,
   init,
@@ -574,6 +575,10 @@ it('refocuses the cleared discussion composer after sending a nonempty message',
       PostEvent,
       Message.CompletedPostEvent({ result: Result.succeed(snapshot), body }),
     ),
+    Command.expectExact(
+      ScrollDiscussion({ target: 'run', maybeMessage: Option.none() }),
+    ),
+    Command.resolve(ScrollDiscussion, Message.CompletedScroll()),
   )
   const empty = update(
     loaded,

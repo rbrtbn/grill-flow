@@ -140,12 +140,35 @@ export const questionOnPage = (
     step => `${QUESTION_PAGE}${step.question.id}` === page,
   )
 
+const answerLineCache = new WeakMap<
+  Snapshot,
+  Readonly<{
+    answers: Answers
+    notes: Notes
+    own: Notes
+    lines: Readonly<Record<string, string>>
+  }>
+>()
+
+// Sidebar rows share answer lines; immutable inputs avoid quadratic rendering work.
 export const workspaceLines = (
   snapshot: Snapshot,
   answers: Answers,
   notes: Notes,
   own: Notes,
-) => sendableLines(snapshot.grill, answers, notes, own)
+): Readonly<Record<string, string>> => {
+  const cached = answerLineCache.get(snapshot)
+  if (
+    cached?.answers === answers &&
+    cached.notes === notes &&
+    cached.own === own
+  ) {
+    return cached.lines
+  }
+  const lines = sendableLines(snapshot.grill, answers, notes, own)
+  answerLineCache.set(snapshot, { answers, notes, own, lines })
+  return lines
+}
 
 export const questionState = (
   snapshot: Snapshot,

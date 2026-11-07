@@ -20,6 +20,9 @@ The question sidebar combines state, urgency and search. State and urgency choic
 with the browser's workspace settings and restored after reload. All urgencies includes questions
 without an urgency; Unspecified selects only those questions.
 
+In a discussion, Enter sends and Shift + Enter adds a line. Sending moves to the bottom;
+new agent answers follow only when you were already there, leaving older reading undisturbed.
+
 ## Two kinds of grill
 
 One page serves both; which one you get depends only on the fields the grill's file fills in.
