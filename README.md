@@ -230,3 +230,13 @@ A durable local-question link can name its source explicitly:
 The source determines the question even when its local ID resembles another member's
 shared Q number. Retired members lead to their preserved direct page;
 unknown source/question pairs fail instead of guessing.
+
+### Draw a question
+
+Draw this beside Discuss sends the question owner a saved request with frozen wording. The
+owner returns raw compare/flow JSON through `gf draw <source> <question> --request <event-id>
+--file diagram.json`. The drawing stays separate from answers and comments. Changed wording
+marks it stale; original option labels remain intact. Delivery failures and unconfirmed
+requests remain visible. See the
+[drawing contract](docs/implementation/2026-11-07-question-drawings.md)
+for examples, revision rules and remote outbox behavior.

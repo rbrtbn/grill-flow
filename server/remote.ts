@@ -7,6 +7,8 @@ import { ChannelItem } from '../src/channel'
 import { type Grill } from '../src/domain'
 import { attentionSnapshot } from './attention'
 import { publishItem, publishedUpdates, remoteItemError } from './channel'
+import { pageDrawings, publishDrawing } from './drawings'
+import { readPage } from './squad'
 import {
   ROOT,
   decodeGrill,
@@ -83,7 +85,7 @@ type Listing = Readonly<{
 const list = async (remote: Remote): Promise<Listing | undefined> => {
   const script = `cd ${shellPath(remote.dir)} 2>/dev/null || exit 0
 pwd
-find . -mindepth 2 -maxdepth 3 -type f \\( -name grill.json -o -path './*/revisions/*.json' -o -path './*/items/*.json' \\) | while read -r f; do
+find . -mindepth 2 -maxdepth 3 -type f \\( -name grill.json -o -path './*/revisions/*.json' -o -path './*/items/*.json' -o -path './*/drawings/*.json' \\) | while read -r f; do
   m=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f")
   s=$(wc -c < "$f" | tr -d ' ')
   echo "$m.$s $f"
@@ -259,6 +261,27 @@ const takeItem = async (
   return result.ok
 }
 
+const takeDrawing = async (
+  db: Database,
+  remote: Remote,
+  root: string,
+  path: string,
+): Promise<boolean> => {
+  const grill = getGrill(db, path.split('/')[0] ?? '')
+  if (grill === undefined) {
+    return false
+  }
+  const result = publishDrawing(
+    db,
+    grill,
+    await readRemote(remote.machine, `${root}/${path}`),
+  )
+  if (!result.ok) {
+    console.error(`remote ${remote.machine}:${path}: ${result.error}`)
+  }
+  return result.ok
+}
+
 const pushed = new Map<string, number>()
 
 /** Writes a remote grill's state into its outbox folder whenever it has changed. */
@@ -281,6 +304,7 @@ const pushStates = async (db: Database): Promise<void> => {
         ...snapshot(db, grill),
         updates: publishedUpdates(db, [grill.id]),
         ...attentionSnapshot(db, [grill.id]),
+        drawings: pageDrawings(db, readPage(db, grill.id)!),
       },
       events: events(db, id).map(event => ({
         ...event,
@@ -320,11 +344,18 @@ export const pollRemotesOnce = async (
     for (const file of changed) {
       // A reply is taken once; a grill again whenever the agent rewrites it.
       const isItem = file.path.includes('/items/')
+      const isDrawing = file.path.includes('/drawings/')
       const isReply = file.path.includes('/revisions/')
       if (
-        (isReply || isItem) &&
+        (isReply || isItem || isDrawing) &&
         seenStamp(db, remote.machine, file.path) !== undefined
       ) {
+        continue
+      }
+      if (isDrawing) {
+        if (await takeDrawing(db, remote, listing.root, file.path)) {
+          markSeen(db, remote.machine, file.path, file.stamp)
+        }
         continue
       }
       if (isItem) {

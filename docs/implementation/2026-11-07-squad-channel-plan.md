@@ -27,6 +27,8 @@ answer history and registration-based source-qualified links. Sidebar G shipped 
 Step 3 adds owner steps with reported proof, provisional decisions with page veto receipts,
 and typed evidence-backed blockers. Local terminal jumps focus only a published tN address;
 remote item destinations remain links. Live provider refresh remains in step 4.
+Step 4 ships each part separately. Its first part adds frozen Draw this requests and typed
+compare/flow responses; roster, primary-provider refresh and What changed follow in order.
 
 ## Shared implementation
 

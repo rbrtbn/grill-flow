@@ -357,7 +357,7 @@ it('opens this question discussion from between the note and skip actions', () =
     { update, view },
     given(loaded),
     expect(selector('.f-answer-actions')).toContainText(
-      'Add a noteDiscussSkip for now',
+      'Add a noteDiscussDraw thisSkip for now',
     ),
     click(
       within(

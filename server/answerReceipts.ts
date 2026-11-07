@@ -8,6 +8,7 @@ import {
   OWN,
   type Grill,
   type Question,
+  type Step,
   type Snapshot,
   questionSession,
   roundOf,
@@ -53,6 +54,19 @@ export const questionRevisions = (
     grill.steps.map(({ question }) => [question.id, digest(wording(question))]),
   )
 
+export const captureQuestionContext = (
+  source: Grill,
+  display: Grill,
+  step: Step,
+  shown: Step,
+) => ({
+  revision: questionRevisions(display)[shown.question.id]!,
+  displayPage: display.id,
+  displayQuestion: shown.question.id,
+  round: roundOf(source, step.question),
+  ...wording(shown.question),
+})
+
 export const recordAnswer = (
   db: Database,
   grill: Grill,
@@ -79,7 +93,8 @@ export const recordAnswer = (
   ) {
     return { ok: false, status: 400, error: 'Unknown question or option' }
   }
-  const revision = questionRevisions(display)[displayQuestion]!
+  const captured = captureQuestionContext(grill, display, step, shown)
+  const revision = captured.revision
   if (
     request.contextRevision !== undefined &&
     request.contextRevision !== revision
@@ -93,16 +108,7 @@ export const recordAnswer = (
   }
   const state = snapshot(db, grill)
   const own = request.key === OWN ? (request.text ?? '').slice(0, 4000) : ''
-  const context =
-    request.contextRevision === undefined
-      ? null
-      : {
-          revision,
-          displayPage: display.id,
-          displayQuestion,
-          round: roundOf(grill, step.question),
-          ...wording(shown.question),
-        }
+  const context = request.contextRevision === undefined ? null : captured
   return {
     ok: true,
     id: appendEvent(db, grill.id, 'answered', {

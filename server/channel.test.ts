@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { questionRevisions } from './answerReceipts'
 import { attentionSnapshot } from './attention'
 import {
   itemHistory,
@@ -19,7 +20,9 @@ import {
   publishedUpdates,
   updateHistory,
 } from './channel'
+import { pageDrawings, requestDrawing } from './drawings'
 import { readPage, sourceQuestionUrl, sourceText } from './squad'
+import { getGrill } from './store'
 import { loadGrill, retireGrill, restoreGrill, snapshot } from './store'
 
 const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
@@ -261,6 +264,7 @@ it('imports remote immutable revisions in order, retries an unmet revision, and 
   const dbPath = join(dir, 'remote.sqlite')
   const db = database(dbPath)
   mkdirSync(join(root, id, 'items'), { recursive: true })
+  mkdirSync(join(root, id, 'drawings'), { recursive: true })
   writeFileSync(join(root, id, 'grill.json'), JSON.stringify(source(id)))
   const write = (revision: number) =>
     writeFileSync(
@@ -310,7 +314,7 @@ import {readFileSync,readdirSync,statSync,writeFileSync} from 'node:fs';
 const root=${JSON.stringify(root)};const args=process.argv.slice(2);
 if(args[0]==='exec') {
  console.log(root);
- for(const file of ['${id}/grill.json',...readdirSync(root+'/${id}/items').map(x=>'${id}/items/'+x)]) { const s=statSync(root+'/'+file); console.log(s.mtimeMs+'.'+s.size+' ./'+file); }
+ for(const file of ['${id}/grill.json',...['items','drawings'].flatMap(d=>readdirSync(root+'/${id}/'+d).map(x=>'${id}/'+d+'/'+x))]) { const s=statSync(root+'/'+file); console.log(s.mtimeMs+'.'+s.size+' ./'+file); }
 } else if(args[0]==='file' && args[1]==='read') { console.log(readFileSync(args.at(-1),'utf8')); }
 else if(args[0]==='file' && args[1]==='write') { writeFileSync(args.at(-1),await Bun.stdin.text()); }
 else process.exit(2);
@@ -344,6 +348,70 @@ try { await pollRemotesOnce(db,[{machine:'lab',dir:${JSON.stringify(root)}}]); }
     })
   }
   await poll()
+  const remoteGrill = getGrill(db, id)!
+  const saved = await requestDrawing(
+    db,
+    remoteGrill,
+    remoteGrill,
+    'Q1',
+    {
+      question: 'Q1',
+      contextRevision: questionRevisions(remoteGrill).Q1,
+      previous: 0,
+      requestId: 'remote-drawing',
+    },
+    async () => ({ ok: true, detail: 'Mock delivery' }),
+    () => 'gf',
+  )
+  if (!saved.ok) throw new Error(saved.error)
+  const drawingFile = (revision: number) =>
+    join(
+      root,
+      id,
+      'drawings',
+      `${saved.event}-${String(revision).padStart(10, '0')}.json`,
+    )
+  const writeDrawing = (revision: number, now = `Drawing ${revision}`) =>
+    writeFileSync(
+      drawingFile(revision),
+      JSON.stringify({
+        version: 1,
+        question: 'Q1',
+        request: saved.event,
+        previous: revision - 1,
+        revision,
+        diagram: {
+          kind: 'compare',
+          now,
+          rows: [
+            { label: 'Owner', cells: { now: 'No owner', a: 'One owner' } },
+          ],
+        },
+      }),
+    )
+  writeDrawing(1)
+  writeDrawing(3)
+  await poll()
+  expect(pageDrawings(db, readPage(db, id)!)[0]?.response?.revision).toBe(1)
+  expect(
+    db
+      .query<{ count: number }, [string]>(
+        'SELECT COUNT(*) AS count FROM remote_files WHERE path = ?',
+      )
+      .get(`${id}/drawings/${saved.event}-0000000003.json`)?.count,
+  ).toBe(0)
+  writeDrawing(2)
+  await poll()
+  expect(pageDrawings(db, readPage(db, id)!)[0]?.response?.revision).toBe(3)
+  writeDrawing(1, 'Forbidden replacement')
+  await poll()
+  expect(
+    pageDrawings(db, readPage(db, id)!)[0]?.response?.diagram,
+  ).toMatchObject({ now: 'Drawing 3' })
+  expect(
+    JSON.parse(readFileSync(join(root, id, 'state.json'), 'utf8')).snapshot
+      .drawings[0].response.revision,
+  ).toBe(3)
   expect(publishedUpdates(db, [id])[0]?.item.revision).toBe(1)
   expect(publishedUpdates(db, [id])[0]?.item.session).toBe('lab/t-worker')
   expect(attentionSnapshot(db, [id]).ownerSteps).toMatchObject([
@@ -366,7 +434,7 @@ try { await pollRemotesOnce(db,[{machine:'lab',dir:${JSON.stringify(root)}}]); }
   expect(
     db
       .query<{ count: number }, []>(
-        "SELECT COUNT(*) AS count FROM remote_files WHERE path LIKE '%0000000003.json'",
+        "SELECT COUNT(*) AS count FROM remote_files WHERE path LIKE '%/items/%0000000003.json'",
       )
       .get()?.count,
   ).toBe(0)

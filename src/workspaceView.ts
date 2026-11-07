@@ -28,6 +28,8 @@ import {
   statusOf,
   urgencyDetail,
 } from './domain'
+import { drawingButton, drawingPanel } from './drawingView'
+import type { QuestionDrawing } from './drawings'
 import {
   FillBox,
   Message,
@@ -73,6 +75,7 @@ type Reading = Readonly<{
   answer: (text: string, h: H) => ReadonlyArray<Html | string>
   status: (step: Step, h: H) => Html
   comparison: (step: Step, h: H) => Html
+  drawing: (drawing: QuestionDrawing, h: H) => Html
   related: (step: Step, h: H) => Html
   reasoning: (step: Step, h: H) => Html
   thread: (target: string, h: H) => ReadonlyArray<Html>
@@ -1244,6 +1247,7 @@ const questionView = (
                   reading.status(step, h),
                   answersView(model, snapshot, step, reading, h),
                   reading.comparison(step, h),
+                  drawingPanel(model, snapshot, step, reading.drawing, h),
                   h.section(
                     [h.Class('f-reasoning'), h.Id('workspace-reasoning')],
                     [
@@ -1457,6 +1461,7 @@ const answersView = (
             h,
           ),
           link('Discuss', Message.ClickedDiscussion({ target: step.id }), h),
+          drawingButton(model, snapshot, step, h),
           link('Skip for now', Message.ClickedSkip({ question: q.id }), h),
           selected === undefined
             ? h.empty

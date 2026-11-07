@@ -17,7 +17,8 @@ import {
   replyText,
 } from '../src/domain'
 import { remoteItemError } from './channel'
-import { askMessage } from './messages'
+import { DrawingReply, drawingMessage } from './drawings'
+import { askMessage, pageMessage } from './messages'
 import { ROOT, decodeGrill } from './store'
 
 // The agent side on a machine without the server: grills and replies go into an outbox folder
@@ -57,9 +58,16 @@ export const newsSince = (
             gf,
           ),
         ]
-      : event.kind === 'sent' && event.payload.what === 'answers'
-        ? [String(event.payload.text)]
-        : [],
+      : event.kind === 'drawing-requested' &&
+          !fresh.some(
+            reply =>
+              reply.kind === 'drawing-published' &&
+              reply.payload.request === event.id,
+          )
+        ? [pageMessage(drawingMessage(grillId, event.id, event.payload, gf))]
+        : event.kind === 'sent' && event.payload.what === 'answers'
+          ? [String(event.payload.text)]
+          : [],
   ),
   lastId: fresh.at(-1)?.id ?? 0,
 })
@@ -105,6 +113,40 @@ export const runOutbox = async (
       : undefined
   }
   switch (command) {
+    case 'draw': {
+      const grill = grillOf(args[0])
+      const decoded = Schema.decodeUnknownResult(DrawingReply)({
+        version: 1,
+        question: args[1],
+        request: Number(flag(args, '--request')),
+        previous: Number(flag(args, '--previous') ?? '0'),
+        revision: Number(flag(args, '--revision') ?? '1'),
+        diagram: JSON.parse(
+          readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
+        ),
+      })
+      if (decoded._tag === 'Failure') {
+        return fail('Invalid drawing response. Use compare or flow JSON.')
+      }
+      const reply = decoded.success
+      const path = join(
+        folder(grill.id),
+        'drawings',
+        `${reply.request}-${String(reply.revision).padStart(10, '0')}.json`,
+      )
+      const text = `${JSON.stringify(reply)}\n`
+      if (existsSync(path) && readFileSync(path, 'utf8') !== text) {
+        fail('That immutable drawing revision already has different content.')
+      }
+      mkdirSync(join(folder(grill.id), 'drawings'), { recursive: true })
+      if (!existsSync(path)) {
+        writeAtomic(path, text)
+      }
+      console.log(
+        `queued drawing response in ${path}; the serving host validates its request context`,
+      )
+      break
+    }
     case 'item': {
       const grill = grillOf(args[0])
       const decoded = Schema.decodeUnknownResult(ChannelItem)(

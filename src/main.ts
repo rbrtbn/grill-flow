@@ -47,6 +47,7 @@ import {
   urgencyOf,
   usesUrgency,
 } from './domain'
+import { drawingAttemptKey } from './drawings'
 import {
   ANSWER_HISTORY,
   CONVERSATIONS,
@@ -105,6 +106,10 @@ export const QuickSendState = Schema.Literals(['Idle', 'Reading', 'Saving'])
 export const CopyState = Schema.Literals(['Idle', 'Copied', 'Failed'])
 export type CopyState = typeof CopyState.Type
 
+const DrawingAttempt = defineTaggedUnion({
+  Requesting: { previous: Schema.Number },
+  Failed: { previous: Schema.Number, error: Schema.String },
+})
 const OwnerDestinationState = defineTaggedUnion({
   Opening: {},
   Opened: {},
@@ -176,6 +181,7 @@ export const Model = Schema.Struct({
   talkGeneration: Schema.Number,
   sendDetail: Schema.String,
   copy: CopyState,
+  drawingAttempts: Schema.Record(Schema.String, DrawingAttempt),
   ownerDestinations: Schema.Record(Schema.String, OwnerDestinationState),
   ownerCopies: Schema.Record(
     Schema.String,
@@ -340,6 +346,13 @@ export const Message = defineMessageUnion({
   ClickedCancelSend: {},
   UpdatedSendMessage: { value: Schema.String },
   CompletedSendAnswers: { result: Schema.Result(Snapshot, Schema.String) },
+  ClickedDrawing: { question: Schema.String },
+  CompletedRequestDrawing: {
+    grillId: Schema.String,
+    question: Schema.String,
+    previous: Schema.Number,
+    result: Schema.Result(Snapshot, Schema.String),
+  },
   ClickedVeto: {
     source: Schema.String,
     item: Schema.String,
@@ -1499,6 +1512,65 @@ export const update = (model: Model, message: Message) =>
             }),
           },
 
+    ClickedDrawing: ({ question }) =>
+      withSnapshot(model, snapshot => {
+        const revision = snapshot.questionRevisions?.[question]
+        const key = drawingAttemptKey(snapshot.grill.id, question)
+        const drawing = snapshot.drawings?.find(
+          entry => entry.displayQuestion === question,
+        )
+        if (
+          revision === undefined ||
+          model.drawingAttempts[key]?._tag === 'Requesting' ||
+          (drawing !== undefined &&
+            drawing.response === undefined &&
+            !drawing.stale &&
+            drawing.delivery !== 'failed')
+        ) {
+          return { model }
+        }
+        const previous = drawing?.request ?? 0
+        return {
+          model: modifyFields(model, {
+            drawingAttempts: attempts =>
+              Record.set(
+                attempts,
+                key,
+                DrawingAttempt.Requesting({ previous }),
+              ),
+          }),
+          commands: [
+            RequestDrawing({
+              grillId: snapshot.grill.id,
+              question,
+              contextRevision: revision,
+              previous,
+            }),
+          ],
+        }
+      }),
+    CompletedRequestDrawing: ({ grillId, question, previous, result }) => {
+      if (
+        !AsyncData.hasData(model.page) ||
+        Option.getOrThrow(AsyncData.getData(model.page)).grill.id !== grillId
+      ) {
+        return { model }
+      }
+      const loaded = settleLoad(model, result)
+      const key = drawingAttemptKey(grillId, question)
+      return {
+        model: modifyFields(loaded.model, {
+          drawingAttempts: attempts =>
+            result._tag === 'Success'
+              ? Record.remove(attempts, key)
+              : Record.set(
+                  attempts,
+                  key,
+                  DrawingAttempt.Failed({ previous, error: result.failure }),
+                ),
+        }),
+      }
+    },
     ClickedVeto: ({ source, item, revision }) =>
       withSnapshot(model, snapshot => {
         const key = channelItemKey(source, item, revision)
@@ -2774,6 +2846,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     talkGeneration: 0,
     sendDetail: '',
     copy: 'Idle',
+    drawingAttempts: {},
     ownerCopies: {},
     ownerDestinations: {},
     vetoAttempts: {},
@@ -3153,6 +3226,42 @@ export const SendAnswers = Command.define('SendAnswers', {
         }),
       ),
       Effect.map(result => Message.CompletedSendAnswers({ result })),
+    ),
+})
+
+export const RequestDrawing = Command.define('RequestDrawing', {
+  args: {
+    grillId: Schema.String,
+    question: Schema.String,
+    contextRevision: Schema.String,
+    previous: Schema.Number,
+  },
+  messages: [Message.CompletedRequestDrawing],
+  execute: ({ grillId, question, contextRevision, previous }) =>
+    SecureRandom.SecureRandom.use(random => random.uuidV4()).pipe(
+      Effect.provide(BrowserCrypto.layerSecureRandom),
+      Effect.flatMap(requestId =>
+        requestSnapshot(`/api/grills/${encodeURIComponent(grillId)}/events`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'drawing-requested',
+            question,
+            contextRevision,
+            previous,
+            requestId,
+          }),
+        }),
+      ),
+      Effect.catch(error => Effect.succeed(Result.fail(String(error)))),
+      Effect.map(result =>
+        Message.CompletedRequestDrawing({
+          grillId,
+          question,
+          previous,
+          result,
+        }),
+      ),
     ),
 })
 

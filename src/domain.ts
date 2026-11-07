@@ -7,17 +7,12 @@ import {
   PublishedUpdate,
 } from './channel'
 import { Compare, titleOf } from './diagram'
+import { QuestionDrawing } from './drawings'
+import { AnswerContext, AnswerOption } from './questionContext'
+export { AnswerContext, AnswerOption } from './questionContext'
 export { UpdateItem } from './channel'
 
 // GRILL
-
-export const AnswerOption = Schema.Struct({
-  key: Schema.String,
-  label: Schema.String,
-  effect: Schema.String,
-  recommended: Schema.Boolean,
-})
-export type AnswerOption = typeof AnswerOption.Type
 
 export const Condition = Schema.Struct({
   question: Schema.String,
@@ -480,16 +475,6 @@ export const Retirement = Schema.Struct({
   reason: Schema.String,
 })
 
-export const AnswerContext = Schema.Struct({
-  revision: Schema.String,
-  displayPage: Schema.String,
-  displayQuestion: Schema.String,
-  round: Schema.Number,
-  title: Schema.String,
-  scope: Schema.String,
-  ask: Schema.String,
-  options: Schema.Array(AnswerOption),
-})
 export const RecordedAnswer = Schema.Struct({
   version: Schema.Literal(1),
   question: Schema.String,
@@ -518,6 +503,7 @@ export const AnswerHistoryEntry = Schema.Struct({
 
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  drawings: Schema.optionalKey(Schema.Array(QuestionDrawing)),
   updates: Schema.optionalKey(Schema.Array(PublishedUpdate)),
   ownerSteps: Schema.optionalKey(Schema.Array(PublishedOwnerStep)),
   decisions: Schema.optionalKey(Schema.Array(PublishedDecision)),

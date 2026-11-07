@@ -2,9 +2,11 @@ import { Array, Match, Option, Record } from 'effect'
 import { AsyncData } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 
+import { shownOf } from './diagram'
 import {
   type ProseContext,
   compareView,
+  diagramView,
   plainLabel,
   proseView,
   stateLabelFor,
@@ -828,6 +830,40 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 grill.entities,
                 builder,
               ),
+        drawing: (drawing, builder) => {
+          if (drawing.response === undefined) {
+            return builder.empty
+          }
+          const diagram = drawing.response.diagram
+          const key = `drawing:${drawing.source}:${drawing.request}:${drawing.response.revision}`
+          const answer = drawing.stale
+            ? Option.none<string>()
+            : Option.filter(
+                Record.get(model.answers, drawing.displayQuestion),
+                key =>
+                  drawing.context.options.some(option => option.key === key),
+              )
+          return diagram.kind === 'compare'
+            ? compareView(
+                diagram,
+                drawing.context.options.map(option => ({
+                  key: option.key,
+                  label: `${option.key} · ${plainLabel(option.label)}`,
+                  recommended: option.recommended,
+                })),
+                answer,
+                grill.entities,
+                builder,
+              )
+            : diagramView(
+                key,
+                diagram,
+                shownOf(diagram, Record.get(model.diagramViews, key), answer),
+                stateLabelFor(drawing.context.options, 'Today'),
+                grill.entities,
+                builder,
+              )
+        },
         related: (step, builder) =>
           hasOutside(snapshot, step)
             ? outsideView(model, snapshot, step, builder)

@@ -9,6 +9,15 @@ The language keeps a request, evidence of delivery and a reported result distinc
 The grill that owns an item and its wording, even when another page displays it.
 _Avoid_: Shared question number as an item's identity
 
+**Drawing request**:
+A saved request for a question owner's comparison table or flow,
+tied to exact question wording.
+_Avoid_: Answer, discussion comment, diagram response
+
+**Drawing response**:
+Typed comparison or flow data published against a saved drawing request.
+_Avoid_: Rewritten question, delivered request
+
 **Owner step**:
 An exact action Rob needs to perform at a named destination, with a reason and urgency.
 _Avoid_: Question, grant

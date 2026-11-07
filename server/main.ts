@@ -21,6 +21,7 @@ import {
 import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
+import { pageDrawings, requestDrawing } from './drawings'
 import { askMessage, pageMessage } from './messages'
 import { startRemotes } from './remote'
 import { SendRequest, selectSend } from './sendSelection'
@@ -169,6 +170,7 @@ const clientSnapshot = (grill: Grill) => {
     : [grill.id]
   return {
     ...state,
+    drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
     ...attentionSnapshot(db, sources),
     updates: publishedUpdates(db, sources).map(entry => ({
@@ -276,6 +278,21 @@ const handleEvent = async (
   grillId = grill.id
   const questionIds = new Set(grill.steps.map(step => step.question.id))
   const question = String(body.question ?? '')
+  if (body.kind === 'drawing-requested') {
+    const result = await requestDrawing(
+      db,
+      grill,
+      page.state.grill,
+      String(requestBody.question ?? ''),
+      body,
+      (session, text) => sendToSession(sessionFor(session), text),
+      session => gfFor(grill.id, session) ?? `bun run --cwd ${ROOT} gf`,
+      PREVIEW,
+    )
+    return result.ok
+      ? json(clientSnapshot(readPage(db, pageId)!.state.grill))
+      : json({ error: result.error }, result.status)
+  }
   switch (body.kind) {
     case 'renamed-round': {
       const change = Schema.decodeUnknownResult(

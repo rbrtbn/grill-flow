@@ -279,6 +279,52 @@ describe('HTTP delivery routing', () => {
       })
     },
   )
+
+  it.each(['Short drawing context.', 'Long drawing context. '.repeat(230)])(
+    'delivers a drawing request as one page-marked block at every length',
+    async text => {
+      const db = new Database(database)
+      const fixture = JSON.parse(
+        readFileSync('src/fixtures/grill.json', 'utf8'),
+      )
+      const grill = loadGrill(db, {
+        ...fixture,
+        id: `drawing-http-${text.length}`,
+        session: 'homelab/drawing-owner',
+        steps: fixture.steps.slice(0, 1).map((step: { question: object }) => ({
+          ...step,
+          question: { ...step.question, ask: text },
+        })),
+      })
+      db.close()
+      const start = received().length
+      const response = await fetch(`${base}/api/grills/${grill.id}/events`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          kind: 'drawing-requested',
+          question: 'Q1',
+          contextRevision: questionRevisions(grill).Q1,
+          previous: 0,
+          requestId: `draw-${text.length}`,
+        }),
+      })
+      expect(response.status).toBe(200)
+      expect((await response.json()).drawings[0]).toMatchObject({
+        source: grill.id,
+        question: 'Q1',
+        delivery: 'delivered',
+        context: { ask: text },
+      })
+      const calls = received().slice(start)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toHaveLength(3)
+      expect(calls[0]?.[1]).toBe('homelab/drawing-owner')
+      expect(calls[0]?.[2]).toStartWith('<grill-flow source="page">\n')
+      expect(calls[0]?.[2]).toEndWith('\n</grill-flow>')
+      expect(calls[0]?.[2]).toContain(text)
+    },
+  )
 })
 
 it('publishes answer revisions, rejects stale choices and exposes an interrupted replay on the page', async () => {

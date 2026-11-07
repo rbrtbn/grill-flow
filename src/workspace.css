@@ -2251,3 +2251,21 @@ body[data-gf-preview] .f-workspace {
   color: var(--link);
   font: 500 13px/1.5 var(--label);
 }
+
+.f-question-drawing {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+.f-question-drawing > :is(p, div),
+.f-question-drawing > div > p {
+  margin-top: 10px;
+}
+.f-drawing-stale {
+  color: var(--del-ink);
+}
+.f-question-drawing .diagram,
+.f-question-drawing .compare {
+  max-width: 100%;
+  margin-top: 14px;
+}
