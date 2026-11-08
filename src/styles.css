@@ -10,7 +10,7 @@
   --link-wash: #e3e9f6;
   --u-blocking: #bd2c22;
   --u-soon: #9f6000;
-  --u-wait: #7047b8;
+  --u-wait: #5b8050;
   --u-fyi: #007a89;
   --scope: #7a4f06;
   --scope-wash: #f5e8cc;
@@ -45,7 +45,7 @@
     --link-wash: #1f2a44;
     --u-blocking: #ff8276;
     --u-soon: #f4bd50;
-    --u-wait: #bf9cfa;
+    --u-wait: #a3c796;
     --u-fyi: #65d4df;
     --scope: #e6b95f;
     --scope-wash: #3a2c10;
@@ -1398,7 +1398,7 @@ textarea::placeholder {
   background: var(--u-wait);
 }
 .u-fyi {
-  background: var(--u-fyi);
+  border: 1px solid var(--muted);
 }
 .u-unset {
   border: 1.5px dashed var(--muted);
