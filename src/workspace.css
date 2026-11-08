@@ -2006,51 +2006,6 @@ body[data-gf-preview] .f-workspace {
   margin-top: 12px;
 }
 
-.f-frame {
-  --nav-safe: clamp(340px, var(--nav-w), 44vw);
-}
-.f-navigation.f-navigation-g {
-  display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
-}
-.f-app-rail {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 18px 5px;
-  border-right: 1px solid var(--rule);
-  scrollbar-width: thin;
-}
-.f-app-rail .f-brand {
-  margin: 0 0 20px;
-  text-align: center;
-  font-size: 24px;
-}
-.f-app-rail .f-nav-item {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  margin-bottom: 6px;
-  padding: 9px 3px;
-  text-align: center;
-  font-size: 11px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.f-app-rail .f-nav-item svg {
-  width: 21px;
-  height: 21px;
-  flex: none;
-}
-.f-app-rail .f-nav-item .hint {
-  display: block;
-  max-width: 100%;
-  color: var(--muted);
-  text-align: center;
-  font-size: 10px;
-  line-height: 1.25;
-}
 .f-question-pane {
   min-width: 0;
   min-height: 0;
@@ -2100,19 +2055,6 @@ body[data-gf-preview] .f-workspace {
 .f-question-pane .toast-go {
   font-size: 12px;
 }
-.f-question-pane:has(> .toasts) .f-round-browser {
-  min-height: 80px;
-}
-.f-question-pane:has(> .toasts) .f-question-tools {
-  max-height: calc(100% - 140px);
-}
-.f-navigation-g .f-question-tools {
-  border-top: 0;
-  padding: 22px 13px 12px;
-  max-height: 65%;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
 .f-quick-views {
   display: grid;
   grid-template-columns: 0.8fr 1.5fr 0.9fr 0.9fr 0.8fr;
@@ -2139,127 +2081,12 @@ body[data-gf-preview] .f-workspace {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.f-quick-views button:hover,
-.f-round-rail button:hover {
+.f-quick-views button:hover {
   background: var(--panel);
 }
-.f-quick-views button.is-active,
-.f-round-rail button.is-current {
+.f-quick-views button.is-active {
   background: var(--link-wash);
   color: var(--link);
-}
-.f-custom-filter-toggle {
-  display: block;
-  margin: 6px 0 5px auto;
-  padding: 5px 0;
-  font-size: 12px;
-}
-.f-custom-filters {
-  border-top: 1px solid var(--rule);
-  padding-bottom: 8px;
-}
-.f-filter-readout {
-  margin: 5px 0 0;
-  color: var(--muted);
-  font: 400 12px/1.5 var(--label);
-}
-.f-filter-readout strong {
-  color: var(--ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.f-round-browser {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  border-top: 1px solid var(--rule);
-}
-.f-round-rail {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 8px 5px 16px;
-  border-right: 1px solid var(--rule);
-  scrollbar-width: thin;
-}
-.f-round-rail button {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-height: 48px;
-  padding: 9px 6px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ink);
-  text-align: left;
-  overflow-wrap: anywhere;
-  font: 400 12px/1.45 var(--label);
-}
-.f-round-rail small {
-  color: var(--muted);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-.f-navigation-g .f-round-section {
-  margin: 15px 5px 5px;
-  overflow-wrap: anywhere;
-  color: var(--muted);
-  font: 600 11px/1.4 var(--label);
-}
-.f-navigation-g .f-question-list {
-  min-width: 0;
-  grid-column: auto;
-  padding: 4px 6px 18px;
-}
-.f-navigation-g .f-question-item {
-  gap: 6px;
-  padding: 9px 5px;
-  font-size: 13px;
-}
-.f-navigation-g .f-round-heading {
-  flex-wrap: wrap;
-}
-.f-navigation-g .f-round-toggle {
-  flex-wrap: wrap;
-  padding: 9px 4px;
-  gap: 4px;
-}
-.f-navigation-g .f-round-toggle .hint {
-  font-size: 10px;
-}
-.f-navigation-g .f-round-heading > .text-button {
-  margin: -4px 0 4px 20px;
-  font-size: 11px;
-}
-@media (max-width: 700px) {
-  .f-navigation.f-navigation-g {
-    grid-template-columns: 70px minmax(0, 1fr);
-    height: min(440px, 55dvh);
-  }
-  .f-app-rail {
-    padding-top: 12px;
-  }
-  .f-app-rail .f-brand {
-    margin-bottom: 12px;
-  }
-  .f-navigation-g .f-question-tools {
-    padding: 12px 10px 8px;
-    max-height: 68%;
-  }
-  .f-round-browser {
-    grid-template-columns: 85px minmax(0, 1fr);
-  }
-  .f-navigation-g .f-question-list {
-    padding-left: 4px;
-    padding-right: 4px;
-  }
-  .f-quick-views button {
-    min-height: 51px;
-    font-size: 11px;
-  }
 }
 
 .f-channel-attention > section {
@@ -2414,4 +2241,275 @@ body[data-gf-preview] .f-workspace {
 .f-activity-action {
   font-weight: 600;
   color: var(--ink);
+}
+
+.f-workspace {
+  --bar: 76px;
+  --menu-top: 64px;
+}
+.f-frame {
+  --nav-safe: clamp(260px, var(--nav-w), 480px);
+}
+.f-topbar-a {
+  grid-template-columns: minmax(120px, 240px) minmax(0, 1fr) auto;
+  gap: 20px;
+}
+.f-topbar-a .f-run-name {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: 600 16px/1.4 var(--label);
+}
+.f-topbar-a .f-primary-nav {
+  justify-content: flex-start;
+  gap: 14px;
+}
+.f-topbar-a .f-primary-nav .is-active {
+  color: var(--link);
+  box-shadow: inset 0 -2px var(--link);
+}
+.f-topbar-a .f-header-actions {
+  gap: 12px;
+}
+.f-topbar-a .f-header-actions > .f-header-send {
+  margin-left: 0;
+}
+.f-app-popdown,
+.f-filter-popdown {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  max-height: min(560px, calc(100dvh - var(--bar) - 80px));
+  overflow-y: auto;
+  font: 400 15px/1.4 var(--label);
+}
+.f-app-popdown {
+  top: var(--menu-top);
+  right: 18px;
+  width: min(260px, calc(100vw - 24px));
+}
+.f-app-popdown .text-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 8px;
+  border-radius: 4px;
+}
+.f-app-popdown .text-button:hover,
+.f-app-popdown .is-active {
+  background: var(--panel);
+}
+.f-filter-popdown {
+  top: calc(var(--bar) + 58px);
+  left: max(12px, calc(var(--nav-safe) - 336px));
+  width: min(320px, calc(100vw - 24px));
+}
+.f-filter-popdown-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.f-filter-popdown label {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+.f-filter-popdown select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.f-navigation.f-navigation-a {
+  display: flex;
+  border-right: 1px solid var(--rule);
+}
+.f-navigation-a .f-question-pane {
+  width: 100%;
+  height: 100%;
+}
+.f-navigation-a .f-question-tools {
+  flex: none;
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
+  padding: 18px 14px 12px;
+  border: 0;
+}
+.f-question-tools-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.f-question-tools-heading strong {
+  font-size: 20px;
+}
+.f-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 7px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--link);
+}
+.f-filter-trigger:is(:hover, .is-active) {
+  background: var(--link-wash);
+}
+.f-filter-trigger svg {
+  width: 20px;
+  height: 20px;
+}
+.f-navigation-a .f-quick-views {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 10px;
+}
+.f-navigation-a .f-quick-views button {
+  flex-direction: row;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 9px;
+  font-size: 13px;
+}
+.f-round-scope {
+  display: block;
+  margin-top: 10px;
+}
+.f-round-scope select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 13px/1.4 var(--label);
+}
+.f-navigation-a .f-filter-readout {
+  font-size: 11px;
+}
+.f-navigation-a .f-question-list {
+  flex: 1;
+  min-height: 80px;
+  padding: 0 9px 14px;
+}
+.f-navigation-a .f-round-heading {
+  padding-top: 5px;
+}
+.f-navigation-a .f-round-toggle {
+  padding: 8px 5px;
+}
+.f-navigation-a .f-question-item {
+  grid-template-columns: 13px 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  padding: 11px 5px;
+  font-size: 13px;
+}
+.f-navigation-a .f-question-item .f-state,
+.f-navigation-a .f-question-number {
+  margin-top: 2px;
+}
+.f-navigation-a .f-question-item > .f-question-copy {
+  white-space: normal;
+  min-width: 0;
+  overflow: hidden;
+}
+.f-question-label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 600;
+}
+.f-question-context {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+@media (max-width: 1050px) {
+  .f-workspace {
+    --bar: 108px;
+    --menu-top: 54px;
+  }
+  .f-topbar-a {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 38px 30px;
+    padding: 12px 18px;
+    gap: 8px 12px;
+  }
+  .f-topbar-a .f-header-actions {
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+  }
+  .f-topbar-a .f-primary-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    gap: 18px;
+  }
+  .f-topbar-a .f-primary-nav button {
+    min-height: 30px;
+    padding: 5px 0;
+  }
+}
+@media (max-width: 700px) {
+  .f-topbar-a {
+    padding-inline: 14px;
+  }
+  .f-topbar-a .f-header-actions {
+    gap: 6px;
+  }
+  .f-topbar-a .f-header-actions > button {
+    padding: 7px;
+    font-size: 12px;
+  }
+  .f-topbar-a .f-primary-nav {
+    justify-content: space-between;
+  }
+  .f-topbar-a .f-run-name {
+    font-size: 13px;
+  }
+  .f-navigation.f-navigation-a {
+    height: min(400px, 50dvh);
+    display: flex;
+    border-right: 0;
+  }
+  .f-navigation-a .f-question-tools {
+    padding: 10px 12px 8px;
+  }
+  .f-question-tools-heading {
+    margin-bottom: 6px;
+  }
+  .f-question-tools-heading strong {
+    font-size: 18px;
+  }
+  .f-navigation-a .f-quick-views button {
+    padding: 6px 8px;
+    min-height: 34px;
+  }
+  .f-navigation-a .f-question-context {
+    font-size: 10px;
+  }
 }

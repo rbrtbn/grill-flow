@@ -165,7 +165,7 @@ export type SidebarEdge = typeof SidebarEdge.Type
 export const SIDEBAR_BOUNDS: Readonly<
   Record<SidebarEdge, Readonly<{ min: number; max: number }>>
 > = {
-  Nav: { min: 340, max: 640 },
+  Nav: { min: 260, max: 480 },
   Side: { min: 320, max: 960 },
 }
 

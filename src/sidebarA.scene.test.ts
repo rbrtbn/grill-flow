@@ -2,6 +2,7 @@ import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
+  Mount,
   all,
   change,
   click,
@@ -17,7 +18,16 @@ import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import { Message, PageData, SaveWorkspaceSettings, init, update } from './main'
+import {
+  FillBox,
+  Message,
+  PageData,
+  PushPage,
+  SaveWorkspaceSettings,
+  ScrollToTop,
+  init,
+  update,
+} from './main'
 import { view } from './view'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
@@ -77,54 +87,46 @@ const quick = (name: string) =>
     role('group', { name: 'Quick views' }),
     role('button', { name: new RegExp(`^${name}`) }),
   )
-const round = (name: string) =>
-  within(
-    role('navigation', { name: 'Choose a round' }),
-    role('button', { name: new RegExp(`^${name}`) }),
-  )
-
-it('shows trimmed round names, quick-view counts and the persistent active filter summary', () => {
+it('uses three quick views and a native Filters popdown without app or round rails', () => {
   scene(
     { update, view },
-    given(loaded),
-    expectAll(all.role('combobox', { name: 'Group questions by' })).toHaveCount(
-      0,
+    given({ ...loaded, workspace: { ...loaded.workspace, filter: 'All' } }),
+    expectAll(all.selector('.f-app-rail')).toHaveCount(0),
+    expectAll(all.selector('.f-round-rail')).toHaveCount(0),
+    expectAll(all.selector('.f-quick-views button')).toHaveCount(3),
+    expectAll(all.role('button', { name: /^Needs attention/ })).toHaveCount(0),
+    expectAll(all.role('button', { name: 'Rename' })).toHaveCount(0),
+    expect(role('button', { name: 'Filters' })).toHaveAttr(
+      'popovertarget',
+      'workspace-filters',
     ),
-    expect(round('Features')).toContainText('3 match'),
-    expect(round('Round 2')).toContainText('3 match'),
-    expect(quick('All')).toContainText('6'),
-    expect(quick('Needs attention')).toContainText('2'),
+    expect(selector('#workspace-filters')).toHaveAttr('popover', 'auto'),
+    expect(selector('.f-round-scope')).toContainText('Features · 3 match'),
+    expect(selector('.f-round-scope')).toContainText('Round 2 · 3 match'),
     expect(quick('Open')).toContainText('4'),
     expect(quick('Drafts')).toContainText('1'),
-    expect(quick('Sent')).toContainText('1'),
-    click(round('Features')),
+    expect(quick('All')).toContainText('6'),
+    change(role('combobox', { name: 'Round scope' }), '1'),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
     ),
     expect(quick('All')).toContainText('3'),
-    expect(quick('Sent')).toContainText('0'),
-    click(quick('Needs attention')),
+    click(quick('Open')),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
     ),
     expectAll(all.selector('.f-question-item')).toHaveCount(2),
-    expect(selector('.f-filter-readout')).toContainText(
-      'Open · Blocking or Soon',
-    ),
-    click(role('button', { name: 'Custom filters' })),
-    expect(role('combobox', { name: 'Urgency filter' })).toHaveValue('urgent'),
     change(role('combobox', { name: 'Urgency filter' }), 'unspecified'),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
     ),
     expectAll(all.selector('.f-question-item')).toHaveCount(0),
-    expect(selector('.f-empty-nav')).toContainText('No questions match'),
-    click(role('button', { name: 'Close custom filters' })),
-    expectAll(all.role('combobox', { name: 'Urgency filter' })).toHaveCount(0),
     expect(selector('.f-filter-readout')).toContainText('Open · Unspecified'),
+    expect(role('combobox', { name: 'Round scope' })).toHaveValue('1'),
+    expect(selector('.f-round-scope')).toContainText('Features · 0 match'),
     click(quick('All')),
     Command.resolve(
       SaveWorkspaceSettings,
@@ -134,7 +136,7 @@ it('shows trimmed round names, quick-view counts and the persistent active filte
   )
 })
 
-it('counts quick views within the search and round while retaining the labeled app destinations', () => {
+it('keeps search and round scope while Sent is selected through advanced filters', () => {
   scene(
     { update, view },
     given({
@@ -145,13 +147,13 @@ it('counts quick views within the search and round while retaining the labeled a
         search: 'Choice 4',
       },
     }),
+    expect(quick('Open')).toContainText('0'),
+    expect(quick('Drafts')).toContainText('0'),
     expect(quick('All')).toContainText('1'),
-    expect(quick('Needs attention')).toContainText('0'),
-    expect(quick('Sent')).toContainText('1'),
-    expect(selector('.f-app-rail')).toContainText('Updates'),
-    expect(selector('.f-app-rail')).toContainText('Answer history'),
-    expect(selector('.f-app-rail')).toContainText('Your grills'),
-    click(quick('Sent')),
+    expect(selector('.f-app-popdown')).toContainText('Updates'),
+    expect(selector('.f-app-popdown')).toContainText('Answer history'),
+    expect(selector('.f-app-popdown')).toContainText('Your grills'),
+    change(role('combobox', { name: 'Question state filter' }), 'Sent'),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
@@ -159,8 +161,48 @@ it('counts quick views within the search and round while retaining the labeled a
     expect(role('searchbox', { name: 'Find question or issue' })).toHaveValue(
       'Choice 4',
     ),
-    expect(round('Round 2')).toHaveAttr('aria-pressed', 'true'),
+    expect(role('combobox', { name: 'Round scope' })).toHaveValue('2'),
     expectAll(all.selector('.f-question-item')).toHaveCount(1),
     expect(selector('.f-question-item')).toContainText('Q4'),
+  )
+})
+
+it('qualifies matching round scopes by source and keeps global drafts available outside the queue filter', () => {
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      page: PageData.Success({
+        data: {
+          ...snapshot,
+          grill: {
+            ...snapshot.grill,
+            roundSections: { '1': 'Alpha', '2': 'Beta' },
+          },
+        },
+      }),
+      workspace: {
+        ...loaded.workspace,
+        search: 'Choice 1',
+        roundScopes: { fixture: 1 },
+      },
+    }),
+    expect(selector('.f-round-scope')).toContainText(
+      'Alpha / Features · 1 match',
+    ),
+    expect(selector('.f-round-scope')).not.toContainText('Beta'),
+    expectAll(all.selector('.f-question-item')).toHaveCount(1),
+    expect(
+      role('button', { name: 'Review & send · 1', exact: true }),
+    ).toExist(),
+    click(role('button', { name: 'Review & send · 1', exact: true })),
+    Command.resolve(PushPage, Message.CompletedNavigate()),
+    Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    Mount.resolve(FillBox, Message.CompletedFillBox()),
+    expect(selector('.f-review')).toContainText('Q3'),
+    expect(role('button', { name: 'Send 1 answer' })).toBeEnabled(),
+    expect(role('searchbox', { name: 'Find question or issue' })).toHaveValue(
+      'Choice 1',
+    ),
   )
 })

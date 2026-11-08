@@ -92,7 +92,7 @@ describe('the question workspace', () => {
       ),
       expect(role('button', { name: 'Previous question' })).toBeDisabled(),
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
-      expect(selector('.f-current-question')).toHaveText('Q1'),
+      expect(selector('.f-question-meta')).toContainText('Q1'),
     )
   })
 
@@ -106,7 +106,7 @@ describe('the question workspace', () => {
       { update, view },
       given(review),
       Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
-      expect(selector('.f-current-question')).toHaveText('Review & send'),
+      expect(selector('.f-review h1')).toHaveText('Review & send'),
       expect(selector('.f-review .f-table')).toContainText(
         grill.steps[0]!.question.options[0]!.label,
       ),
@@ -382,7 +382,7 @@ it('opens this question discussion from between the note and skip actions', () =
   )
 })
 
-it('returns to the composer and restores thread position when switching discussion scope', () => {
+it('returns to the composer and restores thread position when opening an existing run conversation', () => {
   scene(
     { update, view },
     given({
@@ -398,7 +398,8 @@ it('returns to the composer and restores thread position when switching discussi
       [FillBox, Message.CompletedFillBox()],
       [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
     ),
-    click(role('button', { name: 'Whole run' })),
+    expectAll(all.role('button', { name: 'Whole run' })).toHaveCount(0),
+    Subscription.emit(Message.SelectedDiscussionTarget({ target: 'run' })),
     expect(role('textbox', { name: 'Ask about the run' })).toExist(),
     Command.expectExact(
       RestoreDiscussionPosition({ top: 240 }),
@@ -459,7 +460,10 @@ it('filters sidebar questions by urgency and preserves an explicit unspecified c
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: state }) }),
-    click(role('button', { name: 'Custom filters' })),
+    expect(role('button', { name: 'Filters' })).toHaveAttr(
+      'popovertarget',
+      'workspace-filters',
+    ),
     expect(role('combobox', { name: 'Urgency filter' })).toHaveValue('All'),
     change(role('combobox', { name: 'Urgency filter' }), 'blocking'),
     Command.resolve(

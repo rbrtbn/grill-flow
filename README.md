@@ -16,12 +16,17 @@ the currently selected unsent drafts across rounds, keeping any answers you unch
 excluded and including your saved review message. It saves visible notes and custom answer text
 first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
 
-The question sidebar has separate app and round rails beside the scrolling question list. Named
-rounds show their name; unnamed rounds use Round N. Quick views combine state and urgency while
-keeping the round and search: Needs attention means Open with Blocking or Soon urgency. Custom
-filters expose every state and urgency, including Unspecified. Counts follow the round and search.
+The header holds Needs you, Questions and Conversations, with Review & send at the far right.
+More contains What changed, Replies, Updates, Answer history, overviews, Your grills and Settings.
+The single question queue has Open, Drafts and All quick views, a matching-round selector and an
+icon Filters popdown for every state and urgency, including Sent and Unspecified. New browser
+preferences start with Open; existing saved filters remain intact. Search and round scope survive
+quick-view changes. Named rounds retain their labels without renaming controls. Question titles
+show at most two lines with full wording in the reading pane and accessible label.
 State, urgency and each grill's round scope are saved in the browser and restored on reload.
 Explicit question links reveal the target round; older Agent grouping preferences become Round.
+The discussion pane offers This question and Grill-flow; existing run conversations remain in
+Conversations and at their saved routes.
 
 Needs you also shows source-owned owner steps, provisional decisions with veto receipts, and
 named blocking conditions. Owner completion is agent-reported with dated proof. Copy action

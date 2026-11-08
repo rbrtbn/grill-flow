@@ -187,7 +187,7 @@ describe('workspace navigation and drafts', () => {
     const answers = { Q1: 'other' }
     expect(
       visibleQuestions(
-        { ...initialWorkspace, search: 'Q1' },
+        { ...initialWorkspace, filter: 'All', search: 'Q1' },
         snapshot,
         answers,
         {},

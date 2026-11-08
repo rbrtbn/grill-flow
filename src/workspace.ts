@@ -44,6 +44,9 @@ export const QuestionUrgencyFilter = Schema.Literals([
 export type QuestionUrgencyFilter = typeof QuestionUrgencyFilter.Type
 
 export const questionFilterFrom = (value: unknown): QuestionFilter => {
+  if (value === undefined) {
+    return 'Open'
+  }
   const result = Schema.decodeUnknownResult(QuestionFilter)(value)
   return result._tag === 'Success' ? result.success : 'All'
 }
@@ -108,7 +111,7 @@ export const initialWorkspace: Workspace = {
   noteOpen: [],
   reviewQuery: '',
   reviewExpanded: [],
-  filter: 'All',
+  filter: 'Open',
   urgencyFilter: 'All',
   grouping: 'Round',
   roundScopes: {},
@@ -243,11 +246,9 @@ export const quickViews: ReadonlyArray<{
   filter: QuestionFilter
   urgencyFilter: QuestionUrgencyFilter
 }> = [
-  { label: 'All', filter: 'All', urgencyFilter: 'All' },
-  { label: 'Needs attention', filter: 'Open', urgencyFilter: 'urgent' },
   { label: 'Open', filter: 'Open', urgencyFilter: 'All' },
   { label: 'Drafts', filter: 'Draft', urgencyFilter: 'All' },
-  { label: 'Sent', filter: 'Sent', urgencyFilter: 'All' },
+  { label: 'All', filter: 'All', urgencyFilter: 'All' },
 ]
 
 export const visibleQuestions = (
