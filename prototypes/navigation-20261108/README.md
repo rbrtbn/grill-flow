@@ -44,3 +44,13 @@ which of Open for you / Replies / Conversations stay directly available;
 and round management/progress in a contextual menu versus always visible controls.
 These are choices about access, not deleting the underlying functions. The prototype's
 utility destinations and full question tools are still placeholders or abbreviated.
+
+## Updated design ready
+
+A/B now expose Needs attention, detailed urgency and Sent filters, contextual round progress/
+rename, source-qualified round labels, pinned Open for you, full Conversations, all Replies,
+three discussion scopes with separate drafts, expansion, note/own-answer controls, Skip and an
+illustrative Draw this comparison. More retains Changes, Updates, answer history, Squad/Run
+overview, all grills, Settings and sample delivery states. Some destination contents remain
+labelled placeholders; existing production behavior is the carry-through contract above.
+These navigation affordances are ready for the A/B choice, separate from implementation.
