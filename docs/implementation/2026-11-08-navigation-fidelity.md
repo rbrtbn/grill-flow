@@ -4,7 +4,8 @@ The workspace carries through the selected navigation study's quieter presentati
 wordmark and named home destination, underlined header tabs including Updates,
 bordered Open/Drafts/All quick filters, and a subdued sidebar inbox. Review & send
 stays at the far right. The home label drops the Open for you suffix while its
-existing destination remains available.
+existing destination remains available. The wordmark opens Your grills inside the
+workspace, preserving unsent discussion drafts.
 
 Question identity, source, round, urgency and answer state sit above the heading,
 separated by a rule. Paired previous/next buttons share that row and use the

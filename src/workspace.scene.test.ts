@@ -1,4 +1,4 @@
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
@@ -23,6 +23,7 @@ import {
   CloseWorkspaceSettings,
   FillBox,
   FocusTalkBox,
+  LoadWorkspaceCatalog,
   Message,
   OpenWorkspaceSettings,
   PageData,
@@ -63,6 +64,7 @@ describe('the question workspace', () => {
       { update, view },
       given({
         ...loaded,
+        talkDrafts: { 'ask:step-q1': 'Keep this unsent discussion draft' },
         page: PageData.Success({
           data: {
             ...snapshot,
@@ -70,7 +72,7 @@ describe('the question workspace', () => {
           },
         }),
       }),
-      expect(role('link', { name: 'grill-flow home' })).toHaveAttr('href', '/'),
+      expect(role('button', { name: 'grill-flow home' })).toExist(),
       expect(selector('.f-run-name')).toHaveText('My run'),
       expect(selector('.f-app-popdown')).not.toContainText('Updates'),
       click(
@@ -82,6 +84,30 @@ describe('the question workspace', () => {
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
       expect(selector('.f-updates h1')).toHaveText('Updates'),
+      click(role('button', { name: 'grill-flow home' })),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      Command.resolve(
+        LoadWorkspaceCatalog,
+        Message.CompletedLoadCatalog({ result: Result.succeed([]) }),
+      ),
+      expect(selector('.f-page h1')).toHaveText('Your grills'),
+      click(
+        within(
+          role('navigation', { name: 'Workspace destinations' }),
+          role('button', { name: 'Questions' }),
+        ),
+      ),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      click(selector('.f-discuss-action button')),
+      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+      Mount.expectHas(FillBox({ text: 'Keep this unsent discussion draft' })),
+      Mount.resolve(FillBox, Message.CompletedFillBox()),
+      Mount.resolve(
+        RestoreDiscussionScroll,
+        Message.CompletedRestoreDiscussionScroll(),
+      ),
     )
   })
 

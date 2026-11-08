@@ -2278,8 +2278,11 @@ body[data-gf-preview] .f-workspace {
   min-width: 0;
   max-width: 360px;
 }
-.f-wordmark {
+.f-topbar-a .f-wordmark {
   flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--ink);
   font: 600 23px/1.3 var(--read);
   text-decoration: none;
@@ -2521,7 +2524,7 @@ body[data-gf-preview] .f-workspace {
   .f-topbar-a .f-primary-nav {
     justify-content: space-between;
   }
-  .f-wordmark {
+  .f-topbar-a .f-wordmark {
     font-size: 19px;
   }
   .f-header-brand {

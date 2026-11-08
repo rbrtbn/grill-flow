@@ -617,11 +617,12 @@ const workspaceHeaderView = (
       h.div(
         [h.Class('f-header-brand')],
         [
-          h.a(
+          h.button(
             [
+              h.Type('button'),
               h.Class('f-wordmark'),
-              h.Href('/'),
               h.AriaLabel('grill-flow home'),
+              h.OnClick(Message.ClickedWorkspacePage({ page: GRILLS })),
             ],
             ['grill-flow'],
           ),
