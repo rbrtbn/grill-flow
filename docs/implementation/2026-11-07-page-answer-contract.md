@@ -133,3 +133,16 @@ Request replay returns the original committed evidence without repeating termina
 If a crash interrupts delivery after freezing, the page lists the source/submitted ID as
 unconfirmed and keeps its unsent drafts available for review. A replay cannot silently hide it
 or manufacture a delivery receipt.
+
+## Submission marker
+
+Answer batches now carry `<gf grill="member-id" send="submitted-id">` inside the ordinary
+page wrapper, in the same text block as the body. Attributes are double quoted; source IDs
+use only `[A-Za-z0-9._-]+` and send IDs are positive safe integers. Invalid source IDs refuse
+delivery before any submission is frozen. Every recipient of one member batch receives the
+same pair, which is retained in delivery receipts and wait output. Message-only submissions
+may carry a locator but remain ineligible readback. Asks and drawings have no submission tag.
+
+The marker changes no authority classification. T10m checked synthetic short and long messages
+against PR 121 head 29820f96: all 16 string/block/paste shapes remain NOT TYPED, including its
+strict mid-turn path. Only the independently checked immutable readback supplies page words.

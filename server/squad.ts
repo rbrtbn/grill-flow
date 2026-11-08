@@ -18,6 +18,7 @@ import {
   sendRequestIdentity,
 } from './answerReceipts'
 import { sendAnswerBatches, type SessionSender } from './delivery'
+import { assertSubmissionSource } from './messages'
 import { selectSend, type SendSelection } from './sendSelection'
 import {
   appendEvent,
@@ -448,6 +449,7 @@ export const sendPageAnswers = async (
             ),
           }
         })
+  planned.forEach(batch => assertSubmissionSource(batch.grill.id))
   const frozen = db
     .transaction(() => {
       const replay = replaySubmission(db, page.state.grill.id, request)
@@ -473,8 +475,12 @@ export const sendPageAnswers = async (
     .immediate()
   const results = await Promise.all(
     frozen.map(async ({ grill, local, submission }) => {
-      const result = await sendAnswerBatches(grill, local, send, session =>
-        gf(grill, session),
+      const result = await sendAnswerBatches(
+        grill,
+        local,
+        send,
+        session => gf(grill, session),
+        submission,
       )
       appendEvent(db, grill.id, 'sent', {
         ...result,

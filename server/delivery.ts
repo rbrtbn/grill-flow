@@ -6,6 +6,7 @@ import {
   questionSession,
   sentAnswers,
 } from '../src/domain'
+import { submissionMessage } from './messages'
 import type { SendSelection } from './sendSelection'
 
 export const DeliveryReceipt = Schema.Struct({
@@ -26,6 +27,7 @@ export const sendAnswerBatches = async (
   selection: Extract<SendSelection, { ok: true }>,
   send: SessionSender,
   gf: string | ((session: string) => string),
+  submission: number,
 ) => {
   const entries = Object.entries(selection.lines)
   const sessionOf = (id: string) =>
@@ -42,12 +44,16 @@ export const sendAnswerBatches = async (
       )
       const reply =
         targets.length === 1 ? selection.reply : groupedAnswerText(grill, lines)
-      const text = [
-        `[grill-flow] Answers from the ${grill.title} page:`,
-        sentAnswers(reply, selection.message),
-        'Once you have taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run',
-        `${typeof gf === 'string' ? gf : gf(session)} reply ${grill.id} --file <path>`,
-      ].join('\n')
+      const text = submissionMessage(
+        grill.id,
+        submission,
+        [
+          `[grill-flow] Answers from the ${grill.title} page:`,
+          sentAnswers(reply, selection.message),
+          'Once you have taken these in, tell the user on the page what you decided and what comes next: write it to a file, then run',
+          `${typeof gf === 'string' ? gf : gf(session)} reply ${grill.id} --file <path>`,
+        ].join('\n'),
+      )
       const result = await send(session, text)
       return { session, ...result, text, lines }
     }),

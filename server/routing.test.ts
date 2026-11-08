@@ -278,6 +278,23 @@ describe('HTTP delivery routing', () => {
         expect(call[2].endsWith('\n</grill-flow>')).toBe(true)
         expect(call[2]).toContain(text.trim())
       })
+      const marker = calls[5]![2]!.match(
+        /^<grill-flow source="page">\n<gf grill="routing-fixture" send="([1-9][0-9]*)">\n/,
+      )
+      expect(marker).not.toBeNull()
+      const evidence = new Database(database)
+      try {
+        expect(
+          evidence
+            .query('SELECT kind, grill_id FROM events WHERE id = ?')
+            .get(Number(marker![1])),
+        ).toEqual({ kind: 'submitted', grill_id: 'routing-fixture' })
+      } finally {
+        evidence.close()
+      }
+      expect(
+        calls.filter(call => call[2]?.includes('<gf grill=')),
+      ).toHaveLength(1)
     },
   )
 

@@ -53,6 +53,7 @@ describe('delivery to asking sessions', () => {
         return { ok: true, detail: 'received' }
       },
       'gf',
+      42,
     )
     expect(result.ok).toBe(true)
     expect(received.map(item => item.session)).toEqual(['worker', 'lead'])
@@ -87,6 +88,7 @@ describe('delivery to asking sessions', () => {
         detail: session === 'worker' ? 'received' : 'unavailable',
       }),
       'gf',
+      42,
     )
     appendEvent(db, grill.id, 'sent', { ...result, what: 'answers' })
     const after = snapshot(db, grill)

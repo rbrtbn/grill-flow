@@ -23,7 +23,7 @@ import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { pageDrawings, requestDrawing } from './drawings'
-import { askMessage, pageMessage } from './messages'
+import { InvalidSubmissionSource, askMessage, pageMessage } from './messages'
 import { readProviderCommand } from './providerReads'
 import { createReferenceReader } from './referenceReader'
 import { startRemotes } from './remote'
@@ -447,6 +447,9 @@ const handleSend = async (
       decoded.success,
     )
   } catch (error) {
+    if (error instanceof InvalidSubmissionSource) {
+      return json({ error: error.message }, 400)
+    }
     if (error instanceof SubmissionConflict) {
       return json({ error: error.message }, 409)
     }

@@ -66,7 +66,7 @@ export const newsSince = (
           )
         ? [pageMessage(drawingMessage(grillId, event.id, event.payload, gf))]
         : event.kind === 'sent' && event.payload.what === 'answers'
-          ? [String(event.payload.text)]
+          ? [pageMessage(String(event.payload.text))]
           : [],
   ),
   lastId: fresh.at(-1)?.id ?? 0,
