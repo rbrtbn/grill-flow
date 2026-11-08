@@ -38,15 +38,15 @@ The user's asks and reply reach you one of two ways:
 
 ### On a machine whose grills another machine serves
 
-When the user reads grills on another machine's grill-flow server (homelab's
-grills are served on rob-mbp), keep the checkout here but run no server, and
-export `GF_OUTBOX=~/data/grill-flow/outbox`. Then `gf load`, `gf revise`,
-`gf state`, `gf events` and `gf wait` work on that folder: each grill is
-`<outbox>/<id>/grill.json`, each reply a file in its `revisions/`, and the
-serving machine writes the answers back to `<outbox>/<id>/state.json`. Set
-`session` to `$HC_TERMINAL_ID` as usual: the serving machine types asks and
-replies into your terminal through hc, a few seconds after the user sends
-them. The page link is the serving machine's
+When the user reads grills on another machine's grill-flow server, such as
+homelab's grills served on the workstation (rob-mbp), keep the checkout here
+but run no server, and export `GF_OUTBOX=~/data/grill-flow/outbox`. Then
+`gf load`, `gf revise`, `gf state`, `gf events` and `gf wait` work on that
+folder: each grill is `<outbox>/<id>/grill.json`, each reply a file in its
+`revisions/`, and the serving machine writes the answers back to
+`<outbox>/<id>/state.json`. Set `session` to `$HC_TERMINAL_ID` as usual: the
+serving machine types asks and replies into your terminal through hc, a few
+seconds after the user sends them. The page link is the serving machine's
 (`http://127.0.0.1:4317/g/<id>` there), not this one's. The serving machine
 registers your outbox once with `gf remote add <this machine> <outbox>`.
 
