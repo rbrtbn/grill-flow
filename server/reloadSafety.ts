@@ -1,4 +1,4 @@
-import { OWN, type Grill, type Snapshot } from '../src/domain'
+import { type Grill, OWN, type Snapshot } from '../src/domain'
 
 export class PickedOptionConflict extends Error {}
 
@@ -7,7 +7,6 @@ export const assertPickedOptionsRetained = (
   next: Grill,
 ): void => {
   for (const [id, key] of Object.entries(previous.answers)) {
-    if (key === OWN) continue
     const old = previous.grill.steps.find(
       step => step.question.id === id,
     )?.question
@@ -20,7 +19,20 @@ export const assertPickedOptionsRetained = (
         `Reload refused for ${JSON.stringify(next.id)} ${JSON.stringify(id)} pick ${JSON.stringify(key)}: ${reason}. Keep the picked question and option key, or ask the owner to clear or change the answer on the page.`,
       )
     }
-    if (current === undefined) fail('the answered question was removed')
+    if (current === undefined) {
+      // A decided outcome permits removal, not changes to a surviving pick (ADR 0027).
+      if (
+        next.decided?.some(
+          outcome => outcome.id === id && outcome.text.trim() !== '',
+        )
+      ) {
+        continue
+      }
+      fail(
+        'the answered question was removed without a nonblank decided outcome using its local question id',
+      )
+    }
+    if (key === OWN) continue
     if (picked === undefined)
       fail('the picked option key was removed or changed')
     const original = old.options.find(option => option.key === key)

@@ -173,7 +173,13 @@ it('allows deliberate clearing, custom answers and already removed historical an
   expect(loadGrill(db, { ...grill, steps: [] }).steps).toEqual([])
   loadGrill(db, grill)
   pick(db, grill, OWN)
-  expect(loadGrill(db, { ...grill, steps: [] }).steps).toEqual([])
+  expect(
+    loadGrill(db, {
+      ...grill,
+      steps: [],
+      decided: [{ id: 'Q1', text: 'Custom answer acted on.' }],
+    }).steps,
+  ).toEqual([])
   loadGrill(db, grill)
   pick(db, grill)
   seedLegacySource(db, { ...grill, steps: [] })
@@ -207,43 +213,66 @@ it('does not mistake an existing duplicate option wording for a moved pick', () 
   ).not.toThrow()
 })
 
-it('refuses an outbox load against its served snapshot before replacing any source file', async () => {
-  const dir = folder(),
-    outbox = join(dir, 'outbox'),
-    db = database(),
-    grill = loadGrill(db, source())
-  pick(db, grill)
-  const target = join(outbox, grill.id)
-  mkdirSync(target, { recursive: true })
-  const original = JSON.stringify(grill)
-  writeFileSync(join(target, 'grill.json'), original)
-  writeFileSync(
-    join(target, 'state.json'),
-    JSON.stringify({
-      snapshot: snapshot(db, grill),
-      events: [],
-      lastEventId: 2,
-    }),
-  )
-  const file = join(dir, 'changed.json')
-  writeFileSync(file, JSON.stringify({ ...grill, steps: [] }))
-  const child = Bun.spawn([process.execPath, 'server/cli.ts', 'load', file], {
-    env: {
-      ...process.env,
-      GF_OUTBOX: outbox,
-      GF_DB: join(dir, 'unused.sqlite'),
-    },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const [code, error] = await Promise.all([
-    child.exited,
-    new Response(child.stderr).text(),
-  ])
-  expect(code).not.toBe(0)
-  expect(error).toContain('Reload refused')
-  expect(readFileSync(join(target, 'grill.json'), 'utf8')).toBe(original)
-})
+it.each([false, true])(
+  'checks resolution before replacing an answered outbox source (resolved: %s)',
+  async resolved => {
+    const dir = folder(),
+      outbox = join(dir, 'outbox'),
+      db = database(),
+      grill = loadGrill(db, source())
+    pick(db, grill)
+    const target = join(outbox, grill.id)
+    mkdirSync(target, { recursive: true })
+    const original = JSON.stringify(grill)
+    writeFileSync(join(target, 'grill.json'), original)
+    writeFileSync(
+      join(target, 'state.json'),
+      JSON.stringify({
+        snapshot: snapshot(db, grill),
+        events: [],
+        lastEventId: 2,
+      }),
+    )
+    const file = join(dir, 'changed.json')
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...grill,
+        steps: [],
+        ...(resolved
+          ? { decided: [{ id: 'Q1', text: 'Resolved and implemented.' }] }
+          : {}),
+      }),
+    )
+    const child = Bun.spawn([process.execPath, 'server/cli.ts', 'load', file], {
+      env: {
+        ...process.env,
+        GF_OUTBOX: outbox,
+        GF_DB: join(dir, 'unused.sqlite'),
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const [code, error] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ])
+    if (resolved) {
+      expect(code).toBe(0)
+      const queued = JSON.parse(
+        readFileSync(join(target, 'grill.json'), 'utf8'),
+      )
+      expect(queued.steps).toEqual([])
+      expect(queued.decided).toEqual([
+        { id: 'Q1', text: 'Resolved and implemented.' },
+      ])
+    } else {
+      expect(code).not.toBe(0)
+      expect(error).toContain('Reload refused')
+      expect(readFileSync(join(target, 'grill.json'), 'utf8')).toBe(original)
+    }
+  },
+)
 
 it('keeps a refused remote load retryable at the same stamp after a deliberate clear', async () => {
   const dir = folder(),
@@ -302,4 +331,71 @@ try{await pollRemotesOnce(db,[{machine:'fake',dir:${JSON.stringify(root)}}]);}fi
   expect(db.query('SELECT stamp FROM remote_files').get()).not.toEqual(
     JSON.parse(before)[3][0],
   )
+})
+
+it.each(['a', OWN])(
+  'takes a resolved %s question off the source and squad while preserving its immutable submission',
+  async key => {
+    const db = database(),
+      grill = loadGrill(db, source())
+    pick(db, grill, key)
+    const page = readPage(db, grill.id)!,
+      selection = selectSend(page.state, { questions: ['Q1'] })
+    if (!selection.ok) throw new Error(selection.error)
+    await sendPageAnswers(
+      db,
+      page,
+      selection,
+      async () => ({ ok: true, detail: 'mock' }),
+      () => 'gf',
+    )
+    const submitted = events(db, grill.id).find(
+      row => row.kind === 'submitted',
+    )!
+    const receipt = readSubmission(db, grill.id, submitted.id)
+    const history = events(db, grill.id)
+    const resolved = loadGrill(db, {
+      ...grill,
+      steps: [],
+      decided: [
+        { id: 'Q1', text: 'Implemented and verified the selected outcome.' },
+      ],
+    })
+    expect(resolved.steps).toEqual([])
+    expect(readPage(db, 'team')?.state.grill.steps).toEqual([])
+    expect(snapshot(db, resolved).answers.Q1).toBe(key)
+    expect(readSubmission(db, grill.id, submitted.id)).toEqual(receipt)
+    expect(events(db, grill.id).slice(0, history.length)).toEqual([...history])
+  },
+)
+
+it.each(
+  ['a', OWN].flatMap(key => [
+    { key, outcome: { id: 'Q99', text: 'Different question resolved.' } },
+    { key, outcome: { id: 'Q1', text: '   ' } },
+  ]),
+)('refuses unaccounted removal for $key with $outcome', ({ key, outcome }) => {
+  const db = database(),
+    grill = loadGrill(db, source())
+  pick(db, grill, key)
+  const before = contents(db)
+  expect(() =>
+    loadGrill(db, { ...grill, steps: [], decided: [outcome] }),
+  ).toThrow('Reload refused')
+  expect(contents(db)).toBe(before)
+})
+
+it('keeps a surviving picked option protected even with a decided outcome for its question', () => {
+  const db = database(),
+    grill = loadGrill(db, source())
+  pick(db, grill)
+  const changed = changeOptions(grill, options =>
+    options.filter(option => option.key !== 'a'),
+  )
+  expect(() =>
+    loadGrill(db, {
+      ...changed,
+      decided: [{ id: 'Q1', text: 'Only part is resolved.' }],
+    }),
+  ).toThrow('picked option key')
 })

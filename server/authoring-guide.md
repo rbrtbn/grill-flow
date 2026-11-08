@@ -277,13 +277,13 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
 ## Each round
 
 1. `gf up`. It starts the server unless it already answers.
-2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill,
-   below). Round 1 creates it; a later round edits the same file: add the new
-   frontier with the next free ids, set `round` on each new question and on
-   the grill, and keep every answered question, which the page folds to its
-   answer. Send includes every unsent answer across rounds, labelled by round;
-   only the current round can use the `all recommended` shorthand. `<id>` is
-   unique across every agent's grills, e.g. `<repo>-<topic>`.
+2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill, below). Round 1
+   creates it; a later round edits the same file: add the new frontier with the next free ids
+   and set `round` on each new question and on the grill. Keep open and partly resolved
+   questions; take fully resolved questions down using the resolution rule below. Send
+   includes every unsent answer across rounds, labelled by round; only the current round can
+   use the `all recommended` shorthand. `<id>` is unique across every agent's grills, e.g.
+   `<repo>-<topic>`.
 3. `gf load grills/<id>.json`. Answers, notes and asks already given stay,
    keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
@@ -494,6 +494,19 @@ A squad lead's grill, gathering questions from several agents, also sets
   A grill without `version` is version 1 and shows as before. A newer
   `version` than the checkout reads still loads: the page shows what it knows
   and says so.
+
+## Resolve and take down a question
+
+Keep only open questions and live updates on the page. When the owner has answered and you
+have acted, or the question was withdrawn, remove its step from your own source. Record the
+outcome in `decided` as `{id, text}`: id is the exact local/source question id (for example Q6),
+not its shared display number or step id, and text is the nonblank outcome. Then `gf load`
+the source with the guide revision you read. Answer events and frozen submissions stay in
+history; a decided entry is an author-reported outcome and creates no new approval.
+
+If only part is resolved, keep its step and question id. Rewrite the prose/options to the
+remaining open work. Keep picked option keys stable; a decided entry does not bypass that
+protection for a question that remains. Do not reuse removed ids for different decisions.
 
 ## Finishing
 

@@ -28,3 +28,4 @@
 | [0024](0024-use-a-single-question-queue.md) | Use a single question queue | accepted |
 | [0025](0025-filter-multiple-rounds-and-sort-the-queue.md) | Filter multiple rounds and sort the queue | accepted |
 | [0026](0026-version-the-authoring-guide-with-warning-first-publication.md) | Version the authoring guide with warning-first publication | accepted |
+| [0027](0027-resolve-questions-with-source-owned-outcomes.md) | Resolve questions with source-owned outcomes | accepted |

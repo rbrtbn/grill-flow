@@ -5,7 +5,7 @@ import { hostname } from 'node:os'
 import { join } from 'node:path'
 
 // Bump when guide rules change so cached instructions can be replaced (ADR 0026).
-export const SKILL_REVISION = 1
+export const SKILL_REVISION = 2
 export const AuthoringGuide = Schema.Struct({
   version: Schema.Literal(1),
   host: Schema.String.check(Schema.isMinLength(1)),
