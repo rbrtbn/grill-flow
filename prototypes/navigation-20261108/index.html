@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Navigation studies · grill-flow</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <nav class="study-switcher" aria-label="Prototype variants">
+      <button data-action="variant-prev" aria-label="Previous prototype">
+        ←
+      </button>
+      <div>
+        <strong id="study-title"></strong><small id="study-thesis"></small>
+      </div>
+      <button data-action="variant-next" aria-label="Next prototype">→</button>
+      <button data-action="simulate">Simulate reply</button>
+    </nav>
+    <script src="./main.js"></script>
+  </body>
+</html>
