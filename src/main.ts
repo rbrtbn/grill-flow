@@ -100,7 +100,7 @@ import {
 } from './workspace'
 
 const POLL_INTERVAL = Duration.seconds(4)
-export const TOAST_LIFETIME_MS = 10_000
+export const TOAST_LIFETIME_MS = 4_000
 
 export const OVERVIEW = 'overview'
 // A squad grill with a plan gets a page of which builds wait on what.

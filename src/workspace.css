@@ -431,14 +431,14 @@
   border-color: currentColor;
 }
 .f-state-open.urgency-wait {
-  color: var(--muted);
-  border-color: #8c9585;
-}
-.f-state-open.urgency-fyi {
-  color: var(--u-fyi);
+  color: var(--u-wait);
   border-color: currentColor;
 }
-.f-state-open:is(.urgency-blocking, .urgency-soon, .urgency-fyi) {
+.f-state-open.urgency-fyi {
+  color: var(--muted);
+  border-color: currentColor;
+}
+.f-state-open:is(.urgency-blocking, .urgency-soon, .urgency-wait) {
   background: currentColor;
   border-color: transparent;
 }
@@ -1962,9 +1962,6 @@ body[data-gf-preview] .f-workspace {
 @media (prefers-color-scheme: dark) {
   .f-state-open.urgency-soon {
     color: #f2d34f;
-  }
-  .f-state-open.urgency-wait {
-    border-color: var(--muted);
   }
 }
 
