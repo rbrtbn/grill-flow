@@ -363,10 +363,11 @@ export const runOutbox = async (
     default:
       console.log(usage)
   }
-  if (isAuthoringCommand(command))
+  if (isAuthoringCommand(command)) {
     printAuthoringWarning(
       flag(args, '--skill-revision'),
       guideView(outbox),
       'queued',
     )
+  }
 }

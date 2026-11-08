@@ -12,5 +12,4 @@ Missing or stale revisions warn with the full guide; accepted content remains un
 Keep objective validation and immutable item/drawing body replay checks intact.
 Carry declared revisions as outbox metadata and exclude them from body replay identity.
 Return host guidance and successful-import warnings in existing remote state.
-Label cached or unverified guidance honestly; revision claims do not prove understanding.
-Guide digests detect inconsistent caches; rejection needs a later owner decision.
+Label caches honestly; digests detect conflicts. Rejection needs an owner decision.
