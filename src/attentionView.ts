@@ -1,7 +1,9 @@
 import { Array } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { itemAnchor } from './activity'
 import { channelItemKey } from './channel'
+import { channelRevealAttributes } from './channelReveal'
 import { sourceQuestionHref } from './channelView'
 import type { Snapshot } from './domain'
 import { Message, type Model } from './main'
@@ -43,7 +45,10 @@ export const attentionView = (model: Model, snapshot: Snapshot, h: H): Html => {
     const destination = model.ownerDestinations[key]
     return h.keyed('article')(
       `${entry.source}::${item.id}`,
-      [h.Class('f-channel-entry f-owner-step')],
+      [
+        h.Class('f-channel-entry f-owner-step'),
+        ...channelRevealAttributes(model, itemAnchor(entry.source, item.id), h),
+      ],
       [
         h.div(
           [h.Class('f-channel-heading')],
@@ -205,7 +210,14 @@ export const attentionView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 const resolved = item.resolution.state !== 'provisional'
                 return h.keyed('article')(
                   `${entry.source}::${item.id}`,
-                  [h.Class('f-channel-entry f-provisional-decision')],
+                  [
+                    h.Class('f-channel-entry f-provisional-decision'),
+                    ...channelRevealAttributes(
+                      model,
+                      itemAnchor(entry.source, item.id),
+                      h,
+                    ),
+                  ],
                   [
                     h.div(
                       [h.Class('f-channel-heading')],
@@ -342,7 +354,14 @@ export const attentionView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ...blockers.map(entry =>
                 h.keyed('article')(
                   `${entry.source}::${entry.item.id}`,
-                  [h.Class('f-channel-entry f-blocker')],
+                  [
+                    h.Class('f-channel-entry f-blocker'),
+                    ...channelRevealAttributes(
+                      model,
+                      itemAnchor(entry.source, entry.item.id),
+                      h,
+                    ),
+                  ],
                   [
                     h.div(
                       [h.Class('f-channel-heading')],

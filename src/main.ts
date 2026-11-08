@@ -30,6 +30,13 @@ import { modifyFields } from 'foldkit/struct'
 
 import { BrowserCrypto } from '@effect/platform-browser'
 
+import {
+  ActivityCursors,
+  ActivityFilter,
+  activityCursorOf,
+  activityReadFrom,
+  revealAnchorFrom,
+} from './activity'
 import { channelItemKey } from './channel'
 import { DiagramView } from './diagram'
 import {
@@ -50,6 +57,7 @@ import {
 import { drawingAttemptKey } from './drawings'
 import {
   ANSWER_HISTORY,
+  CHANGES,
   CONVERSATIONS,
   CatalogData,
   GRILLS,
@@ -156,6 +164,12 @@ export const clampSidebarWidth = (edge: SidebarEdge, width: number): number =>
     ),
   )
 
+export const ChannelReveal = defineTaggedUnion({
+  None: {},
+  Pending: { id: Schema.String },
+  Completed: { id: Schema.String },
+})
+
 export const Model = Schema.Struct({
   page: PageData.schema,
   workspace: Workspace,
@@ -181,6 +195,7 @@ export const Model = Schema.Struct({
   talkGeneration: Schema.Number,
   sendDetail: Schema.String,
   copy: CopyState,
+  channelReveal: ChannelReveal,
   drawingAttempts: Schema.Record(Schema.String, DrawingAttempt),
   ownerDestinations: Schema.Record(Schema.String, OwnerDestinationState),
   ownerCopies: Schema.Record(
@@ -318,6 +333,7 @@ export const Message = defineMessageUnion({
     filter: QuestionFilter,
     urgencyFilter: QuestionUrgencyFilter,
     grouping: QuestionGrouping,
+    activityRead: Schema.optionalKey(ActivityCursors),
     roundScopes: Schema.optionalKey(
       Schema.Record(Schema.String, Schema.Number),
     ),
@@ -325,6 +341,9 @@ export const Message = defineMessageUnion({
     collapseSentRounds: Schema.Boolean,
   },
   CompletedSaveWorkspaceSettings: {},
+  ClickedMarkActivitySeen: {},
+  SelectedActivityFilter: { filter: ActivityFilter },
+  CompletedRevealChannelItem: { id: Schema.String },
   RestoredDiscussionState: { state: DiscussionState },
   ChangedDiscussionState: { grillId: Schema.String, state: DiscussionState },
   CompletedSaveDiscussionState: {},
@@ -1103,6 +1122,7 @@ export const update = (model: Model, message: Message) =>
       highlightTerms,
       collapseSentRounds,
       roundScopes,
+      activityRead,
       navigation,
     }) => {
       const restored: Model = modifyFields(model, {
@@ -1112,6 +1132,7 @@ export const update = (model: Model, message: Message) =>
             urgencyFilter: () => urgencyFilter,
             grouping: () => 'Round',
             roundScopes: () => roundScopesFrom(roundScopes),
+            activityRead: () => activityReadFrom(activityRead),
             scopeRestoration: () =>
               navigation === 'Reload' ? 'Preserve' : 'Reveal',
             highlightTerms: () => highlightTerms,
@@ -1136,10 +1157,62 @@ export const update = (model: Model, message: Message) =>
                     ),
                 }),
         }),
-        commands: [ScrollToTop()],
+        ...(model.channelReveal._tag !== 'None'
+          ? {}
+          : { commands: [ScrollToTop()] }),
       }))
     },
     CompletedSaveWorkspaceSettings: () => ({ model }),
+    CompletedRevealChannelItem: ({ id }) => ({
+      model:
+        model.channelReveal._tag === 'Pending' && model.channelReveal.id === id
+          ? modifyFields(model, {
+              channelReveal: () => ChannelReveal.Completed({ id }),
+            })
+          : model,
+    }),
+    SelectedActivityFilter: ({ filter }) => ({
+      model: modifyFields(model, {
+        workspace: workspace =>
+          modifyFields(workspace, { activityFilter: () => filter }),
+      }),
+    }),
+    ClickedMarkActivitySeen: () =>
+      withSnapshot(model, snapshot => {
+        if (snapshot.activity === undefined) {
+          return { model }
+        }
+        const next = modifyFields(model, {
+          workspace: workspace =>
+            modifyFields(workspace, {
+              activityRead: read =>
+                Object.fromEntries(
+                  [
+                    ...new Set(
+                      Object.keys(read).concat(
+                        Object.keys(snapshot.activity?.highWater ?? {}),
+                      ),
+                    ),
+                  ].map(source => [
+                    source,
+                    Math.max(
+                      activityCursorOf(read, source),
+                      activityCursorOf(
+                        snapshot.activity?.highWater ?? {},
+                        source,
+                      ),
+                    ),
+                  ]),
+                ),
+            }),
+        })
+        return {
+          model: next,
+          commands: [
+            SaveWorkspaceSettings({ settings: JSON.stringify(next.workspace) }),
+          ],
+        }
+      }),
     RestoredDiscussionState: ({ state }) => ({
       model: modifyFields(model, {
         side: side => (state.open ? 'Talk' : side),
@@ -1849,6 +1922,7 @@ export const update = (model: Model, message: Message) =>
       withSnapshot(model, snapshot =>
         request._tag === 'Internal' &&
         !new URL(Url.toString(request.url)).searchParams.has('source') &&
+        Option.isNone(revealAnchorFrom(request.url.hash)) &&
         (request.url.pathname ===
           `/g/${encodeURIComponent(snapshot.grill.id)}` ||
           request.url.pathname.startsWith(
@@ -2485,6 +2559,7 @@ export const pathOfPage = (grillId: string, page: string): string => {
       GRILLS,
       UPDATES,
       ANSWER_HISTORY,
+      CHANGES,
     ].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
@@ -2516,6 +2591,7 @@ export const pageOfPath = (pathname: string): string => {
       GRILLS,
       UPDATES,
       ANSWER_HISTORY,
+      CHANGES,
     ].includes(kind ?? '')
     ? (kind ?? '')
     : kind === 'concept'
@@ -2654,7 +2730,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
             }),
           ]
         : []),
-      ScrollToTop(),
+      ...(model.channelReveal._tag !== 'None' ? [] : [ScrollToTop()]),
       RestoreRead({ grillId: snapshot.grill.id }),
       RestoreClosedLine({ grillId: snapshot.grill.id }),
       ...([SQUAD, GRILLS].includes(next.currentPart)
@@ -2702,6 +2778,7 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
         ),
     })
     const next = modifyFields(moved, {
+      channelReveal: () => ChannelReveal.None(),
       workspace: () =>
         modifyFields(workspace, {
           maybeDiscussionTarget: current =>
@@ -2846,6 +2923,10 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     talkGeneration: 0,
     sendDetail: '',
     copy: 'Idle',
+    channelReveal: Option.match(revealAnchorFrom(url.hash), {
+      onNone: () => ChannelReveal.None(),
+      onSome: id => ChannelReveal.Pending({ id }),
+    }),
     drawingAttempts: {},
     ownerCopies: {},
     ownerDestinations: {},
@@ -2984,12 +3065,27 @@ export const RestoreDiscussionScroll = Mount.define('RestoreDiscussionScroll', {
     }),
 })
 
+const WorkspacePreferences = Schema.Struct({
+  filter: Schema.optionalKey(Schema.Unknown),
+  urgencyFilter: Schema.optionalKey(Schema.Unknown),
+  grouping: Schema.optionalKey(Schema.String),
+  roundScopes: Schema.optionalKey(Schema.Unknown),
+  activityRead: Schema.optionalKey(Schema.Unknown),
+  highlightTerms: Schema.optionalKey(Schema.Boolean),
+  collapseSentRounds: Schema.optionalKey(Schema.Boolean),
+})
+
 export const SaveWorkspaceSettings = Command.define('SaveWorkspaceSettings', {
   args: { settings: Schema.String },
   messages: [Message.CompletedSaveWorkspaceSettings],
   execute: ({ settings }) =>
     Effect.sync(() =>
-      localStorage.setItem(WORKSPACE_SETTINGS_KEY, settings),
+      localStorage.setItem(
+        WORKSPACE_SETTINGS_KEY,
+        JSON.stringify(
+          Schema.decodeUnknownSync(WorkspacePreferences)(JSON.parse(settings)),
+        ),
+      ),
     ).pipe(
       Effect.catch(() => Effect.void),
       Effect.map(() => Message.CompletedSaveWorkspaceSettings()),
@@ -3004,21 +3100,13 @@ export const RestoreWorkspaceSettings = Command.define(
       const raw: unknown = JSON.parse(
         localStorage.getItem(WORKSPACE_SETTINGS_KEY) ?? '{}',
       )
-      const settings = Schema.decodeUnknownSync(
-        Schema.Struct({
-          filter: Schema.optionalKey(Schema.Unknown),
-          urgencyFilter: Schema.optionalKey(Schema.Unknown),
-          grouping: Schema.optionalKey(Schema.String),
-          roundScopes: Schema.optionalKey(Schema.Unknown),
-          highlightTerms: Schema.optionalKey(Schema.Boolean),
-          collapseSentRounds: Schema.optionalKey(Schema.Boolean),
-        }),
-      )(raw)
+      const settings = Schema.decodeUnknownSync(WorkspacePreferences)(raw)
       return Message.RestoredWorkspaceSettings({
         filter: questionFilterFrom(settings.filter),
         urgencyFilter: questionUrgencyFilterFrom(settings.urgencyFilter),
         grouping: 'Round',
         roundScopes: roundScopesFrom(settings.roundScopes),
+        activityRead: activityReadFrom(settings.activityRead),
         navigation: performance
           .getEntriesByType('navigation')
           .some(entry => 'type' in entry && entry.type === 'reload')
@@ -3762,6 +3850,35 @@ export const RestoreRead = Command.define('RestoreRead', {
           Message.RestoredRead({ maybeSince: Option.none(), ids: [] }),
         ),
       ),
+    ),
+})
+
+export const RevealChannelItem = Mount.define('RevealChannelItem', {
+  args: { id: Schema.String },
+  messages: [Message.CompletedRevealChannelItem],
+  execute: ({ id, element }) =>
+    Effect.sync(() => {
+      // Open once; native details keep later user toggles intact across polls.
+      const archive = element.closest('details')
+      if (archive instanceof HTMLDetailsElement) {
+        archive.open = true
+      }
+      return '#' + CSS.escape(element.id)
+    }).pipe(
+      Effect.flatMap(selector =>
+        // Font reflow can move a fragment after its first scroll.
+        Effect.promise(() => element.ownerDocument.fonts.ready).pipe(
+          Effect.timeoutOption(Duration.seconds(3)),
+          Effect.andThen(
+            Dom.scrollIntoViewAfterPaint(selector, { block: 'start' }),
+          ),
+          Effect.andThen(
+            Dom.focus(selector, { preventScroll: true, makeFocusable: true }),
+          ),
+        ),
+      ),
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedRevealChannelItem({ id })),
     ),
 })
 

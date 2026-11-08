@@ -2,6 +2,7 @@ import { Array, Option, Schema } from 'effect'
 import { AsyncData } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
 
+import { ActivityCursors, ActivityFilter } from './activity'
 import {
   type Answers,
   type Notes,
@@ -23,6 +24,7 @@ export const CONVERSATIONS = 'conversations'
 export const REPLIES = 'replies'
 export const UPDATES = 'updates'
 export const ANSWER_HISTORY = 'answer-history'
+export const CHANGES = 'changes'
 export const NEEDS = 'needs-you'
 export const SQUAD = 'squad'
 export const GRILLS = 'grills'
@@ -67,6 +69,8 @@ export const WorkSection = Schema.Literals([
 ])
 
 export const Workspace = Schema.Struct({
+  activityFilter: ActivityFilter,
+  activityRead: ActivityCursors,
   catalog: CatalogData.schema,
   workSection: WorkSection,
   noteOpen: Schema.Array(Schema.String),
@@ -97,6 +101,8 @@ export const Workspace = Schema.Struct({
 export type Workspace = typeof Workspace.Type
 
 export const initialWorkspace: Workspace = {
+  activityFilter: 'Unread',
+  activityRead: {},
   catalog: CatalogData.Idle(),
   workSection: 'Now',
   noteOpen: [],
@@ -133,6 +139,7 @@ export const isWorkspacePage = (page: string): boolean =>
     REPLIES,
     UPDATES,
     ANSWER_HISTORY,
+    CHANGES,
     NEEDS,
     SQUAD,
     GRILLS,

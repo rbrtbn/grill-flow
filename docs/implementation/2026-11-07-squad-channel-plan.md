@@ -28,11 +28,14 @@ Step 3 shipped in 0182c6e with owner steps with reported proof, provisional deci
 and typed evidence-backed blockers. Local terminal jumps focus only a published tN address;
 remote item destinations remain links. Live provider refresh remains in step 4.
 Step 4 ships each part separately. Draw this shipped in 318a3c5 with frozen requests and typed
-compare/flow responses; roster, primary-provider refresh and What changed follow in order.
+compare/flow responses; the roster shipped in db822a9 and primary-provider refresh in 4e4e085.
 The roster reads existing Herdr labels through a bounded cache, separates observed Core status
 from explicit page waits and leaves budgets unreported. It adds no terminal actions or storage.
 Live reference refresh uses fixed read-only GitHub/Linear adapters, checked identity, bounded
 queues and normalized source-owned events. Primary evidence cannot satisfy owner or grant work.
+What changed completes step 4: a bounded source-event projection, browser-local seen cursors,
+current action filtering and exact source-qualified archive/receipt/reply links. Reading never
+acknowledges or changes work. Runtime adapters and notifications still require a new check-in.
 
 ## Shared implementation
 

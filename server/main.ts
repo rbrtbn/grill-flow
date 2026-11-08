@@ -10,6 +10,7 @@ import {
   questionSession,
   roundOf,
 } from '../src/domain'
+import { activityFeed } from './activity'
 import {
   SubmissionConflict,
   answerHistory,
@@ -180,6 +181,7 @@ const clientSnapshot = (grill: Grill) => {
       : readReferences(page ?? { state, members: [] })
   return {
     ...state,
+    activity: activityFeed(db, page ?? { state, members: [] }),
     ...(references === undefined
       ? {}
       : { grill: references.grill, referenceReadings: references.readings }),

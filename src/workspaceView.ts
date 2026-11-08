@@ -3,8 +3,11 @@ import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 
+import { activityUnreadCount } from './activity'
+import { activityView } from './activityView'
 import { attentionView } from './attentionView'
 import { ownerWorkCounts } from './channel'
+import { channelRevealAttributes } from './channelReveal'
 import {
   answerHistoryView,
   sourceQuestionHref,
@@ -41,6 +44,7 @@ import {
 import { rosterView } from './rosterView'
 import {
   ANSWER_HISTORY,
+  CHANGES,
   CONVERSATIONS,
   GRILLS,
   NEEDS,
@@ -333,32 +337,34 @@ export const workspaceView = (
     '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
   }
   const content =
-    model.currentPart === UPDATES
-      ? updatesView(snapshot, reading.prose, h)
-      : model.currentPart === ANSWER_HISTORY
-        ? answerHistoryView(snapshot, h)
-        : model.currentPart === SQUAD
-          ? squadView(model, snapshot, reading, h)
-          : model.currentPart === GRILLS
-            ? grillsView(model, snapshot, h)
-            : model.currentPart === REVIEW
-              ? reviewView(model, snapshot, reading, h)
-              : model.currentPart === REPLIES
-                ? repliesView(model, snapshot, reading, h)
-                : model.currentPart === NEEDS
-                  ? needsView(model, snapshot, reading, h)
-                  : model.currentPart === 'plan' ||
-                      model.currentPart === 'status'
-                    ? runView(model, snapshot, reading, h)
-                    : model.currentPart === 'decided'
-                      ? reading.decided(h)
-                      : model.currentPart === CONVERSATIONS
-                        ? conversationPage(model, snapshot, reading, h)
-                        : Option.match(question, {
-                            onSome: step =>
-                              questionView(model, snapshot, step, reading, h),
-                            onNone: () => reading.overview(h),
-                          })
+    model.currentPart === CHANGES
+      ? activityView(model, snapshot, h)
+      : model.currentPart === UPDATES
+        ? updatesView(model, snapshot, reading.prose, h)
+        : model.currentPart === ANSWER_HISTORY
+          ? answerHistoryView(model, snapshot, h)
+          : model.currentPart === SQUAD
+            ? squadView(model, snapshot, reading, h)
+            : model.currentPart === GRILLS
+              ? grillsView(model, snapshot, h)
+              : model.currentPart === REVIEW
+                ? reviewView(model, snapshot, reading, h)
+                : model.currentPart === REPLIES
+                  ? repliesView(model, snapshot, reading, h)
+                  : model.currentPart === NEEDS
+                    ? needsView(model, snapshot, reading, h)
+                    : model.currentPart === 'plan' ||
+                        model.currentPart === 'status'
+                      ? runView(model, snapshot, reading, h)
+                      : model.currentPart === 'decided'
+                        ? reading.decided(h)
+                        : model.currentPart === CONVERSATIONS
+                          ? conversationPage(model, snapshot, reading, h)
+                          : Option.match(question, {
+                              onSome: step =>
+                                questionView(model, snapshot, step, reading, h),
+                              onNone: () => reading.overview(h),
+                            })
   return h.div(
     [
       h.Class(
@@ -655,9 +661,11 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 ? 'M5 4h14v16H5ZM8 8h8m-8 4h8m-8 4h5'
                 : page === UPDATES
                   ? 'M4 5h16v14H4Zm4 4h8m-8 4h8m-8 3h5'
-                  : page === ANSWER_HISTORY
-                    ? 'M4 12a8 8 0 1 0 2-5M4 3v5h5m3-1v5l3 2'
-                    : 'M4 4h6v6H4Zm10 0h6v6h-6ZM4 14h6v6H4Zm10 0h6v6h-6Z',
+                  : page === CHANGES
+                    ? 'M4 6h16M4 12h10M4 18h6m8-4v8m-4-4h8'
+                    : page === ANSWER_HISTORY
+                      ? 'M4 12a8 8 0 1 0 2-5M4 3v5h5m3-1v5l3 2'
+                      : 'M4 4h6v6H4Zm10 0h6v6h-6ZM4 14h6v6H4Zm10 0h6v6h-6Z',
           ),
           h.Fill('none'),
           h.Stroke('currentColor'),
@@ -693,6 +701,11 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
             'Needs you',
             `${open.length} open${drafts > 0 ? ` · ${drafts} drafts` : ''}${ownerWork.actions > 0 ? ` · ${ownerWork.actions} action${ownerWork.actions === 1 ? '' : 's'}` : ''}${ownerWork.provisional > 0 ? ` · ${ownerWork.provisional} provisional` : ''}`,
             NEEDS,
+          ),
+          item(
+            'What changed',
+            `${activityUnreadCount(snapshot.activity, model.workspace.activityRead)} unread`,
+            CHANGES,
           ),
           item(
             'Updates',
@@ -1352,6 +1365,7 @@ const workspacePageName = (page: string): string =>
     [REPLIES]: 'Replies & decisions',
     [UPDATES]: 'Updates',
     [ANSWER_HISTORY]: 'Answer history',
+    [CHANGES]: 'What changed',
     plan: 'Run overview',
     status: 'Run overview',
     overview: 'Overview',
@@ -2985,7 +2999,10 @@ const repliesView = (
       ...messages.map(message =>
         h.keyed('article')(
           message.id,
-          [h.Class('f-reply'), h.Id(`agent-${message.id}`)],
+          [
+            h.Class('f-reply'),
+            ...channelRevealAttributes(model, `agent-${message.id}`, h),
+          ],
           [
             h.h2(
               [],

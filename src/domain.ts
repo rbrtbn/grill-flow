@@ -1,5 +1,6 @@
 import { Array, Option, Order, Record, Schema, pipe } from 'effect'
 
+import { ActivityFeed } from './activity'
 import {
   PublishedBlocker,
   PublishedDecision,
@@ -505,6 +506,7 @@ export const AnswerHistoryEntry = Schema.Struct({
 
 export const Snapshot = Schema.Struct({
   grill: Grill,
+  activity: Schema.optionalKey(ActivityFeed),
   referenceReadings: Schema.optionalKey(Schema.Array(ProviderReading)),
   roster: Schema.optionalKey(Roster),
   drawings: Schema.optionalKey(Schema.Array(QuestionDrawing)),

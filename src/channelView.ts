@@ -1,8 +1,10 @@
 import { Array } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { answerAnchor, itemAnchor } from './activity'
+import { channelRevealAttributes } from './channelReveal'
 import { OWN, type Question, type Snapshot, diffWords } from './domain'
-import type { Message } from './main'
+import type { Message, Model } from './main'
 
 type H = HtmlBuilder<Message>
 type Update = NonNullable<Snapshot['updates']>[number]
@@ -48,6 +50,7 @@ const wording = (
   ].join('\n\n')
 
 export const updatesView = (
+  model: Model,
   snapshot: Snapshot,
   prose: (text: string, h: H) => Html,
   h: H,
@@ -58,7 +61,14 @@ export const updatesView = (
   const entry = (update: Update): Html =>
     h.keyed('article')(
       `${update.source}::${update.item.id}`,
-      [h.Class('f-channel-entry')],
+      [
+        h.Class('f-channel-entry'),
+        ...channelRevealAttributes(
+          model,
+          itemAnchor(update.source, update.item.id),
+          h,
+        ),
+      ],
       [
         h.p(
           [h.Class('f-channel-meta')],
@@ -216,12 +226,23 @@ const savedAnswer = (
   )
 }
 
-export const answerHistoryView = (snapshot: Snapshot, h: H): Html => {
+export const answerHistoryView = (
+  model: Model,
+  snapshot: Snapshot,
+  h: H,
+): Html => {
   const history = snapshot.answerHistory ?? []
   const entry = (receipt: History): Html =>
     h.keyed('article')(
       `${receipt.source}::${receipt.event}`,
-      [h.Class('f-channel-entry')],
+      [
+        h.Class('f-channel-entry'),
+        ...channelRevealAttributes(
+          model,
+          answerAnchor(receipt.source, receipt.submission ?? receipt.event),
+          h,
+        ),
+      ],
       [
         h.h2(
           [],

@@ -149,6 +149,36 @@ export const loadGrill = (db: Database, raw: unknown): Grill =>
       appendEvent(db, grill.id, 'loaded', {
         round: grill.round,
         steps: grill.steps.length,
+        pageChanged: JSON.stringify(previous) !== JSON.stringify(grill),
+        questions: {
+          added: grill.steps
+            .filter(
+              step =>
+                !previous?.steps.some(
+                  old => old.question.id === step.question.id,
+                ),
+            )
+            .map(step => step.question.id),
+          changed: grill.steps
+            .filter(step => {
+              const old = previous?.steps.find(
+                old => old.question.id === step.question.id,
+              )
+              return (
+                old !== undefined &&
+                JSON.stringify(old) !== JSON.stringify(step)
+              )
+            })
+            .map(step => step.question.id),
+          removed: (previous?.steps ?? [])
+            .filter(
+              step =>
+                !grill.steps.some(
+                  next => next.question.id === step.question.id,
+                ),
+            )
+            .map(step => step.question.id),
+        },
       })
       if (grill.squad !== undefined) {
         registerSquadMember(db, grill)

@@ -2294,3 +2294,62 @@ body[data-gf-preview] .f-workspace {
   cursor: pointer;
   font: 500 13px/1.5 var(--label);
 }
+
+.f-activity-tools,
+.f-activity-tools [role='group'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.f-activity-tools {
+  justify-content: space-between;
+  margin: 22px 0 12px;
+}
+.f-activity-tools button {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 7px 12px;
+  color: var(--ink);
+  background: var(--panel);
+  font: 500 13px/1.5 var(--label);
+  cursor: pointer;
+}
+.f-activity-tools [aria-pressed='true'] {
+  background: var(--link-wash);
+  color: var(--link);
+  border-color: var(--link);
+}
+.f-activity-tools button:hover {
+  border-color: var(--link);
+}
+.f-activity-tools button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.f-activity-source {
+  margin-top: 32px;
+}
+.f-activity-source ol {
+  padding: 0;
+  list-style: none;
+}
+.f-activity-entry {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+.f-activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  font: 400 12px/1.5 var(--label);
+  color: var(--muted);
+}
+.f-activity-entry h3 {
+  margin: 8px 0;
+}
+.f-activity-read,
+.f-activity-action {
+  font-weight: 600;
+  color: var(--ink);
+}
