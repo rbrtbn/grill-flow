@@ -884,7 +884,7 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
         overview: builder => overviewView(model, snapshot, builder),
         decided: builder => decidedPageView(model, snapshot, builder),
         resize: (edge, builder) => resizeHandleView(model, edge, builder),
-        notices: builder => toastsView(model, snapshot, builder),
+        notices: builder => toastsView(model, snapshot, 'Sidebar', builder),
       },
       h,
     )
@@ -903,7 +903,7 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
   return h.div(
     [h.Class(`app${Option.isSome(model.maybeResizing) ? ' is-resizing' : ''}`)],
     [
-      toastsView(model, snapshot, h),
+      toastsView(model, snapshot, 'Overlay', h),
       topbarView(model, snapshot, maybePart, talkPartOf(model, grill), h),
       h.div(
         [
@@ -2998,7 +2998,28 @@ const agentWhere = (grill: Grill, message: AgentMessage): string =>
             () => message.stepId,
           )}`
 
-const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
+const notificationTrayToggle = (count: number, expanded: boolean, h: H): Html =>
+  h.button(
+    [
+      h.Class('notification-tray-toggle'),
+      h.AriaExpanded(expanded),
+      h.AriaLabel(
+        `${expanded ? 'Hide' : 'Show'} ${count} unread notifications`,
+      ),
+      h.OnClick(Message.ClickedNotificationTray()),
+    ],
+    [
+      expanded ? 'Hide notifications' : 'Notifications',
+      h.span([h.Class('notification-count')], [String(count)]),
+    ],
+  )
+
+const toastsView = (
+  model: Model,
+  snapshot: Snapshot,
+  placement: 'Sidebar' | 'Overlay',
+  h: H,
+): Html => {
   const unread = unreadMessagesOf(model)
   const shown = visibleToastsOf(model)
   const expanded = Array.isReadonlyArrayNonEmpty(shown)
@@ -3007,6 +3028,9 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
     : h.div(
         [h.Class('toasts'), h.AriaLive('polite')],
         [
+          ...(placement === 'Sidebar'
+            ? [notificationTrayToggle(unread.length, expanded, h)]
+            : []),
           ...Array.map(shown, message =>
             h.keyed('div')(
               message.id,
@@ -3065,20 +3089,9 @@ const toastsView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ],
             ),
           ),
-          h.button(
-            [
-              h.Class('notification-tray-toggle'),
-              h.AriaExpanded(expanded),
-              h.AriaLabel(
-                `${expanded ? 'Hide' : 'Show'} ${unread.length} unread notifications`,
-              ),
-              h.OnClick(Message.ClickedNotificationTray()),
-            ],
-            [
-              expanded ? 'Hide notifications' : 'Notifications',
-              h.span([h.Class('notification-count')], [String(unread.length)]),
-            ],
-          ),
+          ...(placement === 'Overlay'
+            ? [notificationTrayToggle(unread.length, expanded, h)]
+            : []),
         ],
       )
 }
