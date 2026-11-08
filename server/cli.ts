@@ -1,3 +1,4 @@
+import { Schema } from 'effect'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -8,6 +9,12 @@ import {
   replyText,
 } from '../src/domain'
 import { ContextUnavailable, readSubmission } from './answerReceipts'
+import {
+  guideText,
+  guideView,
+  isAuthoringCommand,
+  printAuthoringWarning,
+} from './authoring'
 import { publishItem } from './channel'
 import { publishDrawing } from './drawings'
 import { newsSince, runOutbox } from './outbox'
@@ -20,15 +27,18 @@ import {
   loadGrill,
   open,
   replyToGrill,
-  reviseGrill,
-  retireGrill,
   restoreGrill,
+  retireGrill,
+  reviseGrill,
   snapshot,
 } from './store'
 
 const BASE = `http://127.0.0.1:${process.env.GF_PORT ?? 4317}`
 
 const usage = `gf: grill-flow's agent-side commands
+
+  gf --skill [--if-newer-than <revision>] current complete authoring guide (read-only)
+  Authoring writes accept --skill-revision <revision-read>; missing/stale revisions warn during migration.
 
   gf up                                start the server unless it already answers
   gf load <grill.json>                 load or replace a grill
@@ -76,6 +86,19 @@ const fail = (message: string, code = 2): never => {
 }
 
 const [command, ...args] = process.argv.slice(2)
+
+if (command === '--skill') {
+  if (
+    args.includes('--if-newer-than') &&
+    flag(args, '--if-newer-than') === undefined
+  ) {
+    fail('--if-newer-than needs a revision')
+  }
+  console.log(
+    guideText(guideView(process.env.GF_OUTBOX), flag(args, '--if-newer-than')),
+  )
+  process.exit(0)
+}
 
 if (command === 'pilot' || command === 'inbox' || command === 'ack') {
   const { runRuntimePilotCli } = await import('./runtimePilotCli')
@@ -377,7 +400,9 @@ switch (command) {
         fresh.map(event => ({
           id: event.id,
           kind: event.kind,
-          payload: JSON.parse(event.payload) as Record<string, unknown>,
+          payload: Schema.decodeUnknownSync(
+            Schema.Record(Schema.String, Schema.Unknown),
+          )(JSON.parse(event.payload)),
         })),
         answered,
       )
@@ -394,4 +419,12 @@ switch (command) {
   }
   default:
     console.log(usage)
+}
+
+if (isAuthoringCommand(command)) {
+  printAuthoringWarning(
+    flag(args, '--skill-revision'),
+    guideView(),
+    'published',
+  )
 }

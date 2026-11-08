@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Array, Schema } from 'effect'
 import {
   existsSync,
   mkdirSync,
@@ -11,11 +11,21 @@ import { join } from 'node:path'
 import { ChannelItem } from '../src/channel'
 import {
   type Grill,
-  type Snapshot,
+  Snapshot,
   hasTarget,
   isWholeTarget,
   replyText,
 } from '../src/domain'
+import {
+  authoringBody,
+  guideInState,
+  guideText,
+  guideView,
+  isAuthoringCommand,
+  printAuthoringWarning,
+  readAuthoringWarnings,
+  stampAuthoring,
+} from './authoring'
 import { remoteItemError } from './channel'
 import { DrawingReply, drawingMessage } from './drawings'
 import { askMessage, pageMessage } from './messages'
@@ -26,13 +36,20 @@ import { ROOT, decodeGrill } from './store'
 // that a grill-flow server elsewhere pulls over hc, and its state.json comes back beside them
 // (server/remote.ts).
 
-type StateFile = Readonly<{
-  lastEventId: number
-  snapshot: Snapshot
-  events: ReadonlyArray<
-    Readonly<{ id: number; kind: string; payload: Record<string, unknown> }>
-  >
-}>
+const StateFile = Schema.Struct({
+  lastEventId: Schema.Number,
+  snapshot: Snapshot,
+  events: Schema.Array(
+    Schema.Struct({
+      id: Schema.Number,
+      kind: Schema.String,
+      payload: Schema.Record(Schema.String, Schema.Unknown),
+    }),
+  ),
+  authoringGuide: Schema.optionalKey(Schema.Unknown),
+  authoringWarnings: Schema.optionalKey(Schema.Unknown),
+})
+type StateFile = typeof StateFile.Type
 
 export type News = Readonly<{
   lines: ReadonlyArray<string>
@@ -110,8 +127,49 @@ export const runOutbox = async (
   const stateOf = (id: string | undefined): StateFile | undefined => {
     const path = join(folder(id), 'state.json')
     return existsSync(path)
-      ? (JSON.parse(readFileSync(path, 'utf8')) as StateFile)
+      ? Schema.decodeUnknownSync(StateFile)(
+          JSON.parse(readFileSync(path, 'utf8')),
+        )
       : undefined
+  }
+  const queue = (
+    path: string,
+    payload: object,
+    immutable?: 'item file' | 'drawing revision',
+  ): void => {
+    if (immutable && existsSync(path)) {
+      const previous = authoringBody(JSON.parse(readFileSync(path, 'utf8')))
+      if (JSON.stringify(previous) !== JSON.stringify(payload)) {
+        fail(`That immutable ${immutable} already has different content.`)
+      }
+      return
+    }
+    writeAtomic(
+      path,
+      `${JSON.stringify(stampAuthoring(payload, flag(args, '--skill-revision')), null, 2)}\n`,
+    )
+  }
+  const hostWarnings = (state: unknown, since = 0): void => {
+    const warnings = readAuthoringWarnings(state).filter(
+      warning => warning.event > since,
+    )
+    const guide = guideInState(state)
+    if (Array.isReadonlyArrayEmpty(warnings)) {
+      return
+    }
+    console.error(
+      'Host import authoring warnings: published as submitted, without rewriting or rejecting successful writes.',
+    )
+    warnings.forEach(warning =>
+      console.error(
+        `Event ${warning.event}: ${JSON.stringify(warning.path)} declared an outdated, missing or unrecognised guide revision.`,
+      ),
+    )
+    console.error(
+      guideText(
+        guide === undefined ? guideView(outbox) : { guide, origin: 'cached' },
+      ),
+    )
   }
   switch (command) {
     case 'draw': {
@@ -135,14 +193,8 @@ export const runOutbox = async (
         'drawings',
         `${reply.request}-${String(reply.revision).padStart(10, '0')}.json`,
       )
-      const text = `${JSON.stringify(reply)}\n`
-      if (existsSync(path) && readFileSync(path, 'utf8') !== text) {
-        fail('That immutable drawing revision already has different content.')
-      }
       mkdirSync(join(folder(grill.id), 'drawings'), { recursive: true })
-      if (!existsSync(path)) {
-        writeAtomic(path, text)
-      }
+      queue(path, reply, 'drawing revision')
       console.log(
         `queued drawing response in ${path}; the serving host validates its request context`,
       )
@@ -166,14 +218,8 @@ export const runOutbox = async (
       }
       const name = `${item.id}-${String(item.revision).padStart(10, '0')}.json`
       const path = join(folder(grill.id), 'items', name)
-      const text = `${JSON.stringify(item)}\n`
-      if (existsSync(path) && readFileSync(path, 'utf8') !== text) {
-        fail('That immutable item file already has different content.')
-      }
       mkdirSync(join(folder(grill.id), 'items'), { recursive: true })
-      if (!existsSync(path)) {
-        writeAtomic(path, text)
-      }
+      queue(path, item, 'item file')
       console.log(
         `queued ${item.id} revision ${item.revision} in ${path}; the serving machine validates and publishes it`,
       )
@@ -197,10 +243,7 @@ export const runOutbox = async (
         assertPickedOptionsRetained(previous, grill)
       }
       mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
-      writeAtomic(
-        join(folder(grill.id), 'grill.json'),
-        `${JSON.stringify(grill, null, 2)}\n`,
-      )
+      queue(join(folder(grill.id), 'grill.json'), grill)
       console.log(
         `wrote ${grill.id} to ${folder(grill.id)}; the server pulling this outbox shows it within a few seconds`,
       )
@@ -228,10 +271,12 @@ export const runOutbox = async (
       // The server checks the ask against its record when it takes the reply in.
       const name = `${Date.now()}-${process.pid}.json`
       mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
-      writeAtomic(
-        join(folder(grill.id), 'revisions', name),
-        `${JSON.stringify({ stepId, askId: askFlag ? Number(askFlag) : null, kind, text })}\n`,
-      )
+      queue(join(folder(grill.id), 'revisions', name), {
+        stepId,
+        askId: askFlag ? Number(askFlag) : null,
+        kind,
+        text,
+      })
       console.log(
         `wrote ${kind} on ${stepId} as revisions/${name}; the open page shows it within a few seconds`,
       )
@@ -249,10 +294,7 @@ export const runOutbox = async (
       // A reply rides with the revisions; the server tells them apart by kind (server/remote.ts).
       const name = `${Date.now()}-${process.pid}.json`
       mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
-      writeAtomic(
-        join(folder(grill.id), 'revisions', name),
-        `${JSON.stringify({ kind: 'reply', text })}\n`,
-      )
+      queue(join(folder(grill.id), 'revisions', name), { kind: 'reply', text })
       console.log(
         `wrote your reply as revisions/${name}; the open page shows it within a few seconds`,
       )
@@ -267,6 +309,7 @@ export const runOutbox = async (
         )
         break
       }
+      hostWarnings(state)
       const { answers, notes, own, asks } = state.snapshot
       console.log(replyText(state.snapshot.grill, answers, notes, own))
       const waiting = asks.filter(ask => !ask.answered)
@@ -302,7 +345,11 @@ export const runOutbox = async (
           ),
           `GF_OUTBOX=${outbox} bun run --cwd ${ROOT} gf`,
         )
-        if (news.lines.length > 0) {
+        if (
+          news.lines.length > 0 ||
+          readAuthoringWarnings(state).some(warning => warning.event > since)
+        ) {
+          hostWarnings(state, since)
           console.log(news.lines.join('\n\n'))
           console.log(
             `\nnext: GF_OUTBOX=${outbox} gf wait ${grill.id} --since ${news.lastId}`,
@@ -316,4 +363,10 @@ export const runOutbox = async (
     default:
       console.log(usage)
   }
+  if (isAuthoringCommand(command))
+    printAuthoringWarning(
+      flag(args, '--skill-revision'),
+      guideView(outbox),
+      'queued',
+    )
 }

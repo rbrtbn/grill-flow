@@ -2,8 +2,8 @@ import { Database } from 'bun:sqlite'
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import {
   chmodSync,
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -13,6 +13,7 @@ import { join } from 'node:path'
 
 import { type Snapshot, type Step, roundSteps } from '../src/domain'
 import { questionRevisions, recordAnswer } from './answerReceipts'
+import { SKILL_REVISION, isAuthoringCommand } from './authoring'
 import { publishUpdate } from './channel'
 import { grillOnMachine } from './remote'
 import { selectSend } from './sendSelection'
@@ -93,11 +94,21 @@ const calls = () =>
     .map(line => JSON.parse(line) as Array<string>)
     .filter(call => call[0] === 'send')
 const cli = async (...args: ReadonlyArray<string>) => {
-  const child = Bun.spawn([process.execPath, 'server/cli.ts', ...args], {
-    env: environment,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      'server/cli.ts',
+      ...args,
+      ...(isAuthoringCommand(args[0])
+        ? ['--skill-revision', String(SKILL_REVISION)]
+        : []),
+    ],
+    {
+      env: environment,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  )
   const [code, text, error] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),

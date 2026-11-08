@@ -2,8 +2,8 @@ import { Database } from 'bun:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import {
   chmodSync,
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -17,6 +17,7 @@ import {
   recordAnswer,
   sendRequestIdentity,
 } from './answerReceipts'
+import { SKILL_REVISION } from './authoring'
 import { publishItem } from './channel'
 import { selectSend } from './sendSelection'
 import { events, getGrill, loadGrill, snapshot } from './store'
@@ -104,11 +105,21 @@ appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '
   }
   const file = join(dir, 'grill.json')
   writeFileSync(file, JSON.stringify(grill))
-  const load = Bun.spawn([process.execPath, 'server/cli.ts', 'load', file], {
-    env: environment,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  const load = Bun.spawn(
+    [
+      process.execPath,
+      'server/cli.ts',
+      'load',
+      file,
+      '--skill-revision',
+      String(SKILL_REVISION),
+    ],
+    {
+      env: environment,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  )
   expect(await load.exited).toBe(0)
   const db = new Database(database)
   db.run(
