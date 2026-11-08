@@ -697,16 +697,24 @@
           ? 'A · Recommended. The sidebar gives notices a permanent home. New previews use space in the sidebar, while the question and discussion stay still. Tradeoff: fewer question rows fit when a preview arrives.'
           : 'B · The top strip is always reserved, so a new preview does not move the page. Open inbox expands a row above the workspace. Tradeoff: it uses height across the whole app, especially on a small screen.'
     }
+    function expirePreview() {
+      if ($('.preview').contains(document.activeElement)) {
+        timer = setTimeout(expirePreview, 250)
+        return
+      }
+      preview = null
+      $('.preview').replaceChildren()
+      $('.summary').textContent =
+        'No new notices · unread replies stay in the inbox'
+      $('.top-strip .timer').classList.add('hidden')
+    }
     function simulate() {
       clearTimeout(timer)
       inboxOpen = false
       unread++
       preview = `Reply ${++sequence}: the notification placement is ready for your review.`
       render()
-      timer = setTimeout(() => {
-        preview = null
-        render()
-      }, 4000)
+      timer = setTimeout(expirePreview, 4000)
     }
     function choose(direction) {
       clearTimeout(timer)
