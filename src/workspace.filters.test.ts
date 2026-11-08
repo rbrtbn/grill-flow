@@ -54,7 +54,7 @@ const snapshot: Snapshot = {
 }
 const visible = (urgencyFilter: QuestionUrgencyFilter) =>
   visibleQuestions(
-    { ...initialWorkspace, urgencyFilter },
+    { ...initialWorkspace, filter: 'All', urgencyFilter },
     snapshot,
     snapshot.answers,
     {},
@@ -146,7 +146,7 @@ it('locates filtered-out current questions for navigation and group reveal', () 
 it.each([undefined, null, 123, false, {}, [], 'invalid', ''])(
   'defaults invalid saved filters %j safely',
   value => {
-    expect(questionFilterFrom(value)).toBe('All')
+    expect(questionFilterFrom(value)).toBe(value === undefined ? 'Open' : 'All')
     expect(questionUrgencyFilterFrom(value)).toBe('All')
   },
 )

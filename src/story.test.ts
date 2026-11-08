@@ -195,7 +195,7 @@ describe('resizing a sidebar', () => {
         }),
       ),
       model(current => {
-        expect(current.maybeNavWidth).toEqual(Option.some(340))
+        expect(current.maybeNavWidth).toEqual(Option.some(260))
         expect(current.maybeSideWidth).toEqual(Option.none())
       }),
     )

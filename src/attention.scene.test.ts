@@ -361,8 +361,10 @@ it('counts owner work even without unanswered questions and keeps its grill out 
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: incoming }) }),
-    expect(selector('.f-app-rail')).toContainText('1 action'),
-    expect(selector('.f-app-rail')).toContainText('1 provisional'),
+    expect(role('button', { name: 'Needs you · 2' })).toHaveAttr(
+      'title',
+      '0 open decisions · 1 owner actions · 1 provisional decisions',
+    ),
   )
   scene(
     { update, view },

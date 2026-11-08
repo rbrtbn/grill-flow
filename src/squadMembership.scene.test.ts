@@ -59,7 +59,7 @@ it('lists and counts only this squad membership, independently of the grill kind
     ),
     expect(selector('.f-squad-overview')).not.toContainText('foreign-member'),
     expect(
-      selector('.f-app-rail .f-nav-item[aria-current="page"]'),
+      selector('.f-app-popdown button[aria-current="page"]'),
     ).toContainText('2 runs'),
   )
 })

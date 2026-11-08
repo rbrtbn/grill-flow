@@ -60,7 +60,7 @@ const loaded = {
 }
 
 describe('named rounds and nested blockers', () => {
-  it('shows named rounds in the sidebar and header, with a rename form', () => {
+  it('keeps named rounds in scope and question context without renaming controls', () => {
     const named = {
       ...snapshot,
       grill: { ...grill, roundNames: { '1': 'Stage definitions' } },
@@ -69,14 +69,11 @@ describe('named rounds and nested blockers', () => {
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: named }) }),
       expect(selector('.f-round-name')).toContainText('Stage definitions'),
-      expect(selector('.f-current-round')).toHaveText(
-        'Round 1 · Stage definitions',
-      ),
-      click(role('button', { name: 'Rename' })),
-      expect(role('textbox', { name: 'Name for round 1' })).toHaveValue(
+      expect(selector('.f-round-scope')).toContainText('Stage definitions'),
+      expect(selector('.f-question-context')).toContainText(
         'Stage definitions',
       ),
-      click(role('button', { name: 'Cancel' })),
+      expectAll(all.role('button', { name: 'Rename' })).toHaveCount(0),
       expectAll(all.selector('.f-round-editor')).toHaveCount(0),
     )
   })
@@ -103,7 +100,11 @@ describe('named rounds and nested blockers', () => {
   it('distinguishes the draft and sent checkmarks inside outlined circles', () => {
     scene(
       { update, view },
-      given({ ...loaded, answers: { Q1: 'a' } }),
+      given({
+        ...loaded,
+        answers: { Q1: 'a' },
+        workspace: { ...loaded.workspace, filter: 'All' },
+      }),
       expect(selector('.f-question-list .f-state-draft path')).toHaveAttr(
         'd',
         'm4 8 3 3 5-6',
@@ -114,6 +115,7 @@ describe('named rounds and nested blockers', () => {
       given({
         ...loaded,
         answers: { Q1: 'a' },
+        workspace: { ...loaded.workspace, filter: 'All' },
         page: PageData.Success({ data: { ...snapshot, sent: { Q1: 'Q1 a' } } }),
       }),
       expect(selector('.f-question-list .f-state-sent path')).toHaveAttr(
