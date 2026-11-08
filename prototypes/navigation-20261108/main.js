@@ -94,7 +94,35 @@ let unread = 6
 let inboxOpen = false
 let preview = false
 let timer
-const answers = {}
+const answers = { Q22: '0', Q23: '1' }
+const pending = new Set(['Q22', 'Q23'])
+const excluded = new Set()
+let sendMessage = ''
+let sendResult = ''
+questions.find(q => q.id === 'Q22').title = 'Choose the review window'
+questions.find(q => q.id === 'Q23').title = 'Keep the fallback available'
+function questionStatus(q) {
+  return pending.has(q.id) ? 'draft' : q.status
+}
+function openCount() {
+  return questions.filter(q => questionStatus(q) === 'open').length
+}
+function selectedDrafts() {
+  return [...pending].filter(id => !excluded.has(id))
+}
+function reviewContent() {
+  return `<h1>Review & send</h1><p class="intro">${pending.size} drafts · ${selectedDrafts().length} selected. This is a local demonstration: no message or answer is delivered.</p>${sendResult ? `<p class="demo-result" role="status">${escapeHtml(sendResult)}</p>` : ''}<section class="review-list">${pending.size ? action('select-all-drafts', selectedDrafts().length === pending.size ? 'Deselect all' : 'Select all') : '<p>No draft answers. You can still add a message to the demonstration.</p>'}${[
+    ...pending,
+  ]
+    .map(id => {
+      const q = questions.find(q => q.id === id)
+      return `<div class="review-row"><label><input type="checkbox" data-review-id="${id}" ${excluded.has(id) ? '' : 'checked'} aria-label="Include ${id}"><span><b>${id} · ${escapeHtml(q.title)}</b><small>${escapeHtml(q.source)} · ${escapeHtml(q.round)}</small><p>${['Keep the staged approach', 'Take a different route', 'My own answer'][Number(answers[id])]}</p>${id === 'Q23' ? '<small>Note: Please keep the fallback open.</small>' : ''}</span></label>${action('question', 'Edit answer', `data-id="${id}"`)}</div>`
+    })
+    .join(
+      '',
+    )}</section><section class="review-compose"><label for="send-message">Message to include</label><textarea id="send-message" placeholder="Optional message…">${escapeHtml(sendMessage)}</textarea><div class="review-send">${action('simulate-send', `Send in prototype · ${selectedDrafts().length}`, `class="send-action" ${selectedDrafts().length === 0 && !sendMessage.trim() ? 'disabled' : ''}`)}<small>Demo only · no API or real recipient</small></div></section>`
+}
+
 const $ = s => document.querySelector(s)
 const $$ = s => document.querySelectorAll(s)
 const escapeHtml = s =>
@@ -119,7 +147,7 @@ function icon(name) {
 function matched(includeRound = true) {
   return questions.filter(
     q =>
-      (filter === 'all' || q.status === 'open') &&
+      (filter === 'all' || questionStatus(q) === filter) &&
       (!includeRound || !round || q.round === round) &&
       `${q.id} ${q.title} ${q.source} ${q.round}`
         .toLowerCase()
@@ -137,7 +165,7 @@ function current() {
   return questions.find(q => q.id === selected)
 }
 function destinations() {
-  return `<nav class="destinations" aria-label="App destinations">${['work', 'questions', 'activity'].map(name => action(`page-${name}`, { work: 'Needs you · 4', questions: 'Questions', activity: 'Changes · 12' }[name], `class="${page === name ? 'active' : ''}" aria-current="${page === name ? 'page' : 'false'}"`)).join('')}</nav>`
+  return `<nav class="destinations" aria-label="App destinations">${['work', 'questions', 'activity'].map(name => action(`page-${name}`, { work: `Needs you · ${openCount()}`, questions: 'Questions', activity: 'Changes · 12' }[name], `class="${page === name ? 'active' : ''}" aria-current="${page === name ? 'page' : 'false'}"`)).join('')}</nav>`
 }
 function rail() {
   return `<nav class="rail" aria-label="App rail">${['work', 'questions', 'activity'].map(name => action(`page-${name}`, `${icon(name)}<span>${{ work: 'For you', questions: 'Questions', activity: 'Changes' }[name]}</span>`, `class="${page === name ? 'active' : ''}" title="${name}"`)).join('')}${action('more', `${icon('more')}<span>More</span>`, 'class="rail-bottom"')}</nav>`
@@ -149,7 +177,7 @@ function previewMarkup() {
   return `<p><b>Grill-flow · example reply</b></p><p>The requested change is ready for review.</p>${action('read-reply', 'Read reply')}${preview ? '<div class="progress"></div>' : ''}`
 }
 function sidebar() {
-  return `<aside class="navigator" aria-label="Question browser"><div class="nav-head"><div class="nav-title"><h2>${variant === 'A' ? 'Question queue' : 'Questions'}</h2>${variant === 'C' ? action('browse', 'Close', 'aria-label="Close question browser"') : '<small>4 open</small>'}</div>${variant === 'B' ? `<div class="mode-switch">${action('mode-questions', 'Questions', `class="${mode === 'questions' ? 'active' : ''}"`)}${action('mode-rounds', 'Browse rounds', `class="${mode === 'rounds' ? 'active' : ''}"`)}</div>` : ''}<input class="search" type="search" placeholder="Find a question…" aria-label="Find question" value="${escapeHtml(search)}"><div class="scope-row">${action('filter-open', 'Open · 4', `class="${filter === 'open' ? 'active' : ''}"`)}${action('filter-all', 'All · 91', `class="${filter === 'all' ? 'active' : ''}"`)}</div>${variant === 'B' && round ? action('back-rounds', `← ${escapeHtml(round)}`, 'class="back-rounds"') : variant !== 'B' ? '<select class="round-select" aria-label="Round scope"></select>' : ''}</div><div class="question-list"></div>${inbox()}</aside>`
+  return `<aside class="navigator" aria-label="Question browser"><div class="nav-head"><div class="nav-title"><h2>${variant === 'A' ? 'Question queue' : 'Questions'}</h2>${variant === 'C' ? action('browse', 'Close', 'aria-label="Close question browser"') : `<small>${openCount()} open</small>`}</div>${variant === 'B' ? `<div class="mode-switch">${action('mode-questions', 'Questions', `class="${mode === 'questions' ? 'active' : ''}"`)}${action('mode-rounds', 'Browse rounds', `class="${mode === 'rounds' ? 'active' : ''}"`)}</div>` : ''}<input class="search" type="search" placeholder="Find a question…" aria-label="Find question" value="${escapeHtml(search)}"><div class="scope-row">${action('filter-open', `Open · ${openCount()}`, `class="${filter === 'open' ? 'active' : ''}"`)}${pending.size ? action('filter-draft', `Drafts · ${pending.size}`, `class="${filter === 'draft' ? 'active' : ''}"`) : ''}${action('filter-all', 'All · 91', `class="${filter === 'all' ? 'active' : ''}"`)}</div>${variant === 'B' && round ? action('back-rounds', `← ${escapeHtml(round)}`, 'class="back-rounds"') : variant !== 'B' ? '<select class="round-select" aria-label="Round scope"></select>' : ''}</div><div class="question-list"></div>${inbox()}</aside>`
 }
 function renderList() {
   const list = $('.question-list')
@@ -179,7 +207,7 @@ function renderList() {
             heading +
             action(
               'question',
-              `${q.status === 'sent' ? '<span class="sent" aria-label="Sent">✓</span>' : `<span class="dot ${q.urgency}" aria-label="${q.urgency}"></span>`}<span class="question-copy"><b>${escapeHtml(q.title)}</b><small>${q.id} · ${escapeHtml(q.round)}${q.status === 'sent' ? ' · Sent' : ''}</small></span>`,
+              `${questionStatus(q) === 'sent' ? '<span class="sent" aria-label="Sent">✓</span>' : questionStatus(q) === 'draft' ? '<span class="draft-mark" aria-label="Draft">✓</span>' : `<span class="dot ${q.urgency}" aria-label="${q.urgency}"></span>`}<span class="question-copy"><b>${escapeHtml(q.title)}</b><small>${q.id} · ${escapeHtml(q.round)}${questionStatus(q) === 'open' ? '' : ` · ${questionStatus(q) === 'draft' ? 'Draft' : 'Sent'}`}</small></span>`,
               `class="question${selected === q.id ? ' active' : ''}" data-id="${q.id}" aria-current="${selected === q.id ? 'page' : 'false'}"`,
             )
           )
@@ -189,7 +217,7 @@ function renderList() {
     if (filter === 'open' && !search && !round)
       list.innerHTML += action(
         'filter-all',
-        '87 sent questions · browse when needed',
+        `${questions.filter(q => questionStatus(q) === 'sent').length} sent questions · browse when needed`,
         'class="sent-link"',
       )
   }
@@ -203,10 +231,22 @@ function renderList() {
       .join('')}`
 }
 function mainContent() {
+  if (page === 'review') return reviewContent()
   if (page === 'utility')
     return `<h1>${escapeHtml(utilityTitle)}</h1><p class="intro">This destination is a placeholder in the navigation study. The prototype concentrates on questions, rounds and the reading/discussion layout.</p><p class="study-note">Choose Questions or Needs you to continue comparing the structures. Nothing is sent or saved.</p>`
   if (page === 'work') {
-    return `<h1>Needs you</h1><p class="intro">Decisions and owner steps, without a second question list beside them.</p><div class="work-intro"><span><b>4</b>open decisions</span><span><b>3</b>owner steps</span></div><section class="work-list"><h2>Decisions</h2>${openQuestions.map(q => action('question', `<span class="work-id">${q.id}</span><span><b>${escapeHtml(q.title)}</b><small>${escapeHtml(q.source)} · ${escapeHtml(q.round)}</small></span>`, `class="work-row" data-id="${q.id}"`)).join('')}</section><section class="work-list"><h2>Owner steps</h2>${['Review the notification placement PR', 'Choose the account for the page guard', 'Enable browser notifications'].map((text, i) => `<div class="work-row"><span class="work-id">${i + 1}</span><span><b>${text}</b><small>Sample step · waiting on the owner</small></span></div>`).join('')}</section><p class="study-note">Sample data. This view hides the question browser because the decision list is already here. Choose a decision to return to its question.</p>`
+    return `<h1>Needs you</h1><p class="intro">Decisions and owner steps, without a second question list beside them.</p><div class="work-intro"><span><b>${openCount()}</b>open decisions</span><span>${action('review', `${pending.size} drafts ready to send`)}</span><span><b>3</b>owner steps</span></div><section class="work-list"><h2>Decisions</h2>${openQuestions
+      .filter(q => questionStatus(q) === 'open')
+      .map(q =>
+        action(
+          'question',
+          `<span class="work-id">${q.id}</span><span><b>${escapeHtml(q.title)}</b><small>${escapeHtml(q.source)} · ${escapeHtml(q.round)}</small></span>`,
+          `class="work-row" data-id="${q.id}"`,
+        ),
+      )
+      .join(
+        '',
+      )}</section><section class="work-list"><h2>Owner steps</h2>${['Review the notification placement PR', 'Choose the account for the page guard', 'Enable browser notifications'].map((text, i) => `<div class="work-row"><span class="work-id">${i + 1}</span><span><b>${text}</b><small>Sample step · waiting on the owner</small></span></div>`).join('')}</section><p class="study-note">Sample data. This view hides the question browser because the decision list is already here. Choose a decision to return to its question.</p>`
   }
   if (page === 'activity')
     return `<h1>What changed</h1><p class="intro">A separate destination for updates and history, without a persistent round list.</p>${['The notification prototype is ready to compare.', 'An agent replied to the launcher question.', 'The next round has two open decisions.'].map((t, i) => `<section class="activity-entry"><small>${i + 1} minute${i ? 's' : ''} ago · example activity</small><p>${t}</p></section>`).join('')}`
@@ -217,7 +257,7 @@ function mainContent() {
     position < 0
       ? 'Outside this filter'
       : `${position + 1} of ${visible.length}`
-  return `<div class="question-position"><div class="context">${variant === 'C' ? action('browse', `${browse ? 'Close browser' : 'Browse questions'} · ${matched().length}`, 'aria-label="Toggle question browser"') : `<span>${counter}</span>`}<span>${escapeHtml(q.source)}</span><span> / ${escapeHtml(q.round)}</span></div><div>${action('previous', '←', `aria-label="Previous question" ${position <= 0 ? 'disabled' : ''}`)} ${action('next', '→', `aria-label="Next question" ${position < 0 || position === visible.length - 1 ? 'disabled' : ''}`)}</div></div><small>${q.id} · ${q.status === 'sent' ? 'Sent' : 'Open decision'}</small><h1 tabindex="-1">${escapeHtml(q.title)}</h1><p class="intro">${escapeHtml(q.detail)} These are illustrative options for testing navigation.</p><div class="answer-options">${['Keep the staged approach', 'Take a different route', 'My own answer'].map((text, i) => `<label class="answer-option"><input type="radio" name="answer" value="${i}" ${answers[q.id] === String(i) ? 'checked' : ''}><span><strong>${text}${i === 0 ? '<small class="recommended">Recommended</small>' : ''}</strong><small>${['Keep a clear check between each step.', 'Discuss the tradeoff before changing the plan.', 'Describe what should change in your words.'][i]}</small></span></label>`).join('')}</div><section class="reason"><h2>Why this question</h2><p>The work has an explicit decision point. Keep the question, its consequences and its discussion together; use navigation to move between them.</p></section><p class="study-note">${variant === 'A' ? 'A removes the app and round rails. Open questions lead; completed rounds stay behind All. Round scope is one selector, with no zero-match entries.' : variant === 'B' ? 'B keeps a small rail for three frequent destinations and More. Browse rounds replaces the list temporarily, then drills into the selected round.' : 'C keeps the reading area wide. Browse questions opens the navigator only when needed; Inbox opens the same browser with its inbox. This trades the always-visible sidebar inbox for header access.'}</p>`
+  return `<div class="question-position"><div class="context">${variant === 'C' ? action('browse', `${browse ? 'Close browser' : 'Browse questions'} · ${matched().length}`, 'aria-label="Toggle question browser"') : `<span>${counter}</span>`}<span>${escapeHtml(q.source)}</span><span> / ${escapeHtml(q.round)}</span></div><div>${action('previous', '←', `aria-label="Previous question" ${position <= 0 ? 'disabled' : ''}`)} ${action('next', '→', `aria-label="Next question" ${position < 0 || position === visible.length - 1 ? 'disabled' : ''}`)}</div></div><small>${q.id} · ${{ open: 'Open decision', draft: 'Draft answer', sent: 'Sent' }[questionStatus(q)]}</small><h1 tabindex="-1">${escapeHtml(q.title)}</h1><p class="intro">${escapeHtml(q.detail)} These are illustrative options for testing navigation.</p><div class="answer-options">${['Keep the staged approach', 'Take a different route', 'My own answer'].map((text, i) => `<label class="answer-option"><input type="radio" name="answer" value="${i}" ${answers[q.id] === String(i) ? 'checked' : ''}><span><strong>${text}${i === 0 ? '<small class="recommended">Recommended</small>' : ''}</strong><small>${['Keep a clear check between each step.', 'Discuss the tradeoff before changing the plan.', 'Describe what should change in your words.'][i]}</small></span></label>`).join('')}</div><section class="reason"><h2>Why this question</h2><p>The work has an explicit decision point. Keep the question, its consequences and its discussion together; use navigation to move between them.</p></section><p class="study-note">${variant === 'A' ? 'A removes the app and round rails. Open questions lead; completed rounds stay behind All. Round scope is one selector, with no zero-match entries.' : variant === 'B' ? 'B keeps a small rail for three frequent destinations and More. Browse rounds replaces the list temporarily, then drills into the selected round.' : 'C keeps the reading area wide. Browse questions opens the navigator only when needed; Inbox opens the same browser with its inbox. This trades the always-visible sidebar inbox for header access.'}</p>`
 }
 function discussionContent() {
   return `<aside class="discussion"><div class="discussion-head"><h2>Discussion</h2>${action('discussion', 'Close')}</div><div class="tabs"><button>This question</button><button>Grill-flow</button></div><div class="context-card"><small>${selected} · example context</small>${escapeHtml(current().title)}</div><div class="thread"><p><b>You</b><br>The rails repeat information and leave too little room for the work.</p><p><b>Maintainer</b><br>These studies change the structure. Try Open/All, round scope and Needs you.</p></div><div class="composer"><label for="draft">Ask about this question</label><textarea id="draft" placeholder="Try a draft; switching views keeps it…">${escapeHtml(draft)}</textarea><small>Local prototype · no message is sent</small></div></aside>`
@@ -225,7 +265,7 @@ function discussionContent() {
 function render() {
   document.body.className = `variant-${variant} page-${page}${browse ? ' browse-open' : ''}${discussion ? '' : ' no-discussion'}${mobileConversation ? ' mobile-conversation' : ''}`
   $('#app').innerHTML =
-    `<div class="shell"><header class="top"><div class="brand"><b>grill-flow</b><span>Squad</span></div>${destinations()}<div class="top-end">${page === 'questions' ? action('mobile-discussion', mobileConversation ? 'Question' : 'Discuss', 'class="mobile-discussion-trigger"') : ''}${variant === 'C' ? action('inbox', `Inbox · <span class="unread">${unread}</span>`) : ''}${page === 'questions' && !discussion ? action('discussion', 'Discuss') : ''}<details class="more"><summary>More</summary><div>${['Updates', 'Answer history', 'All grills', 'Settings'].map(text => action('utility', text)).join('')}</div></details><small>Prototype · sample data<br>Nothing is sent or saved</small></div></header><div class="workspace">${rail()}${sidebar()}<main class="main">${mainContent()}</main>${discussionContent()}</div></div>`
+    `<div class="shell"><header class="top"><div class="brand"><b>grill-flow</b><span>Squad</span></div>${destinations()}<div class="top-end">${action('review', `Review & send${pending.size ? ` · ${pending.size}` : ''}`, 'class="send-action"')}${page === 'questions' ? action('mobile-discussion', mobileConversation ? 'Question' : 'Discuss', 'class="mobile-discussion-trigger"') : ''}${variant === 'C' ? action('inbox', `Inbox · <span class="unread">${unread}</span>`) : ''}${page === 'questions' && !discussion ? action('discussion', 'Discuss') : ''}<details class="more"><summary>More</summary><div>${['Updates', 'Answer history', 'All grills', 'Settings'].map(text => action('utility', text)).join('')}</div></details><small>Prototype · sample data<br>Nothing is sent or saved</small></div></header><div class="workspace">${rail()}${sidebar()}<main class="main">${mainContent()}</main>${discussionContent()}</div></div>`
   $('#study-title').textContent = `${variant} · ${studies[variant][0]}`
   $('#study-thesis').textContent = studies[variant][1]
   renderList()
@@ -233,7 +273,8 @@ function render() {
 function selectQuestion(id) {
   const target = questions.find(q => q.id === id)
   if (round && target.round !== round) round = ''
-  if (filter === 'open' && target.status === 'sent') filter = 'all'
+  if (filter !== 'all' && questionStatus(target) !== filter)
+    filter = questionStatus(target) === 'draft' ? 'draft' : 'all'
   if (
     search &&
     !`${target.id} ${target.title} ${target.source} ${target.round}`
@@ -276,6 +317,30 @@ document.addEventListener('click', event => {
   const act = el.dataset.action
   if (act === 'variant-prev') return changeVariant(-1)
   if (act === 'variant-next') return changeVariant(1)
+  if (act === 'review') {
+    page = 'review'
+    render()
+    return
+  }
+  if (act === 'select-all-drafts') {
+    if (selectedDrafts().length === pending.size)
+      [...pending].forEach(id => excluded.add(id))
+    else excluded.clear()
+    render()
+    return
+  }
+  if (act === 'simulate-send') {
+    const chosen = selectedDrafts()
+    chosen.forEach(id => {
+      questions.find(q => q.id === id).status = 'sent'
+      pending.delete(id)
+      excluded.delete(id)
+    })
+    sendMessage = ''
+    sendResult = `Demo completed for ${chosen.length} answer${chosen.length === 1 ? '' : 's'}. Nothing was delivered.`
+    render()
+    return
+  }
   if (act === 'question') return selectQuestion(el.dataset.id)
   if (act.startsWith('page-')) {
     page = act.slice(5)
@@ -374,13 +439,32 @@ document.addEventListener('input', event => {
     renderList()
   }
   if (event.target.id === 'draft') draft = event.target.value
+  if (event.target.id === 'send-message') {
+    sendMessage = event.target.value
+    $('[data-action="simulate-send"]').disabled =
+      selectedDrafts().length === 0 && !sendMessage.trim()
+  }
 })
 document.addEventListener('change', event => {
   if (event.target.matches('.round-select')) {
     round = event.target.value
     render()
   }
-  if (event.target.name === 'answer') answers[selected] = event.target.value
+  if (event.target.dataset.reviewId) {
+    const id = event.target.dataset.reviewId
+    if (event.target.checked) excluded.delete(id)
+    else excluded.add(id)
+    render()
+    $(`[data-review-id="${id}"]`)?.focus()
+  }
+  if (event.target.name === 'answer') {
+    const value = event.target.value
+    answers[selected] = value
+    pending.add(selected)
+    sendResult = ''
+    render()
+    $(`input[name="answer"][value="${value}"]`)?.focus()
+  }
 })
 document.addEventListener('keydown', event => {
   if (event.target.closest('input,textarea,select,[contenteditable]')) return
