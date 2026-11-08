@@ -119,6 +119,7 @@ it('freezes answer wording and the revision at Send independently of later reloa
       events(db, original.id).find(item => item.id === answerEvent)!.payload,
     ).receipt.note,
   ).toBe('Note at answer')
+  appendEvent(db, original.id, 'cleared', { question: 'Q1' })
   loadGrill(db, { ...changed, steps: [] })
   appendEvent(db, original.id, 'noted', { question: 'Q1', text: 'Later note' })
   expect(readSubmission(db, original.id, id)).toEqual(receipt)

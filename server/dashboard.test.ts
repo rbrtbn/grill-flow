@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 
 import { Grill, OWN, answerLines } from '../src/domain'
 import { dashboard } from './dashboard'
+import { seedLegacySource } from './legacySource.testSupport'
 import { appendEvent, loadGrill, snapshot } from './store'
 
 const decodeGrill = Schema.decodeUnknownSync(Grill)
@@ -214,7 +215,7 @@ describe('dashboard delivery and archives', () => {
     const db = database()
     appendEvent(db, grill.id, 'answered', { question: 'Q1', key: 'b' })
     appendEvent(db, grill.id, 'answered', { question: 'Q17', key: 'a' })
-    loadGrill(db, {
+    seedLegacySource(db, {
       ...grill,
       round: 2,
       steps: grill.steps.filter(step => step.question.id !== 'Q1'),
@@ -243,12 +244,12 @@ describe('dashboard delivery and archives', () => {
         ...grill,
         round: 2,
         steps: fixture.steps
-          .filter(step => ['Q1', 'Q2'].includes(step.question.id))
+          .filter(step => ['Q1', 'Q2', 'Q17'].includes(step.question.id))
           .map(step => ({
             ...step,
             question: {
               ...step.question,
-              round: step.question.id === 'Q1' ? 1 : 2,
+              round: step.question.id === 'Q2' ? 2 : 1,
             },
           })),
       }),

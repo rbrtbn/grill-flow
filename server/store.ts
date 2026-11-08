@@ -13,6 +13,7 @@ import {
   roundOf,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
+import { assertPickedOptionsRetained } from './reloadSafety'
 
 export const ROOT = join(import.meta.dir, '..')
 const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
@@ -121,6 +122,9 @@ export const loadGrill = (db: Database, raw: unknown): Grill =>
         )
       }
       const previous = getGrill(db, decoded.id)
+      if (previous !== undefined) {
+        assertPickedOptionsRetained(snapshot(db, previous), decoded)
+      }
       const hasTitle = (key: string, text: string): boolean =>
         text.trim() !== '' && text.trim() !== key
       const grill =

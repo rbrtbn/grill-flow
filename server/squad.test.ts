@@ -308,7 +308,9 @@ it('routes scoped discussions and revisions to canonical ask IDs and source step
 it('retains shared mappings and source history when a member reloads, disappears or adds questions', async () => {
   const before = squadRegistrations(db, 'squad')
   const local = getGrill(db, 'worker-run')!
-  loadGrill(db, { ...local, steps: local.steps.slice(1) })
+  expect(() =>
+    loadGrill(db, { ...local, steps: local.steps.slice(1) }),
+  ).toThrow('Reload refused')
   loadGrill(db, local)
   expect(squadRegistrations(db, 'squad')).toEqual(before)
   expect(readPage(db, 'squad')?.state.answers.Q3).toBe('a')

@@ -21,3 +21,4 @@
 | [0017](0017-refresh-only-validated-provider-references.md) | Refresh only validated provider references | accepted |
 | [0018](0018-project-activity-with-browser-local-read-cursors.md) | Project activity with browser-local read cursors | accepted |
 | [0019](0019-locate-submissions-inside-page-delivery-markup.md) | Locate submissions inside page delivery markup | accepted |
+| [0020](0020-preserve-picked-options-on-source-reload.md) | Preserve picked options on source reload | accepted |

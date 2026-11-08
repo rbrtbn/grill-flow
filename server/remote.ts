@@ -180,10 +180,10 @@ const takeGrill = async (
   remote: Remote,
   root: string,
   path: string,
-): Promise<void> => {
+): Promise<boolean> => {
   const raw = await readRemote(remote.machine, `${root}/${path}`)
   if (typeof raw !== 'object' || raw === null) {
-    return
+    return false
   }
   try {
     const grill = loadGrill(
@@ -194,10 +194,12 @@ const takeGrill = async (
       'INSERT INTO grill_remotes (grill_id, machine, dir) VALUES (?, ?, ?) ON CONFLICT(grill_id) DO UPDATE SET machine = excluded.machine, dir = excluded.dir',
       [grill.id, remote.machine, `${root}/${path.split('/')[0]}`],
     )
+    return true
   } catch (error) {
     console.error(
       `remote ${remote.machine}:${path}: ${String(error).slice(0, 300)}`,
     )
+    return false
   }
 }
 
@@ -364,10 +366,12 @@ export const pollRemotesOnce = async (
         }
         continue
       }
-      await (isReply
-        ? takeRevision(db, remote, listing.root, file.path)
-        : takeGrill(db, remote, listing.root, file.path))
-      markSeen(db, remote.machine, file.path, file.stamp)
+      if (isReply) {
+        await takeRevision(db, remote, listing.root, file.path)
+        markSeen(db, remote.machine, file.path, file.stamp)
+      } else if (await takeGrill(db, remote, listing.root, file.path)) {
+        markSeen(db, remote.machine, file.path, file.stamp)
+      }
     }
   }
   await pushStates(db)

@@ -19,6 +19,7 @@ import {
 import { remoteItemError } from './channel'
 import { DrawingReply, drawingMessage } from './drawings'
 import { askMessage, pageMessage } from './messages'
+import { assertPickedOptionsRetained } from './reloadSafety'
 import { ROOT, decodeGrill } from './store'
 
 // The agent side on a machine without the server: grills and replies go into an outbox folder
@@ -189,6 +190,10 @@ export const runOutbox = async (
       const grill = decodeGrill(
         JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
       )
+      const previous = stateOf(grill.id)?.snapshot
+      if (previous !== undefined) {
+        assertPickedOptionsRetained(previous, grill)
+      }
       mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
       writeAtomic(
         join(folder(grill.id), 'grill.json'),

@@ -146,3 +146,17 @@ may carry a locator but remain ineligible readback. Asks and drawings have no su
 The marker changes no authority classification. T10m checked synthetic short and long messages
 against PR 121 head 29820f96: all 16 string/block/paste shapes remain NOT TYPED, including its
 strict mid-turn path. Only the independently checked immutable readback supplies page words.
+
+## Picked options survive reload
+
+Source loads refuse removing a currently answered non-custom question or its selected option
+key. They also refuse moving the previous selected label/effect pair to another key while
+repurposing the selected key. Ordinary wording changes remain valid, with the original context
+and Send revision shown separately. This is a deterministic identity check, not an inference
+of semantic intent from arbitrary edited text. Existing duplicate option wording is not a move.
+
+Validation precedes source, event and squad-registration mutation. The outbox validates its
+latest served snapshot before replacing its file; the serving machine validates again against
+current answers. A refused remote file is not marked imported, so it can retry at the same
+stamp after a deliberate page clear/change. Already removed historical answers remain readable
+and sendable. No load automatically clears a pick or edits a frozen answer/submission.

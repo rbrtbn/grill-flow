@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { answerAnchor, itemAnchor } from '../src/activity'
 import { activityFeed } from './activity'
 import { publishItem } from './channel'
+import { seedLegacySource } from './legacySource.testSupport'
 import { readPage } from './squad'
 import {
   appendEvent,
@@ -318,7 +319,7 @@ it('bounds the rendered feed while retaining source high water and keeps removed
     question: 'Q2',
     key: 'a',
   })
-  loadGrill(db, { ...grill, steps: grill.steps.slice(0, 1) })
+  seedLegacySource(db, { ...grill, steps: grill.steps.slice(0, 1) })
   expect(
     activityFeed(db, readPage(db, grill.id)!).entries.find(
       entry => entry.event === removed,

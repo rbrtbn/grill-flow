@@ -4,6 +4,7 @@ import { Schema } from 'effect'
 import { readFileSync } from 'node:fs'
 
 import { Grill, type Snapshot, hasTarget } from '../src/domain'
+import { seedLegacySource } from './legacySource.testSupport'
 import { askMessage } from './messages'
 import { selectSend } from './sendSelection'
 import { appendEvent, loadGrill, reviseGrill, snapshot } from './store'
@@ -164,11 +165,12 @@ describe('saved answers after a question is removed', () => {
     try {
       loadGrill(db, grill)
       appendEvent(db, grill.id, 'answered', { question: 'Q1', key: 'b' })
-      const changed = loadGrill(db, {
+      const changed = {
         ...grill,
         round: 2,
         steps: grill.steps.filter(step => step.question.id !== 'Q1'),
-      })
+      }
+      seedLegacySource(db, changed)
       const selection = selectSend(snapshot(db, changed), {})
       expect(selection.ok && selection.lines).toEqual({ Q1: 'Q1 b' })
       if (!selection.ok) throw new Error(selection.error)
