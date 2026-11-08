@@ -614,21 +614,38 @@ const workspaceHeaderView = (
   return h.header(
     [h.Class('f-topbar f-topbar-a')],
     [
-      h.button(
+      h.div(
+        [h.Class('f-header-brand')],
         [
-          h.Type('button'),
-          h.Class('f-run-name'),
-          h.Title(grill.title),
-          h.OnClick(
-            Message.ClickedWorkspacePage({
-              page:
-                priority === undefined
-                  ? 'overview'
-                  : `${QUESTION_PAGE}${priority.question.id}`,
-            }),
+          h.a(
+            [
+              h.Class('f-wordmark'),
+              h.Href('/'),
+              h.AriaLabel('grill-flow home'),
+            ],
+            ['grill-flow'],
+          ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('f-run-name'),
+              h.Title(grill.title),
+              h.OnClick(
+                Message.ClickedWorkspacePage({
+                  page:
+                    priority === undefined
+                      ? 'overview'
+                      : `${QUESTION_PAGE}${priority.question.id}`,
+                }),
+              ),
+            ],
+            [
+              priority === undefined
+                ? grill.title.replace(/\s+[·—–-]\s+Open for you$/i, '')
+                : 'Squad',
+            ],
           ),
         ],
-        [priority === undefined ? grill.title : 'Squad · Open for you'],
       ),
       h.nav(
         [h.Class('f-primary-nav'), h.AriaLabel('Workspace destinations')],
@@ -651,6 +668,7 @@ const workspaceHeaderView = (
           ),
           destination('Questions', questionQueuePage(model, snapshot)),
           destination('Conversations', CONVERSATIONS),
+          destination('Updates', UPDATES),
         ],
       ),
       h.nav(
@@ -684,7 +702,6 @@ const workspaceHeaderView = (
                 REPLIES,
                 true,
               ),
-              destination('Updates', UPDATES, true),
               destination('Answer history', ANSWER_HISTORY, true),
               destination(
                 grill.kind === 'squad'
@@ -1227,7 +1244,7 @@ const questionView = (
   const arrow = (direction: 'Previous' | 'Next', disabled: boolean): Html =>
     h.button(
       [
-        h.Class(`f-arrow f-arrow-${direction.toLowerCase()}`),
+        h.Class('f-question-arrow'),
         h.Disabled(disabled),
         h.AriaLabel(`${direction} question`),
         h.AriaKeyshortcuts(
@@ -1240,13 +1257,13 @@ const questionView = (
       ],
       [
         h.svg(
-          [h.ViewBox('0 0 32 64'), h.AriaHidden(true)],
+          [h.ViewBox('0 0 20 20'), h.AriaHidden(true)],
           [
             h.path([
               h.D(
                 direction === 'Previous'
-                  ? 'M24 8 8 32 24 56'
-                  : 'M8 8 24 32 8 56',
+                  ? 'M16 10H4m5-5-5 5 5 5'
+                  : 'M4 10h12m-5-5 5 5-5 5',
               ),
               h.Stroke('currentColor'),
               h.StrokeWidth('1.5'),
@@ -1269,32 +1286,52 @@ const questionView = (
               h.header(
                 [h.Class('f-question-reference')],
                 [
-                  h.h1(
-                    [h.Class('f-question-title'), h.Id(`ask-text-${q.id}`)],
-                    reading.heading(q.ask, h),
-                  ),
                   h.div(
-                    [h.Class('f-question-meta')],
+                    [h.Class('f-question-context-bar')],
                     [
-                      h.span([], [q.id]),
-                      issueLink(snapshot, q.issue, h),
-                      h.span([], [questionAgent(snapshot.grill, q)]),
-                      h.span(
-                        [],
+                      h.div(
+                        [h.Class('f-question-meta')],
                         [
-                          q.round === undefined
-                            ? 'No round'
-                            : roundLabel(snapshot.grill, q.round),
+                          h.span([], [q.id]),
+                          issueLink(snapshot, q.issue, h),
+                          h.span([], [questionAgent(snapshot.grill, q)]),
+                          h.span(
+                            [],
+                            [
+                              q.round === undefined
+                                ? 'No round'
+                                : roundLabel(snapshot.grill, q.round),
+                            ],
+                          ),
+                          ...Option.toArray(
+                            Option.map(urgencyDetail(q), detail =>
+                              h.span([h.Class('f-question-urgency')], [detail]),
+                            ),
+                          ),
+                          h.span(
+                            [h.Class('f-state-label')],
+                            [
+                              stateMark(state, q, h),
+                              state === 'Draft' ? 'Draft · not sent' : state,
+                            ],
+                          ),
                         ],
                       ),
-                      h.span(
-                        [h.Class('f-state-label')],
+                      h.nav(
                         [
-                          stateMark(state, q, h),
-                          state === 'Draft' ? 'Draft · not sent' : state,
+                          h.Class('f-question-navigation'),
+                          h.AriaLabel('Question navigation'),
+                        ],
+                        [
+                          arrow('Previous', Option.isNone(previous)),
+                          arrow('Next', Option.isNone(next)),
                         ],
                       ),
                     ],
+                  ),
+                  h.h1(
+                    [h.Class('f-question-title'), h.Id(`ask-text-${q.id}`)],
+                    reading.heading(q.ask, h),
                   ),
                 ],
               ),
@@ -1363,13 +1400,6 @@ const questionView = (
                   ),
                 ],
               ),
-            ],
-          ),
-          h.div(
-            [h.Class('f-arrows')],
-            [
-              arrow('Previous', Option.isNone(previous)),
-              arrow('Next', Option.isNone(next)),
             ],
           ),
         ],

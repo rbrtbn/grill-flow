@@ -58,6 +58,63 @@ const start = init(
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
 describe('the question workspace', () => {
+  it('puts Updates in the header and retains the named home destination', () => {
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        page: PageData.Success({
+          data: {
+            ...snapshot,
+            grill: { ...grill, title: 'My run - Open for you' },
+          },
+        }),
+      }),
+      expect(role('link', { name: 'grill-flow home' })).toHaveAttr('href', '/'),
+      expect(selector('.f-run-name')).toHaveText('My run'),
+      expect(selector('.f-app-popdown')).not.toContainText('Updates'),
+      click(
+        within(
+          role('navigation', { name: 'Workspace destinations' }),
+          role('button', { name: 'Updates' }),
+        ),
+      ),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      expect(selector('.f-updates h1')).toHaveText('Updates'),
+    )
+  })
+
+  it('keeps urgency and draft status visible above the question', () => {
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        answers: { Q1: 'a' },
+        page: PageData.Success({
+          data: {
+            ...snapshot,
+            grill: {
+              ...grill,
+              steps: grill.steps.map(step => ({
+                ...step,
+                question: { ...step.question, urgency: 'wait' },
+              })),
+            },
+          },
+        }),
+      }),
+      expect(selector('.f-question-context-bar')).toContainText('Can wait'),
+      expect(selector('.f-question-context-bar')).toContainText(
+        'Draft · not sent',
+      ),
+      click(role('button', { name: 'Next question' })),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      expect(selector('.f-question-meta')).toContainText('Q2'),
+    )
+  })
+
   it('shows interrupted saved sends instead of silently treating their request replay as delivered', () => {
     scene(
       { update, view },
@@ -93,6 +150,9 @@ describe('the question workspace', () => {
       expect(role('button', { name: 'Previous question' })).toBeDisabled(),
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
       expect(selector('.f-question-meta')).toContainText('Q1'),
+      expect(
+        selector('.f-question-context-bar .f-question-navigation'),
+      ).toExist(),
     )
   })
 

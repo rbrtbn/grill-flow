@@ -77,11 +77,11 @@ describe('agent toast notifications', () => {
       { update, view },
       given(expired),
       expectAll(all.selector('.toast')).toHaveCount(0),
-      expect(selector('.notification-count')).toHaveText('5'),
+      expect(selector('.notification-count')).toHaveText('5 unread'),
       click(role('button', { name: 'Show 5 unread notifications' })),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
-      expect(selector('.notification-count')).toHaveText('5'),
+      expect(selector('.notification-count')).toHaveText('5 unread'),
     )
   })
 
@@ -108,7 +108,9 @@ describe('agent toast notifications', () => {
         given({ ...loaded, currentPart }),
         click(role('button', { name: 'Hide 5 unread notifications' })),
         expectAll(all.selector('.toast')).toHaveCount(0),
-        expect(selector('.notification-count')).toHaveText('5'),
+        expect(selector('.notification-count')).toHaveText(
+          currentPart === 'part-1' ? '5' : '5 unread',
+        ),
         click(role('button', { name: 'Show 5 unread notifications' })),
         expectAll(all.selector('.toast')).toHaveCount(3),
       )
@@ -136,7 +138,7 @@ describe('agent toast notifications', () => {
       given(incoming.model),
       expectAll(all.selector('.toast')).toHaveCount(0),
       expect(role('button', { name: 'Show 6 unread notifications' })).toExist(),
-      expect(selector('.notification-count')).toHaveText('6'),
+      expect(selector('.notification-count')).toHaveText('6 unread'),
       click(role('button', { name: 'Show 6 unread notifications' })),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expect(selector('.toast')).toContainText('New while collapsed'),

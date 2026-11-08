@@ -2998,7 +2998,12 @@ const agentWhere = (grill: Grill, message: AgentMessage): string =>
             () => message.stepId,
           )}`
 
-const notificationTrayToggle = (count: number, expanded: boolean, h: H): Html =>
+const notificationTrayToggle = (
+  count: number,
+  expanded: boolean,
+  placement: 'Sidebar' | 'Overlay',
+  h: H,
+): Html =>
   h.button(
     [
       h.Class('notification-tray-toggle'),
@@ -3009,8 +3014,17 @@ const notificationTrayToggle = (count: number, expanded: boolean, h: H): Html =>
       h.OnClick(Message.ClickedNotificationTray()),
     ],
     [
-      expanded ? 'Hide notifications' : 'Notifications',
-      h.span([h.Class('notification-count')], [String(count)]),
+      placement === 'Sidebar'
+        ? expanded
+          ? 'Close inbox'
+          : 'Inbox'
+        : expanded
+          ? 'Hide notifications'
+          : 'Notifications',
+      h.span(
+        [h.Class('notification-count')],
+        [`${count}${placement === 'Sidebar' ? ' unread' : ''}`],
+      ),
     ],
   )
 
@@ -3029,7 +3043,7 @@ const toastsView = (
         [h.Class('toasts'), h.AriaLive('polite')],
         [
           ...(placement === 'Sidebar'
-            ? [notificationTrayToggle(unread.length, expanded, h)]
+            ? [notificationTrayToggle(unread.length, expanded, placement, h)]
             : []),
           ...Array.map(shown, message =>
             h.keyed('div')(
@@ -3090,7 +3104,7 @@ const toastsView = (
             ),
           ),
           ...(placement === 'Overlay'
-            ? [notificationTrayToggle(unread.length, expanded, h)]
+            ? [notificationTrayToggle(unread.length, expanded, placement, h)]
             : []),
         ],
       )
