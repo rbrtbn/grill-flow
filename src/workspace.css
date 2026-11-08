@@ -544,12 +544,6 @@
   position: relative;
   padding: 0;
 }
-.f-main > .toasts {
-  position: absolute;
-  width: min(380px, calc(100% - 36px));
-  max-height: calc(100% - 36px);
-  overflow-y: auto;
-}
 #workspace-top {
   height: 0;
   outline: none;
@@ -2062,6 +2056,55 @@ body[data-gf-preview] .f-workspace {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.f-question-pane > .toasts {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 60px;
+  max-height: 40%;
+  width: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--rule);
+  background: var(--panel);
+}
+.f-question-pane > .toasts > * {
+  flex: none;
+}
+.f-question-pane .notification-tray-toggle {
+  align-self: stretch;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-radius: 4px;
+  background: var(--panel);
+}
+.f-question-pane .toast {
+  border-radius: 4px;
+  box-shadow: none;
+}
+.f-question-pane .toast-open {
+  gap: 3px;
+  padding: 10px 30px 12px 10px;
+}
+.f-question-pane .toast-text {
+  font: 400 13px/1.4 var(--label);
+}
+.f-question-pane .toast-go {
+  font-size: 12px;
+}
+.f-question-pane:has(> .toasts) .f-round-browser {
+  min-height: 80px;
+}
+.f-question-pane:has(> .toasts) .f-question-tools {
+  max-height: calc(100% - 140px);
 }
 .f-navigation-g .f-question-tools {
   border-top: 0;

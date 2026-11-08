@@ -559,7 +559,7 @@ export const workspaceView = (
           h.Style(styles),
         ],
         [
-          navigationView(model, snapshot, h),
+          navigationView(model, snapshot, reading.notices, h),
           reading.resize('Nav', h),
           h.main(
             [
@@ -607,9 +607,6 @@ export const workspaceView = (
                       content,
                     ],
                   ),
-              model.currentPart !== CONVERSATIONS
-                ? reading.notices(h)
-                : h.empty,
             ],
           ),
           isDiscussion && model.currentPart !== CONVERSATIONS
@@ -625,7 +622,12 @@ export const workspaceView = (
   )
 }
 
-const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
+const navigationView = (
+  model: Model,
+  snapshot: Snapshot,
+  notices: Reading['notices'],
+  h: H,
+): Html => {
   const grill = snapshot.grill
   const priority =
     grill.squad?.id === grill.id
@@ -1197,6 +1199,7 @@ const navigationView = (model: Model, snapshot: Snapshot, h: H): Html => {
               ),
             ],
           ),
+          notices(h),
         ],
       ),
     ],

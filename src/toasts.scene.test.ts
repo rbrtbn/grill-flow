@@ -60,7 +60,8 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given(loaded),
-      expect(selector('.f-main .toasts')).toExist(),
+      expect(selector('.f-question-pane .toasts')).toExist(),
+      expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
       expect(role('button', { name: 'Hide 5 unread notifications' })).toExist(),
@@ -161,7 +162,29 @@ describe('agent toast notifications', () => {
     )
   })
 
-  it('leaves the full Conversations page free of toast overlays', () => {
+  it.each([false, true])(
+    'keeps notifications outside discussion when expanded is %s',
+    isDiscussionExpanded => {
+      scene(
+        { update, view },
+        given({
+          ...loaded,
+          side: 'Talk',
+          workspace: { ...loaded.workspace, isDiscussionExpanded },
+        }),
+        Mount.resolveAll(
+          [FillBox, Message.CompletedFillBox()],
+          [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+        ),
+        expect(selector('.f-discussion-compose')).toExist(),
+        expect(selector('.f-question-pane .toasts')).toExist(),
+        expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
+        expectAll(all.selector('.f-discussion .toasts')).toHaveCount(0),
+      )
+    },
+  )
+
+  it('keeps notifications in the sidebar on the full Conversations page', () => {
     scene(
       { update, view },
       given({ ...loaded, currentPart: CONVERSATIONS }),
@@ -170,7 +193,8 @@ describe('agent toast notifications', () => {
         [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
       ),
       expect(selector('.f-discussion-compose')).toExist(),
-      expectAll(all.selector('.toasts')).toHaveCount(0),
+      expect(selector('.f-question-pane .toasts')).toExist(),
+      expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
     )
   })
 })
