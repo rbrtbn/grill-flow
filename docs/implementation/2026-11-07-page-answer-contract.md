@@ -127,7 +127,10 @@ The reserved marker must carry that same source/submission pair.
 The probe returns `{"versions":[1]}`. Exit 3 denotes unavailable/legacy context or a message-only
 send; other nonzero errors use exit 2. The later reader maps those to NOT PAGE and BLOCKED,
 respectively. Until remote readback is implemented, `GF_OUTBOX` fails explicitly and tells the
-caller to run on the serving machine.
+caller to run on the serving machine. Under LAB-1353 P7 this is the explicit BLOCKED branch:
+GF_OUTBOX exits 2 without reading mutable outbox state or creating a local store. Its version
+probe still advertises v1, which does not make remote records eligible. No remote authority
+transport is installed; the serving machine remains the canonical immutable readback source.
 
 Request replay returns the original committed evidence without repeating terminal transport.
 If a crash interrupts delivery after freezing, the page lists the source/submitted ID as

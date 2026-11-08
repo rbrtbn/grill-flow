@@ -180,7 +180,9 @@ export const runOutbox = async (
       break
     }
     case 'grant':
-      fail('Read submission evidence on the serving machine without GF_OUTBOX.')
+      fail(
+        'BLOCKED: GF_OUTBOX cannot provide authoritative immutable submission readback. Run gf grant <member-grill> <submitted-id> on the serving machine without GF_OUTBOX; outbox snapshots and delivery text are not readback.',
+      )
       break
     case 'retire':
     case 'restore':

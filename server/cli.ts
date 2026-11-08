@@ -46,6 +46,7 @@ const usage = `gf: grill-flow's agent-side commands
   gf events <grill-id> [--since <id>]  the raw event log, one JSON line each
   gf grant --version                 probe immutable answer readback format
   gf grant <source-grill> <send-id>    read a captured submission; does not classify authority
+                                     GF_OUTBOX: BLOCKED (exit 2); read on the serving machine
                                       cite the canonical member grill + submitted event id,
                                       never the shared page or its sent event
                                       only answers[].context/key/own/note are page words;
