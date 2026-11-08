@@ -8,6 +8,8 @@ import {
   adjacentQuestion,
   initialWorkspace,
   questionFilterFrom,
+  questionGroups,
+  questionSortFrom,
   questionUrgencyFilterFrom,
   revealQuestion,
   roundScopesFrom,
@@ -172,7 +174,7 @@ it('combines the attention view with the selected round and search', () => {
     ...initialWorkspace,
     filter: questionFilterFrom('Open'),
     urgencyFilter: questionUrgencyFilterFrom('urgent'),
-    roundScopes: { [grill.id]: 1 },
+    roundScopes: { [grill.id]: [1] },
   }
   expect(
     visibleQuestions(workspace, state, state.answers, {}, {}).map(
@@ -190,7 +192,7 @@ it('combines the attention view with the selected round and search', () => {
   ).toEqual(['Q2'])
   expect(
     visibleQuestions(
-      { ...workspace, roundScopes: { [grill.id]: 2 } },
+      { ...workspace, roundScopes: { [grill.id]: [2] } },
       state,
       state.answers,
       {},
@@ -199,7 +201,7 @@ it('combines the attention view with the selected round and search', () => {
   ).toEqual([])
   expect(
     visibleQuestions(
-      { ...workspace, roundScopes: { [grill.id]: 999 } },
+      { ...workspace, roundScopes: { [grill.id]: [999] } },
       state,
       state.answers,
       {},
@@ -221,7 +223,7 @@ it('uses round scope for arrows and reveals the target round without discarding 
   }
   const workspace = {
     ...initialWorkspace,
-    roundScopes: { [grill.id]: 2, 'another-grill': 4 },
+    roundScopes: { [grill.id]: [2], 'another-grill': [4] },
     search: 'Filter question',
   }
   expect(
@@ -251,7 +253,10 @@ it('uses round scope for arrows and reveals the target round without discarding 
     ),
   ).toBe(true)
   const revealed = revealQuestion(workspace, state, state.answers, {}, {}, 'Q2')
-  expect(revealed.roundScopes).toEqual({ [grill.id]: 1, 'another-grill': 4 })
+  expect(revealed.roundScopes).toEqual({
+    [grill.id]: [2, 1],
+    'another-grill': [4],
+  })
   expect(revealed.search).toBe(workspace.search)
 })
 
@@ -263,7 +268,7 @@ it('validates persisted round scopes and uses trimmed names with a numbered fall
       fractional: 1.5,
       huge: Infinity,
     }),
-  ).toEqual({ alpha: 2 })
+  ).toEqual({ alpha: [2] })
   expect(roundScopesFrom({ alpha: '2' })).toEqual({})
   expect(roundScopesFrom(null)).toEqual({})
   const state = {
@@ -276,4 +281,70 @@ it('validates persisted round scopes and uses trimmed names with a numbered fall
   }
   expect(sidebarRoundName(state, 1)).toBe('Feature choices')
   expect(sidebarRoundName(state, 2)).toBe('Round 7')
+})
+
+it('migrates single rounds and normalizes multiselect preferences', () => {
+  expect(
+    roundScopesFrom({ legacy: 2, multi: [3, 1, 3, -1, 2.5], empty: [] }),
+  ).toEqual({ legacy: [2], multi: [3, 1] })
+  expect(questionSortFrom('Recency')).toBe('Recency')
+  expect(questionSortFrom('invalid')).toBe('Round')
+})
+
+it('sorts globally by urgency or newest question number while retaining round order as the default', () => {
+  const state = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      steps: [
+        {
+          ...grill.steps[3]!,
+          question: { ...grill.steps[3]!.question, id: 'Q9', round: 1 },
+        },
+        {
+          ...grill.steps[0]!,
+          question: { ...grill.steps[0]!.question, id: 'Q2', round: 2 },
+        },
+        {
+          ...grill.steps[1]!,
+          question: { ...grill.steps[1]!.question, id: 'Q8', round: 1 },
+        },
+        {
+          ...grill.steps[2]!,
+          question: { ...grill.steps[2]!.question, id: 'Q4', round: 2 },
+        },
+      ],
+    },
+  }
+  const ids = (sort: 'Urgency' | 'Round' | 'Recency') =>
+    questionGroups(
+      { ...initialWorkspace, filter: 'All', sort },
+      state,
+      {},
+      {},
+      {},
+    ).flatMap(group => group.steps.map(step => step.question.id))
+  expect(ids('Urgency')).toEqual(['Q2', 'Q8', 'Q4', 'Q9'])
+  expect(ids('Recency')).toEqual(['Q9', 'Q8', 'Q4', 'Q2'])
+  expect(ids('Round')).toEqual(['Q9', 'Q8', 'Q2', 'Q4'])
+  const dependent = {
+    ...state,
+    grill: {
+      ...state.grill,
+      steps: state.grill.steps.map(step =>
+        step.question.id === 'Q2'
+          ? { ...step, question: { ...step.question, dependsOn: ['Q4'] } }
+          : step,
+      ),
+    },
+  }
+  expect(
+    questionGroups(
+      { ...initialWorkspace, sort: 'Urgency' },
+      dependent,
+      {},
+      {},
+      {},
+    ).flatMap(group => group.steps.map(step => step.question.id)),
+  ).toEqual(['Q4', 'Q2', 'Q8', 'Q9'])
 })

@@ -62,6 +62,7 @@ import {
   cardsOf,
   issuesOf,
   replyText,
+  roundOf,
   statusOf,
   unreadOf,
   urgencyOf,
@@ -78,6 +79,7 @@ import {
   QUESTION_PAGE,
   QuestionFilter,
   QuestionGrouping,
+  QuestionSort,
   QuestionUrgencyFilter,
   REPLIES,
   REVIEW,
@@ -92,6 +94,7 @@ import {
   isWorkspacePage,
   questionFilterFrom,
   questionOnPage,
+  questionSortFrom,
   questionUrgencyFilterFrom,
   revealQuestion,
   roundIsCollapsed,
@@ -328,7 +331,8 @@ export const Message = defineMessageUnion({
     filter: QuestionFilter,
     urgencyFilter: QuestionUrgencyFilter,
   },
-  SelectedRoundScope: { maybeRound: Schema.Option(Schema.Number) },
+  SelectedRoundScopes: { rounds: Schema.Array(Schema.Number) },
+  SelectedQuestionSort: { sort: QuestionSort },
   ClickedCustomFilters: {},
   ClickedAgentGroup: { session: Schema.String },
   ClickedRenameRound: { round: Schema.Number },
@@ -360,10 +364,9 @@ export const Message = defineMessageUnion({
     filter: QuestionFilter,
     urgencyFilter: QuestionUrgencyFilter,
     grouping: QuestionGrouping,
+    sort: Schema.optionalKey(QuestionSort),
     activityRead: Schema.optionalKey(ActivityCursors),
-    roundScopes: Schema.optionalKey(
-      Schema.Record(Schema.String, Schema.Number),
-    ),
+    roundScopes: Schema.optionalKey(Schema.Unknown),
     highlightTerms: Schema.Boolean,
     collapseSentRounds: Schema.Boolean,
   },
@@ -1003,26 +1006,31 @@ export const update = (model: Model, message: Message) =>
           urgencyFilter: () => urgencyFilter,
         }),
       ),
-    SelectedRoundScope: ({ maybeRound }) =>
-      withSnapshot(model, snapshot =>
-        saveWorkspacePreferences(
+    SelectedQuestionSort: ({ sort }) =>
+      saveWorkspacePreferences(
+        model,
+        modifyFields(model.workspace, { sort: () => sort }),
+      ),
+    SelectedRoundScopes: ({ rounds }) =>
+      withSnapshot(model, snapshot => {
+        const selected = Array.dedupe(rounds).filter(round =>
+          snapshot.grill.steps.some(
+            step => roundOf(snapshot.grill, step.question) === round,
+          ),
+        )
+        return saveWorkspacePreferences(
           model,
           modifyFields(model.workspace, {
             roundScopes: scopes =>
-              Option.match(maybeRound, {
-                onNone: () => Record.remove(scopes, snapshot.grill.id),
-                onSome: round => Record.set(scopes, snapshot.grill.id, round),
-              }),
-            expandedRounds: rounds =>
-              Option.match(maybeRound, {
-                onNone: () => rounds,
-                onSome: round => Array.dedupe([...rounds, round]),
-              }),
+              Array.isReadonlyArrayEmpty(selected)
+                ? Record.remove(scopes, snapshot.grill.id)
+                : Record.set(scopes, snapshot.grill.id, selected),
+            expandedRounds: rounds => Array.dedupe([...rounds, ...selected]),
             foldedRounds: rounds =>
-              rounds.filter(round => !Option.contains(maybeRound, round)),
+              rounds.filter(round => !selected.includes(round)),
           }),
-        ),
-      ),
+        )
+      }),
     ClickedCustomFilters: () => ({
       model: modifyFields(model, {
         workspace: workspace =>
@@ -1232,6 +1240,7 @@ export const update = (model: Model, message: Message) =>
       highlightTerms,
       collapseSentRounds,
       roundScopes,
+      sort,
       activityRead,
       navigation,
     }) => {
@@ -1241,6 +1250,7 @@ export const update = (model: Model, message: Message) =>
             filter: () => filter,
             urgencyFilter: () => urgencyFilter,
             grouping: () => 'Round',
+            sort: () => sort ?? 'Round',
             roundScopes: () => roundScopesFrom(roundScopes),
             activityRead: () => activityReadFrom(activityRead),
             scopeRestoration: () =>
@@ -3247,6 +3257,7 @@ const WorkspacePreferences = Schema.Struct({
   filter: Schema.optionalKey(Schema.Unknown),
   urgencyFilter: Schema.optionalKey(Schema.Unknown),
   grouping: Schema.optionalKey(Schema.String),
+  sort: Schema.optionalKey(Schema.Unknown),
   roundScopes: Schema.optionalKey(Schema.Unknown),
   activityRead: Schema.optionalKey(Schema.Unknown),
   highlightTerms: Schema.optionalKey(Schema.Boolean),
@@ -3283,6 +3294,7 @@ export const RestoreWorkspaceSettings = Command.define(
         filter: questionFilterFrom(settings.filter),
         urgencyFilter: questionUrgencyFilterFrom(settings.urgencyFilter),
         grouping: 'Round',
+        sort: questionSortFrom(settings.sort),
         roundScopes: roundScopesFrom(settings.roundScopes),
         activityRead: activityReadFrom(settings.activityRead),
         navigation: performance

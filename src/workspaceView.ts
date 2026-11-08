@@ -55,6 +55,7 @@ import {
   RUN_TARGET,
   SQUAD,
   UPDATES,
+  activeQuestionFilters,
   adjacentQuestion,
   answerLabel,
   draftAnswerIds,
@@ -65,7 +66,7 @@ import {
   questionState,
   questionUrgencyFilterFrom,
   quickViews,
-  selectedRound,
+  selectedRounds,
   sidebarRoundName,
   visibleQuestions,
   workspaceLines,
@@ -755,7 +756,8 @@ const navigationView = (
     model.notes,
     model.own,
   )
-  const scope = selectedRound(model.workspace, snapshot)
+  const scope = selectedRounds(model.workspace, snapshot)
+  const activeFilters = activeQuestionFilters(model.workspace, snapshot)
   const roundMatches = visibleQuestions(
     modifyFields(model.workspace, { roundScopes: () => ({}) }),
     snapshot,
@@ -767,7 +769,7 @@ const navigationView = (
     grill.steps.map(step => roundOf(grill, step.question)),
   ).filter(
     round =>
-      round === scope ||
+      scope.includes(round) ||
       roundMatches.some(step => roundOf(grill, step.question) === round),
   )
   const name = (round: number) => {
@@ -810,26 +812,69 @@ const navigationView = (
                 [h.Class('f-question-tools-heading')],
                 [
                   h.strong([], ['Questions']),
-                  h.button(
+                  h.div(
+                    [h.Class('f-question-tool-actions')],
                     [
-                      h.Type('button'),
-                      h.Class(
-                        `f-filter-trigger${model.workspace.urgencyFilter !== 'All' || model.workspace.filter === 'Sent' ? ' is-active' : ''}`,
-                      ),
-                      h.Popovertarget('workspace-filters'),
-                      h.AriaLabel('Filters'),
-                      h.Title('Advanced question filters'),
-                    ],
-                    [
-                      h.svg(
-                        [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
+                      h.button(
                         [
-                          h.path([
-                            h.D('M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6M10 15v6'),
-                            h.Fill('none'),
-                            h.Stroke('currentColor'),
-                            h.StrokeWidth('1.5'),
-                          ]),
+                          h.Type('button'),
+                          h.Class(
+                            `f-filter-trigger${activeFilters > 0 ? ' is-active' : ''}`,
+                          ),
+                          h.Popovertarget('workspace-filters'),
+                          h.AriaLabel('Filters'),
+                          h.Title(
+                            activeFilters > 0
+                              ? `${activeFilters} active advanced filters`
+                              : 'Advanced question filters',
+                          ),
+                        ],
+                        [
+                          h.svg(
+                            [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
+                            [
+                              h.path([
+                                h.D(
+                                  'M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6M10 15v6',
+                                ),
+                                h.Fill('none'),
+                                h.Stroke('currentColor'),
+                                h.StrokeWidth('1.5'),
+                              ]),
+                            ],
+                          ),
+                          activeFilters > 0
+                            ? h.span(
+                                [h.Class('f-filter-badge'), h.AriaHidden(true)],
+                                [String(activeFilters)],
+                              )
+                            : h.empty,
+                        ],
+                      ),
+                      h.button(
+                        [
+                          h.Type('button'),
+                          h.Class(
+                            `f-filter-trigger${model.workspace.sort !== 'Round' ? ' is-active' : ''}`,
+                          ),
+                          h.Popovertarget('workspace-sort'),
+                          h.AriaLabel('Sort questions'),
+                          h.Title(`Sort: ${model.workspace.sort}`),
+                        ],
+                        [
+                          h.svg(
+                            [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
+                            [
+                              h.path([
+                                h.D(
+                                  'M4 5h14M4 10h10M4 15h6M18 9v11m-4-4 4 4 4-4',
+                                ),
+                                h.Fill('none'),
+                                h.Stroke('currentColor'),
+                                h.StrokeWidth('1.5'),
+                              ]),
+                            ],
+                          ),
                         ],
                       ),
                     ],
@@ -883,42 +928,14 @@ const navigationView = (
                   ),
                 ),
               ),
-              h.label(
-                [h.Class('f-round-scope')],
-                [
-                  h.span([h.Class('sr-only')], ['Round scope']),
-                  h.select(
+              activeFilters > 0 || model.workspace.search.trim() !== ''
+                ? h.p(
+                    [h.Class('f-filter-readout')],
                     [
-                      h.AriaLabel('Round scope'),
-                      h.Value(scope === undefined ? 'All' : String(scope)),
-                      h.OnChange(value =>
-                        Message.SelectedRoundScope({
-                          maybeRound: Option.fromUndefinedOr(
-                            rounds.find(round => String(round) === value),
-                          ),
-                        }),
-                      ),
+                      `${visible.length} match · ${model.workspace.filter === 'All' ? 'All states' : model.workspace.filter} · ${urgencyNames[model.workspace.urgencyFilter]}`,
                     ],
-                    [
-                      h.option([h.Value('All')], ['All matching rounds']),
-                      ...rounds.map(round =>
-                        h.option(
-                          [h.Value(String(round))],
-                          [
-                            `${name(round)} · ${roundMatches.filter(step => roundOf(grill, step.question) === round).length} match`,
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              h.p(
-                [h.Class('f-filter-readout')],
-                [
-                  `${visible.length} match · ${model.workspace.filter === 'All' ? 'All states' : model.workspace.filter} · ${urgencyNames[model.workspace.urgencyFilter]}`,
-                ],
-              ),
+                  )
+                : h.empty,
             ],
           ),
           h.div(
@@ -943,6 +960,47 @@ const navigationView = (
                       h.AriaLabel('Close filters'),
                     ],
                     ['Close'],
+                  ),
+                ],
+              ),
+              h.fieldset(
+                [h.Class('f-round-filter')],
+                [
+                  h.legend([], ['Rounds']),
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-button f-round-all'),
+                      h.AriaPressed(String(Array.isReadonlyArrayEmpty(scope))),
+                      h.OnClick(Message.SelectedRoundScopes({ rounds: [] })),
+                    ],
+                    ['All rounds'],
+                  ),
+                  ...rounds.map(round =>
+                    h.keyed('label')(
+                      String(round),
+                      [h.Class('f-round-choice')],
+                      [
+                        h.input([
+                          h.Type('checkbox'),
+                          h.Checked(scope.includes(round)),
+                          h.AriaLabel(name(round)),
+                          h.OnClick(
+                            Message.SelectedRoundScopes({
+                              rounds: scope.includes(round)
+                                ? scope.filter(value => value !== round)
+                                : [...scope, round],
+                            }),
+                          ),
+                        ]),
+                        h.span(
+                          [],
+                          [
+                            `${name(round)} · ${roundMatches.filter(step => roundOf(grill, step.question) === round).length} match`,
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -988,12 +1046,62 @@ const navigationView = (
               ),
             ],
           ),
+          h.div(
+            [
+              h.Id('workspace-sort'),
+              h.Popover('auto'),
+              h.Class('f-filter-popdown f-sort-popdown'),
+              h.Role('group'),
+              h.AriaLabel('Question sorting'),
+            ],
+            [
+              h.strong([], ['Sort questions']),
+              ...(
+                ['Urgency', 'Round', 'Recency'] satisfies ReadonlyArray<
+                  typeof model.workspace.sort
+                >
+              ).map(sort =>
+                h.keyed('button')(
+                  sort,
+                  [
+                    h.Type('button'),
+                    h.Class('f-sort-option'),
+                    h.AriaPressed(String(model.workspace.sort === sort)),
+                    h.Popovertarget('workspace-sort'),
+                    h.Popovertargetaction('hide'),
+                    h.OnClick(Message.SelectedQuestionSort({ sort })),
+                    h.Title(
+                      sort === 'Recency'
+                        ? 'Newest question number first; source order for unnumbered questions'
+                        : sort === 'Urgency'
+                          ? 'Most urgent first; blockers stay ahead of dependents'
+                          : 'Source and round order',
+                    ),
+                  ],
+                  [
+                    sort,
+                    model.workspace.sort === sort
+                      ? h.svg(
+                          [h.ViewBox('0 0 16 16'), h.AriaHidden(true)],
+                          [
+                            h.path([
+                              h.D('m3 8 3 3 7-7'),
+                              h.Fill('none'),
+                              h.Stroke('currentColor'),
+                              h.StrokeWidth('1.5'),
+                            ]),
+                          ],
+                        )
+                      : h.empty,
+                  ],
+                ),
+              ),
+            ],
+          ),
           h.nav(
             [
               h.Class('f-question-list'),
-              h.AriaLabel(
-                `Questions by ${model.workspace.grouping.toLowerCase()}`,
-              ),
+              h.AriaLabel(`Questions by ${model.workspace.sort.toLowerCase()}`),
             ],
             [
               ...(Array.isReadonlyArrayEmpty(visible)
@@ -1015,47 +1123,54 @@ const navigationView = (
                     group.section !== groups[index - 1]?.section
                       ? h.h3([h.Class('f-agent-section')], [group.section])
                       : h.empty,
-                    h.div(
-                      [h.Class('f-round-heading')],
-                      [
-                        h.button(
+                    group.key === 'sorted'
+                      ? h.empty
+                      : h.div(
+                          [h.Class('f-round-heading')],
                           [
-                            h.Type('button'),
-                            h.Class('f-round-toggle'),
-                            h.AriaExpanded(!group.collapsed),
-                            h.AriaLabel(
-                              `${sidebarRoundName(snapshot, Number(group.key))} · ${group.steps.filter(step => questionState(snapshot, step, model.answers, model.notes, model.own) === 'Sent').length} of ${group.steps.length} sent`,
-                            ),
-                            h.OnClick(
-                              Message.ClickedRound({
-                                round: Number(group.key),
-                              }),
-                            ),
-                          ],
-                          [
-                            h.svg(
+                            h.button(
                               [
-                                h.ViewBox('0 0 16 16'),
-                                h.Class(group.collapsed ? '' : 'is-open'),
-                                h.AriaHidden(true),
+                                h.Type('button'),
+                                h.Class('f-round-toggle'),
+                                h.AriaExpanded(!group.collapsed),
+                                h.AriaLabel(
+                                  `${sidebarRoundName(snapshot, Number(group.key))} · ${group.steps.filter(step => questionState(snapshot, step, model.answers, model.notes, model.own) === 'Sent').length} of ${group.steps.length} sent`,
+                                ),
+                                h.OnClick(
+                                  Message.ClickedRound({
+                                    round: Number(group.key),
+                                  }),
+                                ),
                               ],
                               [
-                                h.path([
-                                  h.D('m6 4 4 4-4 4'),
-                                  h.Fill('none'),
-                                  h.Stroke('currentColor'),
-                                  h.StrokeWidth('1.5'),
-                                ]),
+                                h.svg(
+                                  [
+                                    h.ViewBox('0 0 16 16'),
+                                    h.Class(group.collapsed ? '' : 'is-open'),
+                                    h.AriaHidden(true),
+                                  ],
+                                  [
+                                    h.path([
+                                      h.D('m6 4 4 4-4 4'),
+                                      h.Fill('none'),
+                                      h.Stroke('currentColor'),
+                                      h.StrokeWidth('1.5'),
+                                    ]),
+                                  ],
+                                ),
+                                h.span(
+                                  [h.Class('f-round-name')],
+                                  [
+                                    sidebarRoundName(
+                                      snapshot,
+                                      Number(group.key),
+                                    ),
+                                  ],
+                                ),
                               ],
-                            ),
-                            h.span(
-                              [h.Class('f-round-name')],
-                              [sidebarRoundName(snapshot, Number(group.key))],
                             ),
                           ],
                         ),
-                      ],
-                    ),
                     group.collapsed
                       ? h.empty
                       : h.ul(

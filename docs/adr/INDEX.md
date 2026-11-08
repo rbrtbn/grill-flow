@@ -26,3 +26,4 @@
 | [0022](0022-keep-the-runtime-inbox-pilot-fixture-only.md) | Keep the runtime inbox pilot fixture-only | accepted |
 | [0023](0023-opt-in-to-running-page-browser-notifications.md) | Opt in to running-page browser notifications | accepted |
 | [0024](0024-use-a-single-question-queue.md) | Use a single question queue | accepted |
+| [0025](0025-filter-multiple-rounds-and-sort-the-queue.md) | Filter multiple rounds and sort the queue | accepted |

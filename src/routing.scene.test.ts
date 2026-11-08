@@ -4,7 +4,6 @@ import {
   Command,
   Mount,
   all,
-  change,
   click,
   expect,
   expectAll,
@@ -75,7 +74,7 @@ describe('asking agents in the workspace', () => {
       expectAll(
         all.role('combobox', { name: 'Group questions by' }),
       ).toHaveCount(0),
-      change(role('combobox', { name: 'Round scope' }), '2'),
+      click(role('checkbox', { name: 'Round 2' })),
       Command.resolve(
         SaveWorkspaceSettings,
         Message.CompletedSaveWorkspaceSettings(),
@@ -83,7 +82,7 @@ describe('asking agents in the workspace', () => {
       expectAll(all.selector('.f-question-item')).toHaveCount(1),
       expect(selector('.f-question-item')).toContainText('Q2'),
       expect(role('navigation', { name: 'Questions by round' })).toExist(),
-      change(role('combobox', { name: 'Round scope' }), 'All'),
+      click(role('button', { name: 'All rounds' })),
       Command.resolve(
         SaveWorkspaceSettings,
         Message.CompletedSaveWorkspaceSettings(),

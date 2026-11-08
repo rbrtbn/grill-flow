@@ -57,6 +57,13 @@ export const questionUrgencyFilterFrom = (
   const result = Schema.decodeUnknownResult(QuestionUrgencyFilter)(value)
   return result._tag === 'Success' ? result.success : 'All'
 }
+export const QuestionSort = Schema.Literals(['Urgency', 'Round', 'Recency'])
+export type QuestionSort = typeof QuestionSort.Type
+export const questionSortFrom = (value: unknown): QuestionSort => {
+  const result = Schema.decodeUnknownResult(QuestionSort)(value)
+  return result._tag === 'Success' ? result.success : 'Round'
+}
+
 export const QuestionGrouping = Schema.Literals(['Round', 'Agent'])
 
 export const CatalogData = AsyncData.Schema(
@@ -82,7 +89,8 @@ export const Workspace = Schema.Struct({
   filter: QuestionFilter,
   urgencyFilter: QuestionUrgencyFilter,
   grouping: QuestionGrouping,
-  roundScopes: Schema.Record(Schema.String, Schema.Number),
+  sort: QuestionSort,
+  roundScopes: Schema.Record(Schema.String, Schema.Array(Schema.Number)),
   customFilters: Schema.Literals(['Collapsed', 'Expanded']),
   scopeRestoration: Schema.Literals(['Preserve', 'Reveal']),
   foldedAgents: Schema.Array(Schema.String),
@@ -114,6 +122,7 @@ export const initialWorkspace: Workspace = {
   filter: 'Open',
   urgencyFilter: 'All',
   grouping: 'Round',
+  sort: 'Round',
   roundScopes: {},
   customFilters: 'Collapsed',
   scopeRestoration: 'Reveal',
@@ -212,30 +221,44 @@ export const questionState = (
 
 export const roundScopesFrom = (
   value: unknown,
-): Readonly<Record<string, number>> => {
+): Readonly<Record<string, ReadonlyArray<number>>> => {
   const result = Schema.decodeUnknownResult(
-    Schema.Record(Schema.String, Schema.Number),
+    Schema.Record(
+      Schema.String,
+      Schema.Union([Schema.Number, Schema.Array(Schema.Number)]),
+    ),
   )(value)
   return result._tag === 'Success'
     ? Object.fromEntries(
-        Object.entries(result.success).filter(
-          ([, round]) => Number.isSafeInteger(round) && round > 0,
-        ),
+        Object.entries(result.success).flatMap(([id, value]) => {
+          const rounds = Array.dedupe(
+            (typeof value === 'number' ? [value] : value).filter(
+              round => Number.isSafeInteger(round) && round > 0,
+            ),
+          )
+          return Array.isReadonlyArrayEmpty(rounds) ? [] : [[id, rounds]]
+        }),
       )
     : {}
 }
 
-export const selectedRound = (
+export const selectedRounds = (
   workspace: Workspace,
   snapshot: Snapshot,
-): number | undefined => {
-  const round = workspace.roundScopes[snapshot.grill.id]
-  return snapshot.grill.steps.some(
-    step => roundOf(snapshot.grill, step.question) === round,
+): ReadonlyArray<number> =>
+  (workspace.roundScopes[snapshot.grill.id] ?? []).filter(round =>
+    snapshot.grill.steps.some(
+      step => roundOf(snapshot.grill, step.question) === round,
+    ),
   )
-    ? round
-    : undefined
-}
+
+export const activeQuestionFilters = (
+  workspace: Workspace,
+  snapshot: Snapshot,
+): number =>
+  Number(Array.isReadonlyArrayNonEmpty(selectedRounds(workspace, snapshot))) +
+  Number(workspace.urgencyFilter !== 'All') +
+  Number(workspace.filter === 'Sent')
 
 export const sidebarRoundName = (snapshot: Snapshot, round: number): string =>
   snapshot.grill.roundNames?.[String(round)]?.trim() ||
@@ -259,11 +282,11 @@ export const visibleQuestions = (
   own: Notes,
 ): ReadonlyArray<Step> => {
   const search = workspace.search.trim().toLocaleLowerCase()
-  const round = selectedRound(workspace, snapshot)
+  const rounds = selectedRounds(workspace, snapshot)
   return snapshot.grill.steps.filter(
     step =>
-      (round === undefined ||
-        roundOf(snapshot.grill, step.question) === round) &&
+      (Array.isReadonlyArrayEmpty(rounds) ||
+        rounds.includes(roundOf(snapshot.grill, step.question))) &&
       (workspace.filter !== 'Open' ||
         statusOf(snapshot.grill, answers, step.question.id)._tag !==
           'NotNeeded') &&
@@ -421,6 +444,46 @@ export const questionGroups = (
   own: Notes,
 ) => {
   const roots = questionForest(workspace, snapshot, answers, notes, own)
+  if (workspace.sort !== 'Round') {
+    const numbered = snapshot.grill.steps.every(step =>
+      /^Q\d+$/.test(step.question.id),
+    )
+    const position = (step: Step) => {
+      const id = /^Q(\d+)$/.exec(step.question.id)
+      return !numbered || id === null
+        ? snapshot.grill.steps.indexOf(step)
+        : Number(id[1])
+    }
+    const urgency = (step: Step) =>
+      ({ blocking: 0, soon: 2, wait: 3, fyi: 4 })[
+        step.question.urgency ?? 'blocking'
+      ] + (step.question.urgency === undefined ? 1 : 0)
+    const score = (node: QuestionNode): number => {
+      const values = flattenQuestions([node]).map(
+        workspace.sort === 'Urgency' ? urgency : position,
+      )
+      return workspace.sort === 'Urgency'
+        ? Math.min(...values)
+        : -Math.max(...values)
+    }
+    const sorted = (
+      nodes: ReadonlyArray<QuestionNode>,
+    ): ReadonlyArray<QuestionNode> =>
+      [...nodes]
+        .sort((a, b) => score(a) - score(b))
+        .map(node => ({ step: node.step, children: sorted(node.children) }))
+    const nodes = sorted(roots)
+    return [
+      {
+        key: 'sorted',
+        section: undefined,
+        label: workspace.sort,
+        steps: flattenQuestions(nodes),
+        roots: nodes,
+        collapsed: false,
+      },
+    ]
+  }
   const keyOf = (step: Step) =>
     workspace.grouping === 'Agent'
       ? questionSession(snapshot.grill, step.question)
@@ -498,6 +561,7 @@ export const revealQuestion = (
       filter: () => 'All',
       urgencyFilter: () => 'All',
       search: () => '',
+      sort: () => 'Round',
       roundScopes: () => ({}),
     }),
     snapshot,
@@ -507,13 +571,18 @@ export const revealQuestion = (
   ).find(item => item.steps.some(step => step.question.id === id))
   const target = snapshot.grill.steps.find(step => step.question.id === id)
   return modifyFields(workspace, {
-    roundScopes: scopes =>
-      selectedRound(workspace, snapshot) !== undefined && target !== undefined
+    roundScopes: scopes => {
+      const selected = selectedRounds(workspace, snapshot)
+      return Array.isReadonlyArrayNonEmpty(selected) && target !== undefined
         ? {
             ...scopes,
-            [snapshot.grill.id]: roundOf(snapshot.grill, target.question),
+            [snapshot.grill.id]: Array.dedupe([
+              ...selected,
+              roundOf(snapshot.grill, target.question),
+            ]),
           }
-        : scopes,
+        : scopes
+    },
     foldedQuestions: ids => ids.filter(item => !ancestors.has(item)),
     foldedAgents: ids =>
       workspace.grouping === 'Agent'

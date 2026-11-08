@@ -17,16 +17,22 @@ excluded and including your saved review message. It saves visible notes and cus
 first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
 
 The header holds Needs you, Questions and Conversations, with Review & send at the far right.
-More contains What changed, Replies, Updates, Answer history, overviews, Your grills and Settings.
-The single question queue has Open, Drafts and All quick views, a matching-round selector and an
-icon Filters popdown for every state and urgency, including Sent and Unspecified. New browser
-preferences start with Open; existing saved filters remain intact. Search and round scope survive
-quick-view changes. Named rounds retain their labels without renaming controls. Question titles
-show at most two lines with full wording in the reading pane and accessible label.
-State, urgency and each grill's round scope are saved in the browser and restored on reload.
-Explicit question links reveal the target round; older Agent grouping preferences become Round.
-The discussion pane offers This question and Grill-flow; existing run conversations remain in
-Conversations and at their saved routes.
+More contains What changed, Replies, Updates, Answer history, overviews, Your grills and
+Settings. The single question queue has Open, Drafts and All quick views. The icon Filters
+popdown holds matching-round checkboxes, state and urgency, including Sent and Unspecified.
+Selected rounds combine as an OR filter; All rounds clears that selection. Its badge counts
+active advanced criteria (round selection, urgency and Sent), staying hidden when none apply.
+The visible quick view and search are not counted. The adjacent Sort menu offers Urgency, Round
+and Recency. Round is the default. Urgency and Recency order the whole queue across rounds while
+keeping blockers ahead of their dependents. Recency uses newest question numbers first, falling
+back to reverse source order when ids are not all numbered; it does not infer dates from
+activity. New browser preferences start with Open; existing saved filters remain intact. Search
+and round scope survive quick-view changes. Named rounds retain their labels without renaming
+controls. Question titles show at most two lines with full wording in the reading pane and
+accessible label. State, urgency, sort and each grill's selected rounds are saved in the browser
+and restored on reload. Explicit question links reveal the target round; older Agent grouping
+preferences become Round. The discussion pane offers This question and Grill-flow; existing run
+conversations remain in Conversations and at their saved routes.
 
 Needs you also shows source-owned owner steps, provisional decisions with veto receipts, and
 named blocking conditions. Owner completion is agent-reported with dated proof. Copy action

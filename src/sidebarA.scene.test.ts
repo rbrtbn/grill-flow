@@ -101,12 +101,12 @@ it('uses three quick views and a native Filters popdown without app or round rai
       'workspace-filters',
     ),
     expect(selector('#workspace-filters')).toHaveAttr('popover', 'auto'),
-    expect(selector('.f-round-scope')).toContainText('Features · 3 match'),
-    expect(selector('.f-round-scope')).toContainText('Round 2 · 3 match'),
+    expect(selector('.f-round-filter')).toContainText('Features · 3 match'),
+    expect(selector('.f-round-filter')).toContainText('Round 2 · 3 match'),
     expect(quick('Open')).toContainText('4'),
     expect(quick('Drafts')).toContainText('1'),
     expect(quick('All')).toContainText('6'),
-    change(role('combobox', { name: 'Round scope' }), '1'),
+    click(role('checkbox', { name: 'Features' })),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
@@ -125,8 +125,8 @@ it('uses three quick views and a native Filters popdown without app or round rai
     ),
     expectAll(all.selector('.f-question-item')).toHaveCount(0),
     expect(selector('.f-filter-readout')).toContainText('Open · Unspecified'),
-    expect(role('combobox', { name: 'Round scope' })).toHaveValue('1'),
-    expect(selector('.f-round-scope')).toContainText('Features · 0 match'),
+    expect(role('checkbox', { name: 'Features' })).toBeChecked(),
+    expect(selector('.f-round-filter')).toContainText('Features · 0 match'),
     click(quick('All')),
     Command.resolve(
       SaveWorkspaceSettings,
@@ -143,7 +143,7 @@ it('keeps search and round scope while Sent is selected through advanced filters
       ...loaded,
       workspace: {
         ...loaded.workspace,
-        roundScopes: { fixture: 2 },
+        roundScopes: { fixture: [2] },
         search: 'Choice 4',
       },
     }),
@@ -161,7 +161,7 @@ it('keeps search and round scope while Sent is selected through advanced filters
     expect(role('searchbox', { name: 'Find question or issue' })).toHaveValue(
       'Choice 4',
     ),
-    expect(role('combobox', { name: 'Round scope' })).toHaveValue('2'),
+    expect(role('checkbox', { name: 'Round 2' })).toBeChecked(),
     expectAll(all.selector('.f-question-item')).toHaveCount(1),
     expect(selector('.f-question-item')).toContainText('Q4'),
   )
@@ -184,13 +184,13 @@ it('qualifies matching round scopes by source and keeps global drafts available 
       workspace: {
         ...loaded.workspace,
         search: 'Choice 1',
-        roundScopes: { fixture: 1 },
+        roundScopes: { fixture: [1] },
       },
     }),
-    expect(selector('.f-round-scope')).toContainText(
+    expect(selector('.f-round-filter')).toContainText(
       'Alpha / Features · 1 match',
     ),
-    expect(selector('.f-round-scope')).not.toContainText('Beta'),
+    expect(selector('.f-round-filter')).not.toContainText('Beta'),
     expectAll(all.selector('.f-question-item')).toHaveCount(1),
     expect(
       role('button', { name: 'Review & send · 1', exact: true }),
@@ -204,5 +204,85 @@ it('qualifies matching round scopes by source and keeps global drafts available 
     expect(role('searchbox', { name: 'Find question or issue' })).toHaveValue(
       'Choice 1',
     ),
+  )
+})
+
+it('selects multiple rounds in Filters and hides the badge after clearing advanced filters', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    expectAll(all.selector('.f-round-scope')).toHaveCount(0),
+    expectAll(all.selector('.f-filter-badge')).toHaveCount(0),
+    click(role('checkbox', { name: 'Features', exact: true })),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expectAll(all.selector('.f-question-item')).toHaveCount(2),
+    expect(selector('.f-filter-badge')).toHaveText('1'),
+    click(role('checkbox', { name: 'Round 2', exact: true })),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(role('checkbox', { name: 'Features', exact: true })).toBeChecked(),
+    expect(role('checkbox', { name: 'Round 2', exact: true })).toBeChecked(),
+    expectAll(all.selector('.f-question-item')).toHaveCount(4),
+    expect(selector('.f-filter-badge')).toHaveText('1'),
+    change(role('combobox', { name: 'Urgency filter' }), 'soon'),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(selector('.f-filter-badge')).toHaveText('2'),
+    click(role('button', { name: 'All rounds' })),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(selector('.f-filter-badge')).toHaveText('1'),
+    change(role('combobox', { name: 'Urgency filter' }), 'All'),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expectAll(all.selector('.f-filter-badge')).toHaveCount(0),
+    expect(role('button', { name: 'All rounds' })).toHaveAttr(
+      'aria-pressed',
+      'true',
+    ),
+  )
+})
+
+it('sorts the whole queue across rounds and keeps its filter and global draft count', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    expect(role('button', { name: 'Sort questions' })).toHaveAttr(
+      'popovertarget',
+      'workspace-sort',
+    ),
+    expect(selector('#workspace-sort')).toHaveAttr('popover', 'auto'),
+    click(role('button', { name: 'Recency', exact: true })),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(selector('.f-question-list .f-question-item')).toContainText('Q6'),
+    expect(role('button', { name: 'Recency', exact: true })).toHaveAttr(
+      'aria-pressed',
+      'true',
+    ),
+    expect(quick('Open')).toHaveAttr('aria-pressed', 'true'),
+    expect(
+      role('button', { name: 'Review & send · 1', exact: true }),
+    ).toExist(),
+    click(role('button', { name: 'Urgency', exact: true })),
+    Command.resolve(
+      SaveWorkspaceSettings,
+      Message.CompletedSaveWorkspaceSettings(),
+    ),
+    expect(selector('.f-question-list .f-question-item')).toContainText('Q1'),
+    expect(role('navigation', { name: 'Questions by urgency' })).toExist(),
   )
 })

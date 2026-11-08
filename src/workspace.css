@@ -2387,22 +2387,6 @@ body[data-gf-preview] .f-workspace {
   padding: 8px 9px;
   font-size: 13px;
 }
-.f-round-scope {
-  display: block;
-  margin-top: 10px;
-}
-.f-round-scope select {
-  width: 100%;
-  min-width: 0;
-  min-height: 36px;
-  padding: 6px 0;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 400 13px/1.4 var(--label);
-}
 .f-navigation-a .f-filter-readout {
   font-size: 11px;
 }
@@ -2512,4 +2496,92 @@ body[data-gf-preview] .f-workspace {
   .f-navigation-a .f-question-context {
     font-size: 10px;
   }
+}
+
+.f-question-tool-actions {
+  display: flex;
+  gap: 8px;
+}
+.f-filter-trigger {
+  position: relative;
+}
+.f-filter-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--link);
+  color: var(--paper);
+  font: 600 11px/1 var(--label);
+  font-variant-numeric: tabular-nums;
+}
+.f-round-filter {
+  min-width: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  scrollbar-width: thin;
+}
+.f-round-filter legend {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.f-filter-popdown .f-round-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.f-round-choice input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--link);
+}
+.f-sort-popdown {
+  width: min(250px, calc(100vw - 24px));
+}
+.f-sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: 400 15px/1.4 var(--label);
+  text-align: left;
+}
+.f-sort-option:hover {
+  background: var(--panel);
+}
+.f-sort-option[aria-pressed='true'] {
+  background: var(--link-wash);
+  color: var(--link);
+}
+.f-sort-option svg {
+  width: 16px;
+  height: 16px;
+}
+
+.f-round-all {
+  margin: 0 0 6px;
+  padding: 6px 0;
+}
+.f-round-all[aria-pressed='true'] {
+  font-weight: 600;
 }

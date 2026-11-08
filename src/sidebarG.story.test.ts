@@ -15,7 +15,7 @@ import {
   init,
   update,
 } from './main'
-import { selectedRound } from './workspace'
+import { selectedRounds } from './workspace'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
   JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),
@@ -57,7 +57,7 @@ it('changes quick views without clearing the selected round, search or send sele
       ...loaded,
       workspace: { ...loaded.workspace, search: 'question', excluded: ['Q1'] },
     }),
-    message(Message.SelectedRoundScope({ maybeRound: Option.some(2) })),
+    message(Message.SelectedRoundScopes({ rounds: [2] })),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
@@ -70,19 +70,19 @@ it('changes quick views without clearing the selected round, search or send sele
       Message.CompletedSaveWorkspaceSettings(),
     ),
     model(current => {
-      expect(selectedRound(current.workspace, snapshot)).toBe(2)
+      expect(selectedRounds(current.workspace, snapshot)).toEqual([2])
       expect(current.workspace.search).toBe('question')
       expect(current.workspace.excluded).toEqual(['Q1'])
       expect(current.workspace.filter).toBe('Open')
       expect(current.workspace.urgencyFilter).toBe('urgent')
     }),
-    message(Message.SelectedRoundScope({ maybeRound: Option.none() })),
+    message(Message.SelectedRoundScopes({ rounds: [] })),
     Command.resolve(
       SaveWorkspaceSettings,
       Message.CompletedSaveWorkspaceSettings(),
     ),
     model(current => {
-      expect(selectedRound(current.workspace, snapshot)).toBeUndefined()
+      expect(selectedRounds(current.workspace, snapshot)).toEqual([])
       expect(current.workspace.filter).toBe('Open')
       expect(current.workspace.urgencyFilter).toBe('urgent')
     }),
@@ -119,8 +119,8 @@ it.each(['settings-first', 'snapshot-first'])(
       model(current => {
         expect(current.workspace.grouping).toBe('Round')
         expect(current.workspace.roundScopes).toEqual({
-          fixture: 3,
-          another: 7,
+          fixture: [2, 3],
+          another: [7],
         })
         expect(current.workspace.filter).toBe('Draft')
         expect(current.workspace.urgencyFilter).toBe('soon')
@@ -152,8 +152,8 @@ it.each(['settings-first', 'snapshot-first'])(
       model(current => {
         expect(current.workspace.grouping).toBe('Round')
         expect(current.workspace.roundScopes).toEqual({
-          fixture: 2,
-          another: 7,
+          fixture: [2],
+          another: [7],
         })
         expect(current.workspace.filter).toBe('Draft')
         expect(current.currentPart).toBe('question:Q3')
@@ -169,7 +169,7 @@ it('reveals a back/forward target round while preserving status and search', () 
       ...loaded,
       workspace: {
         ...loaded.workspace,
-        roundScopes: { fixture: 3 },
+        roundScopes: { fixture: [3] },
         filter: 'Open',
         search: 'scope',
       },
@@ -183,7 +183,7 @@ it('reveals a back/forward target round while preserving status and search', () 
     ),
     Command.resolve(ScrollToTop, Message.CompletedScroll()),
     model(current => {
-      expect(selectedRound(current.workspace, snapshot)).toBe(1)
+      expect(selectedRounds(current.workspace, snapshot)).toEqual([3, 1])
       expect(current.workspace.search).toBe('scope')
       expect(current.workspace.filter).toBe('Open')
     }),

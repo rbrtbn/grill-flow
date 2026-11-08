@@ -69,7 +69,7 @@ describe('named rounds and nested blockers', () => {
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: named }) }),
       expect(selector('.f-round-name')).toContainText('Stage definitions'),
-      expect(selector('.f-round-scope')).toContainText('Stage definitions'),
+      expect(selector('.f-round-filter')).toContainText('Stage definitions'),
       expect(selector('.f-question-context')).toContainText(
         'Stage definitions',
       ),
