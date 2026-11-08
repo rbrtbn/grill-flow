@@ -24,3 +24,4 @@
 | [0020](0020-preserve-picked-options-on-source-reload.md) | Preserve picked options on source reload | accepted |
 | [0021](0021-package-an-opt-in-claude-page-write-guard.md) | Package an opt-in Claude page-write guard | accepted |
 | [0022](0022-keep-the-runtime-inbox-pilot-fixture-only.md) | Keep the runtime inbox pilot fixture-only | accepted |
+| [0023](0023-opt-in-to-running-page-browser-notifications.md) | Opt in to running-page browser notifications | accepted |

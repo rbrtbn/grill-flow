@@ -302,10 +302,65 @@ const settingView = (model: Model, h: H): Html =>
             [h.Class('hint')],
             ['You can expand any round from the question list.'],
           ),
+          browserNoticeSettings(model, h),
         ],
       ),
     ],
   )
+
+const browserNoticeSettings = (model: Model, h: H): Html => {
+  const state = model.browserNotices
+  const status = state.asking
+    ? 'Waiting for browser permission…'
+    : state.enabled
+      ? 'On in this browser.'
+      : {
+          Unknown: 'Checking this browser…',
+          Unsupported:
+            'This browser cannot provide running-page notifications.',
+          Default: 'Off in this browser.',
+          Granted: 'Off in this browser.',
+          Denied:
+            'Blocked in browser settings. Allow notifications there, then check permission here.',
+          Failed:
+            'Browser notifications paused. Check browser and site settings, then enable again.',
+        }[state.status]
+  return h.section(
+    [h.Class('f-browser-notifications'), h.AriaLabel('Browser notifications')],
+    [
+      h.h3([], ['Browser notifications']),
+      h.p(
+        [h.Class('hint')],
+        [
+          'Alerts for new or newly urgent Blocking/Soon questions and owner actions while a grill-flow page is open. Enabling starts with future changes. Alerts open the item in a new tab.',
+        ],
+      ),
+      h.p([h.Class('f-notification-status'), h.Role('status')], [status]),
+      h.button(
+        [
+          h.Class('quiet-button'),
+          h.Disabled(
+            !state.ready || state.asking || state.status === 'Unsupported',
+          ),
+          h.OnClick(
+            state.enabled
+              ? Message.ClickedDisableBrowserNotices()
+              : Message.ClickedEnableBrowserNotices(),
+          ),
+        ],
+        [
+          state.asking
+            ? 'Waiting for permission…'
+            : state.enabled
+              ? 'Turn off browser notifications'
+              : state.status === 'Denied'
+                ? 'Check notification permission'
+                : 'Enable browser notifications',
+        ],
+      ),
+    ],
+  )
+}
 
 export const workspaceView = (
   model: Model,

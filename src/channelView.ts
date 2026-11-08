@@ -5,17 +5,13 @@ import { answerAnchor, itemAnchor } from './activity'
 import { channelRevealAttributes } from './channelReveal'
 import { OWN, type Question, type Snapshot, diffWords } from './domain'
 import type { Message, Model } from './main'
+import { sourceQuestionHref } from './sourceLinks'
+
+export { sourceQuestionHref } from './sourceLinks'
 
 type H = HtmlBuilder<Message>
 type Update = NonNullable<Snapshot['updates']>[number]
 type History = NonNullable<Snapshot['answerHistory']>[number]
-
-export const sourceQuestionHref = (
-  page: string,
-  source: string,
-  question: string,
-): string =>
-  `/g/${encodeURIComponent(page)}/question/${encodeURIComponent(question)}?source=${encodeURIComponent(source)}`
 
 const sourceLink = (
   snapshot: Snapshot,

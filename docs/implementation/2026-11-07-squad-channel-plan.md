@@ -1,7 +1,7 @@
 # Squad channel: interfaces and delivery order
 
 Status: steps 1–4 delivered; t16h approved step 5 as an inert pilot.
-Live activation and notifications remain held.
+Live pull activation and step 7 remain held. T16h approved step 6 as running-page browser opt-in.
 Source: grill-flow-squad-channel, round 1, submitted event 1959 on 2026-11-07.
 Selections: Q1–Q12 a except Q8 b; Q9 also requests page notifications.
 Issue descriptions checked through a rbrtbn Linear snapshot at 2026-11-07T17:20:21Z.
@@ -177,6 +177,8 @@ Browser notifications require an explicit page action and the browser permission
 Show unsupported/denied states honestly. Start with a running-page notification adapter;
 closed-page or phone delivery is a separate capability, not implied by browser permission.
 Persist one notification attempt per source item/urgency transition to avoid replay spam.
+The approved running-page implementation uses canonical event versions and browser-local tab
+coordination, with no background sender. See 2026-11-08-running-page-notifications.md.
 
 ## Validation and coordination gates
 

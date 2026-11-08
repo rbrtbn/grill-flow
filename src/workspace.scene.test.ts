@@ -27,6 +27,7 @@ import {
   OpenWorkspaceSettings,
   PageData,
   PushPage,
+  RestoreBrowserNotices,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
   SaveWorkspaceSettings,
@@ -345,6 +346,12 @@ describe('the question workspace', () => {
       given(loaded),
       click(role('button', { name: 'Settings' })),
       Command.resolve(OpenWorkspaceSettings, Message.CompletedFocus()),
+      Command.resolve(
+        RestoreBrowserNotices,
+        Message.CompletedRestoreBrowserNotices({
+          result: { enabled: false, status: 'Default' },
+        }),
+      ),
       click(selector('.f-settings-backdrop')),
       Command.expectExact(CloseWorkspaceSettings()),
       Command.resolve(CloseWorkspaceSettings, Message.CompletedFocus()),

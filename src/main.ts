@@ -37,6 +37,19 @@ import {
   activityReadFrom,
   revealAnchorFrom,
 } from './activity'
+import {
+  BROWSER_NOTICES_KEY,
+  BrowserNoticeState,
+  NoticeCandidate,
+  NoticeResult,
+  disableBrowserNotices,
+  enableBrowserNotices,
+  initialBrowserNotices,
+  noticeCandidates,
+  noticeHref,
+  restoreBrowserNotices,
+  syncBrowserNotices,
+} from './browserNotifications'
 import { channelItemKey } from './channel'
 import { DiagramView } from './diagram'
 import {
@@ -196,6 +209,7 @@ export const Model = Schema.Struct({
   sendDetail: Schema.String,
   copy: CopyState,
   channelReveal: ChannelReveal,
+  browserNotices: BrowserNoticeState,
   drawingAttempts: Schema.Record(Schema.String, DrawingAttempt),
   ownerDestinations: Schema.Record(Schema.String, OwnerDestinationState),
   ownerCopies: Schema.Record(
@@ -326,6 +340,19 @@ export const Message = defineMessageUnion({
   ClickedRound: { round: Schema.Number },
   ClickedSettings: {},
   ClosedSettings: {},
+  ClickedEnableBrowserNotices: {},
+  ClickedDisableBrowserNotices: {},
+  CompletedRestoreBrowserNotices: { result: NoticeResult },
+  CompletedEnableBrowserNotices: { result: NoticeResult },
+  CompletedDisableBrowserNotices: {
+    result: NoticeResult,
+    failed: Schema.Boolean,
+  },
+  CompletedSyncBrowserNotices: { result: NoticeResult },
+  BrowserNoticePreferencesChanged: {},
+  BrowserNoticeDeliveryFailed: {},
+  RequestedBrowserNoticeNavigation: { href: Schema.String },
+  CompletedOpenBrowserNotice: {},
   ChangedHighlights: {},
   ChangedCollapseSentRounds: {},
   RestoredWorkspaceSettings: {
@@ -1104,8 +1131,91 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, {
         workspace: value => modifyFields(value, { isSettingsOpen: () => true }),
       }),
-      commands: [OpenWorkspaceSettings()],
+      commands: [OpenWorkspaceSettings(), RestoreBrowserNotices()],
     }),
+    ClickedEnableBrowserNotices: () =>
+      model.browserNotices.asking || !model.browserNotices.ready
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              browserNotices: state =>
+                modifyFields(state, { asking: () => true }),
+            }),
+            commands: [EnableBrowserNotices()],
+          },
+    ClickedDisableBrowserNotices: () => ({
+      model: modifyFields(model, {
+        browserNotices: state =>
+          modifyFields(state, { enabled: () => false, primed: () => false }),
+      }),
+      commands: [DisableBrowserNotices({ failed: false })],
+    }),
+    CompletedRestoreBrowserNotices: ({ result }) =>
+      scheduleBrowserNotices({
+        model: modifyFields(model, {
+          browserNotices: state =>
+            modifyFields(state, {
+              enabled: () => result.enabled,
+              status: () => result.status,
+              ready: () => true,
+              primed: () =>
+                state.enabled && result.enabled ? state.primed : false,
+            }),
+        }),
+      }),
+    CompletedEnableBrowserNotices: ({ result }) =>
+      scheduleBrowserNotices({
+        model: modifyFields(model, {
+          browserNotices: state =>
+            modifyFields(state, {
+              enabled: () => result.enabled,
+              status: () => result.status,
+              ready: () => true,
+              asking: () => false,
+              primed: () => false,
+            }),
+        }),
+      }),
+    CompletedDisableBrowserNotices: ({ result, failed }) => ({
+      model: modifyFields(model, {
+        browserNotices: state =>
+          modifyFields(state, {
+            enabled: () => false,
+            status: () => (failed ? 'Failed' : result.status),
+            primed: () => false,
+          }),
+      }),
+    }),
+    CompletedSyncBrowserNotices: ({ result }) => ({
+      model: modifyFields(model, {
+        browserNotices: state =>
+          modifyFields(state, {
+            enabled: () => state.enabled && result.enabled,
+            status: () => result.status,
+            pending: () => false,
+            primed: () => true,
+          }),
+      }),
+    }),
+    BrowserNoticePreferencesChanged: () => ({
+      model,
+      commands: [RestoreBrowserNotices()],
+    }),
+    BrowserNoticeDeliveryFailed: () => ({
+      model: modifyFields(model, {
+        browserNotices: state =>
+          modifyFields(state, {
+            enabled: () => false,
+            status: () => 'Failed',
+          }),
+      }),
+      commands: [DisableBrowserNotices({ failed: true })],
+    }),
+    RequestedBrowserNoticeNavigation: ({ href }) => ({
+      model,
+      ...(noticeHref(href) ? { commands: [OpenBrowserNotice({ href })] } : {}),
+    }),
+    CompletedOpenBrowserNotice: () => ({ model }),
     ClosedSettings: () => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -2683,7 +2793,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
   const snapshot = result.success
   if (AsyncData.hasData(model.page)) {
     const previous = Option.getOrThrow(AsyncData.getData(model.page))
-    return {
+    return scheduleBrowserNotices({
       model: modifyFields(refreshPage(model, snapshot), {
         answers: local =>
           model.pendingEvents > 0 || model.failedWrites.length > 0
@@ -2693,7 +2803,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
           mergeRemoteRecord(previous.notes, local, snapshot.notes),
         own: local => mergeRemoteRecord(previous.own, local, snapshot.own),
       }),
-    }
+    })
   }
   const first = model.currentPart === ''
   const next = modifyFields(refreshPage(model, snapshot), {
@@ -2704,7 +2814,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
     sendDetail: () => latestSendDetail(snapshot),
     currentPart: current => (first ? startingPart(snapshot) : current),
   })
-  return {
+  return scheduleBrowserNotices({
     model: modifyFields(next, {
       workspace: workspace =>
         workspace.scopeRestoration === 'Preserve'
@@ -2736,6 +2846,31 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
       ...([SQUAD, GRILLS].includes(next.currentPart)
         ? [LoadWorkspaceCatalog()]
         : []),
+    ],
+  })
+}
+
+const scheduleBrowserNotices = (change: UpdateReturn): UpdateReturn => {
+  const state = change.model.browserNotices
+  const snapshot = AsyncData.getData(change.model.page)
+  if (
+    !state.ready ||
+    !state.enabled ||
+    state.asking ||
+    state.pending ||
+    Option.isNone(snapshot)
+  )
+    return change
+  return {
+    model: modifyFields(change.model, {
+      browserNotices: current => modifyFields(current, { pending: () => true }),
+    }),
+    commands: [
+      ...(change.commands ?? []),
+      SyncBrowserNotices({
+        candidates: noticeCandidates(snapshot.value),
+        baseline: !state.primed,
+      }),
     ],
   }
 }
@@ -2914,6 +3049,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     readIds: [],
     hiddenToastIds: [],
     notificationTray: 'Expanded',
+    browserNotices: initialBrowserNotices,
     maybeClosedLine: Option.none(),
     send: 'Idle',
     quickSend: 'Idle',
@@ -2951,11 +3087,53 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     RestoreNavFolded(),
     RestoreSidebarWidths(),
     RestoreWorkspaceSettings(),
+    RestoreBrowserNotices(),
     RestoreDiscussionState(),
   ],
 })
 
 // COMMAND
+
+export const RestoreBrowserNotices = Command.define('RestoreBrowserNotices', {
+  messages: [Message.CompletedRestoreBrowserNotices],
+  execute: Effect.sync(restoreBrowserNotices).pipe(
+    Effect.map(result => Message.CompletedRestoreBrowserNotices({ result })),
+  ),
+})
+export const EnableBrowserNotices = Command.define('EnableBrowserNotices', {
+  messages: [Message.CompletedEnableBrowserNotices],
+  execute: Effect.promise(enableBrowserNotices).pipe(
+    Effect.map(result => Message.CompletedEnableBrowserNotices({ result })),
+  ),
+})
+export const DisableBrowserNotices = Command.define('DisableBrowserNotices', {
+  args: { failed: Schema.Boolean },
+  messages: [Message.CompletedDisableBrowserNotices],
+  execute: ({ failed }) =>
+    Effect.promise(disableBrowserNotices).pipe(
+      Effect.map(result =>
+        Message.CompletedDisableBrowserNotices({ result, failed }),
+      ),
+    ),
+})
+export const SyncBrowserNotices = Command.define('SyncBrowserNotices', {
+  args: { candidates: Schema.Array(NoticeCandidate), baseline: Schema.Boolean },
+  messages: [Message.CompletedSyncBrowserNotices],
+  execute: ({ candidates, baseline }) =>
+    Effect.promise(() => syncBrowserNotices(candidates, baseline)).pipe(
+      Effect.map(result => Message.CompletedSyncBrowserNotices({ result })),
+    ),
+})
+export const OpenBrowserNotice = Command.define('OpenBrowserNotice', {
+  args: { href: Schema.String },
+  messages: [Message.CompletedOpenBrowserNotice],
+  execute: ({ href }) =>
+    Effect.sync(() => {
+      // A new tab preserves uncontrolled drafts in the page that produced the alert.
+      if (noticeHref(href)) window.open(href, '_blank', 'noopener')
+      return Message.CompletedOpenBrowserNotice()
+    }),
+})
 
 const WORKSPACE_SETTINGS_KEY = 'grill-flow:workspace-settings'
 
@@ -4164,6 +4342,39 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  browserNoticeEvents: entry(
+    {},
+    {
+      modelToDependencies: () => ({}),
+      dependenciesToStream: () =>
+        Stream.mergeAll(
+          [
+            Dom.streamFromEvent({
+              target: window,
+              type: 'grill-flow-notice-open',
+              mapEvent: event =>
+                Message.RequestedBrowserNoticeNavigation({
+                  href: event.detail,
+                }),
+            }),
+            Dom.streamFromEvent({
+              target: window,
+              type: 'grill-flow-notice-failed',
+              mapEvent: () => Message.BrowserNoticeDeliveryFailed(),
+            }),
+            Dom.streamFromEventFilterMap({
+              target: window,
+              type: 'storage',
+              filterMapEvent: event =>
+                event.key === BROWSER_NOTICES_KEY
+                  ? Option.some(Message.BrowserNoticePreferencesChanged())
+                  : Option.none(),
+            }),
+          ],
+          { concurrency: 'unbounded' },
+        ),
+    },
+  ),
   commandHeld: entry(
     { enabled: Schema.Boolean },
     {

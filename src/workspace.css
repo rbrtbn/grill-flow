@@ -1438,6 +1438,8 @@
   padding: 28px;
   border-radius: 8px;
   background: var(--paper);
+  max-height: calc(100dvh - max(80px, 30dvh));
+  overflow-y: auto;
   box-shadow: 0 16px 52px #0004;
 }
 .f-settings-panel header {
@@ -1464,6 +1466,26 @@
 .f-settings-panel .hint {
   margin-left: 28px;
   font: 400 14px/1.6 var(--read);
+}
+.f-browser-notifications {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+.f-browser-notifications h3 {
+  font: 600 16px/1.4 var(--label);
+}
+.f-settings-panel .f-browser-notifications .hint {
+  margin: 10px 0;
+}
+.f-browser-notifications .f-notification-status {
+  margin: 12px 0;
+  font: 400 14px/1.5 var(--read);
+}
+.f-browser-notifications button {
+  width: 100%;
+  min-height: 42px;
+  white-space: normal;
 }
 .f-save-error {
   position: fixed;
