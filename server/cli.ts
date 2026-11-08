@@ -47,6 +47,10 @@ const usage = `gf: grill-flow's agent-side commands
   gf grant --version                 probe immutable answer readback format
   gf grant <source-grill> <send-id>    read a captured submission; does not classify authority
                                      GF_OUTBOX: BLOCKED (exit 2); read on the serving machine
+  gf pilot <init|bind|enqueue|delivery|inspect> --fixture-only --pilot-dir <temporary-dir> ...
+  gf inbox --fixture-only --pilot-dir <temporary-dir> --source <id> --thread <id> --fixture <file>
+  gf ack --fixture-only --pilot-dir <temporary-dir> --event <id> --fixture <file>
+                                     inert fixtures only; no live runtime or delivery is enabled
                                       cite the canonical member grill + submitted event id,
                                       never the shared page or its sent event
                                       only answers[].context/key/own/note are page words;
@@ -72,6 +76,11 @@ const fail = (message: string, code = 2): never => {
 }
 
 const [command, ...args] = process.argv.slice(2)
+
+if (command === 'pilot' || command === 'inbox' || command === 'ack') {
+  const { runRuntimePilotCli } = await import('./runtimePilotCli')
+  process.exit(runRuntimePilotCli(command, args))
+}
 
 if (command === 'grant' && args[0] === '--version') {
   console.log(JSON.stringify({ versions: [1] }))

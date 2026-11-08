@@ -1,6 +1,7 @@
 # Squad channel: interfaces and delivery order
 
-Status: steps 1–4 approved by t124; step 5 and notifications require a new check-in.
+Status: steps 1–4 delivered; t16h approved step 5 as an inert pilot.
+Live activation and notifications remain held.
 Source: grill-flow-squad-channel, round 1, submitted event 1959 on 2026-11-07.
 Selections: Q1–Q12 a except Q8 b; Q9 also requests page notifications.
 Issue descriptions checked through a rbrtbn Linear snapshot at 2026-11-07T17:20:21Z.
@@ -119,8 +120,10 @@ editor nodes/focus across polling. A changed question marks its old drawing stal
 
 ## Queue proof and runtime identity
 
-Read LAB-1327, LAB-1123 and LAB-875 before implementation. LAB-1327's relay design has an open
-owner gate. LAB-875 retains its Artifact-specific contract; a local web queue does not close it.
+Read LAB-1327, LAB-1123 and LAB-875 before implementation. LAB-1327's relay design is held for
+the state store's grant work. LAB-875 retains its Artifact-specific contract; a local web queue
+does not close it. T16h approved step 5 only as the inert proof in
+2026-11-08-inert-runtime-pilot.md, with no live session wired or runtime deployment.
 
 An immutable envelope contains source/thread, message ID, reply-to ID, sender kind, recipient,
 body, recorded time and question revision when relevant. An agent's claimed identity stays a
@@ -136,10 +139,10 @@ handover, unknown capability and acknowledgement. A pull command alone is not un
 support. Do not install hooks, alter runtime settings or claim native capability from fixtures.
 Coordinate with LAB-1123/LAB-1114 owners before an actual unattended runtime pilot.
 
-Until a pull adapter is verified, any existing terminal delivery must be explicitly tagged as
-the page. A proposed ordinary-message wrapper is `<grill-flow source="page">…</grill-flow>`;
-it carries no grant marker or human-authorship assurance. Never fall back to bare terminal text.
-Do not emit a LAB-1310 `<gf grill=… send=…>` marker before its reader contract is approved.
+Existing terminal delivery remains explicitly tagged as the page in one
+`<grill-flow source="page">…</grill-flow>` block. Never fall back to bare terminal text.
+The separately approved LAB-1353 marker locates immutable submission readback; delivery text
+and wrapper markup supply neither grant authority nor human-authorship assurance.
 
 Keep the existing remote bridge. It returns envelopes, responses and acknowledgement records
 through the outbox; it does not need a remote HTTP listener or a second dispatcher.
