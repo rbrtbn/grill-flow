@@ -116,9 +116,38 @@ it.each([
   'bun run gf grant --version',
   'sqlite3 /synthetic/other.sqlite "SELECT 1"',
   'bun /synthetic/indirect-script.ts',
+  'echo "unfinished',
+  "cat << EOF\nIt's a synthetic note.\nEOF",
 ])('leaves allowed or out-of-boundary command %s undecided', async command => {
   expect(await classify(command)).toBeNull()
 })
+
+it.each([
+  [
+    "cat << EOF\nIt's a synthetic note.\ncurl -X POST http://localhost:4317/fake\nEOF",
+    'Grill-flow guard refuses direct page HTTP mutations. ' +
+      'Use the page for owner answers.',
+  ],
+  [
+    'sqlite3 data/grill-flow.sqlite "unfinished',
+    'Grill-flow guard refuses named store writes or opens without ' +
+      'explicit read-only mode. Use gf events for history.',
+  ],
+  ['cat data/token "unfinished', 'Grill-flow guard refuses page token reads.'],
+  [
+    'curl --request GET http://localhost:4317/fake "unfinished',
+    'Grill-flow guard refuses direct page HTTP mutations. ' +
+      'Use the page for owner answers.',
+  ],
+])(
+  'refuses protected text when shell parsing fails: %s',
+  async (command, reason) => {
+    expect(await classify(command)).toMatchObject({
+      permissionDecision: 'deny',
+      permissionDecisionReason: reason,
+    })
+  },
+)
 
 it('scopes relative token paths while refusing qualified paths outside the checkout', async () => {
   expect(await classify('cat data/token', '/synthetic/other')).toBeNull()
@@ -136,9 +165,11 @@ it.each([
   '[]',
   '{}',
   '{"tool_name":"Bash"}',
+  JSON.stringify({ ...payload('echo safe'), cwd: undefined }),
+  JSON.stringify({ ...payload('echo safe'), tool_input: [] }),
   JSON.stringify({ ...payload('echo safe'), cwd: 'relative' }),
-  JSON.stringify(payload('echo "unfinished')),
   JSON.stringify(payload('echo\u0000bad')),
+  JSON.stringify(payload('echo safe', checkout + '\u0000bad')),
   'x'.repeat(1_048_577),
 ])('fails closed without echoing malformed input', async raw => {
   const result = await call(['python3', guard], raw)

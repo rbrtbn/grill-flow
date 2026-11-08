@@ -94,8 +94,18 @@ def readonly_store(command):
 
 
 def refusal(command, cwd):
-    parts = tokens(command)
-    if metadata_only(command):
+    try:
+        parts = tokens(command)
+        if metadata_only(command):
+            return None
+    except ValueError:
+        # Bash heredoc bodies need not have balanced shell quotes.
+        if TOKEN.search(command):
+            return "token"
+        if ENDPOINT.search(command):
+            return "http"
+        if STORE.search(command):
+            return "store"
         return None
     if TOKEN.search(command):
         # Relative data/token names are protected in the checkout, absolute ones by path.
