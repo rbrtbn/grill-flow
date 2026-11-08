@@ -6,11 +6,19 @@ import { join } from 'node:path'
 import { ChannelItem } from '../src/channel'
 import { type Grill } from '../src/domain'
 import { attentionSnapshot } from './attention'
+import {
+  SKILL_REVISION,
+  declaredRevision,
+  hostGuide,
+  revisionMetadata,
+  skillRevision,
+} from './authoring'
 import { publishItem, publishedUpdates, remoteItemError } from './channel'
 import { pageDrawings, publishDrawing } from './drawings'
 import { readPage } from './squad'
 import {
   ROOT,
+  appendEvent,
   decodeGrill,
   events,
   getGrill,
@@ -175,6 +183,22 @@ export const grillOnMachine = (grill: Grill, machine: string): Grill => ({
   })),
 })
 
+export const recordAuthoringImport = (
+  db: Database,
+  source: string,
+  raw: unknown,
+  path: string,
+): void => {
+  const declared = declaredRevision(raw)
+  if (skillRevision(declared) !== SKILL_REVISION) {
+    appendEvent(db, source, 'authoring-warning', {
+      path,
+      skillRevision: revisionMetadata(declared),
+      guideRevision: SKILL_REVISION,
+    })
+  }
+}
+
 const takeGrill = async (
   db: Database,
   remote: Remote,
@@ -194,6 +218,7 @@ const takeGrill = async (
       'INSERT INTO grill_remotes (grill_id, machine, dir) VALUES (?, ?, ?) ON CONFLICT(grill_id) DO UPDATE SET machine = excluded.machine, dir = excluded.dir',
       [grill.id, remote.machine, `${root}/${path.split('/')[0]}`],
     )
+    recordAuthoringImport(db, grill.id, raw, path)
     return true
   } catch (error) {
     console.error(
@@ -208,21 +233,25 @@ const takeRevision = async (
   remote: Remote,
   root: string,
   path: string,
-): Promise<void> => {
+): Promise<boolean> => {
   const grillId = path.split('/')[0] ?? ''
   const grill = getGrill(db, grillId)
-  const raw = (await readRemote(remote.machine, `${root}/${path}`)) as
-    | Record<string, unknown>
-    | undefined
-  if (grill === undefined || raw === undefined) {
-    return
+  const decoded = Schema.decodeUnknownResult(
+    Schema.Record(Schema.String, Schema.Unknown),
+  )(await readRemote(remote.machine, `${root}/${path}`))
+  if (grill === undefined || decoded._tag === 'Failure') {
+    return false
   }
+  const raw = decoded.success
   if (raw.kind === 'reply') {
     const replied = replyToGrill(db, grill, String(raw.text ?? ''))
     if (!replied.ok) {
       console.error(`remote ${remote.machine}:${path}: ${replied.reason}`)
     }
-    return
+    if (replied.ok) {
+      recordAuthoringImport(db, grill.id, raw, path)
+    }
+    return replied.ok
   }
   const result = reviseGrill(db, grill, {
     stepId: String(raw.stepId ?? ''),
@@ -233,6 +262,10 @@ const takeRevision = async (
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.reason}`)
   }
+  if (result.ok) {
+    recordAuthoringImport(db, grill.id, raw, path)
+  }
+  return result.ok
 }
 
 const takeItem = async (
@@ -242,9 +275,8 @@ const takeItem = async (
   path: string,
 ): Promise<boolean> => {
   const grill = getGrill(db, path.split('/')[0] ?? '')
-  const decoded = Schema.decodeUnknownResult(ChannelItem)(
-    await readRemote(remote.machine, `${root}/${path}`),
-  )
+  const raw = await readRemote(remote.machine, `${root}/${path}`)
+  const decoded = Schema.decodeUnknownResult(ChannelItem)(raw)
   if (grill === undefined || decoded._tag === 'Failure') {
     return false
   }
@@ -260,6 +292,9 @@ const takeItem = async (
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.reason}`)
   }
+  if (result.ok) {
+    recordAuthoringImport(db, grill.id, raw, path)
+  }
   return result.ok
 }
 
@@ -273,18 +308,18 @@ const takeDrawing = async (
   if (grill === undefined) {
     return false
   }
-  const result = publishDrawing(
-    db,
-    grill,
-    await readRemote(remote.machine, `${root}/${path}`),
-  )
+  const raw = await readRemote(remote.machine, `${root}/${path}`)
+  const result = publishDrawing(db, grill, raw)
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.error}`)
+  }
+  if (result.ok) {
+    recordAuthoringImport(db, grill.id, raw, path)
   }
   return result.ok
 }
 
-const pushed = new Map<string, number>()
+const pushed = new Map<string, string>()
 
 /** Writes a remote grill's state into its outbox folder whenever it has changed. */
 const pushStates = async (db: Database): Promise<void> => {
@@ -295,13 +330,26 @@ const pushStates = async (db: Database): Promise<void> => {
     .all()
   for (const { grill_id: id, machine, dir } of linked) {
     const latest = lastEventId(db, id)
+    const guide = hostGuide()
+    const signature = `${latest}:${guide.host}:${guide.revision}:${guide.digest}`
     const grill = getGrill(db, id)
-    if (grill === undefined || pushed.get(id) === latest) {
+    if (grill === undefined || pushed.get(id) === signature) {
       continue
     }
     const state = {
       at: new Date().toISOString(),
       lastEventId: latest,
+      authoringGuide: guide,
+      authoringWarnings: events(db, id)
+        .filter(event => event.kind === 'authoring-warning')
+        .map(event => {
+          const raw = JSON.parse(event.payload)
+          return {
+            event: event.id,
+            path: String(raw.path ?? ''),
+            skillRevision: revisionMetadata(raw.skillRevision),
+          }
+        }),
       snapshot: {
         ...snapshot(db, grill),
         updates: publishedUpdates(db, [grill.id]),
@@ -318,7 +366,7 @@ const pushStates = async (db: Database): Promise<void> => {
       `${JSON.stringify(state)}\n`,
     )
     if (result.ok) {
-      pushed.set(id, latest)
+      pushed.set(id, signature)
     } else {
       console.error(
         `remote ${machine}:${dir}/state.json: ${result.out.trim().slice(0, 200)}`,
@@ -367,8 +415,9 @@ export const pollRemotesOnce = async (
         continue
       }
       if (isReply) {
-        await takeRevision(db, remote, listing.root, file.path)
-        markSeen(db, remote.machine, file.path, file.stamp)
+        if (await takeRevision(db, remote, listing.root, file.path)) {
+          markSeen(db, remote.machine, file.path, file.stamp)
+        }
       } else if (await takeGrill(db, remote, listing.root, file.path)) {
         markSeen(db, remote.machine, file.path, file.stamp)
       }

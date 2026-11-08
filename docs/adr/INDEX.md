@@ -27,3 +27,4 @@
 | [0023](0023-opt-in-to-running-page-browser-notifications.md) | Opt in to running-page browser notifications | accepted |
 | [0024](0024-use-a-single-question-queue.md) | Use a single question queue | accepted |
 | [0025](0025-filter-multiple-rounds-and-sort-the-queue.md) | Filter multiple rounds and sort the queue | accepted |
+| [0026](0026-version-the-authoring-guide-with-warning-first-publication.md) | Version the authoring guide with warning-first publication | accepted |

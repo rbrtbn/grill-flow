@@ -1,5 +1,20 @@
 # grill-flow
 
+Agents read `bun run gf --skill` at session start or after context loss, then
+`bun run gf --skill --if-newer-than <revision-read>` before each authoring write. Loads, items,
+revisions/comments, replies and drawings take `--skill-revision <revision-read>`. Missing/stale
+revisions warn with the full guide on stderr; successful writes keep their normal output and
+remain published as submitted. Objective validation failures still reject.
+
+The canonical instructions and examples live in [the authoring
+guide](server/authoring-guide.md). The installed [grill skill](plugin/skills/grill/SKILL.md)
+bootstraps this command. Maintainers bump `SKILL_REVISION` in `server/authoring.ts` when guide
+rules change, independently of format versions. With `GF_OUTBOX`, guide retrieval reads the
+host-issued state cache without opening a database or changing outbox files;
+unavailable/conflicting caches use explicitly unverified bundled guidance. Outbox writes remain
+queued until host import. `gf state` and `gf wait` surface import warnings with the returned
+host guide, preserving ordinary answer/event output.
+
 A local page for an agent's grill: the interview an agent runs to settle a decision with you.
 The page lays the reasoning out concept by concept, puts a question at each decision point, says
 what each option changes, and greys a question until what it depends on is answered. You answer
