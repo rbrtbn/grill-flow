@@ -238,7 +238,7 @@ const maintainerFields = () => {
   }
 }
 
-// An ask's own recipient; a failed one may instead go to the grill's session (docs/adr/0005).
+// An ask's own recipient; a failed one may instead go to the grill's session (docs/adr/0028).
 const askRecipient = (
   grill: Grill,
   stepId: string,
