@@ -1,6 +1,6 @@
 {
   "name": "grill-flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run a grill on a local grill-flow page: reasoning by concept, answers, asks and rewrites sent back into the session",
   "author": {
     "name": "Robert Ban"
