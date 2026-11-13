@@ -70,6 +70,17 @@ import {
 } from './domain'
 import { drawingAttemptKey } from './drawings'
 import {
+  QUOTE_BOX,
+  QUOTE_DRAFT,
+  QuoteSelection,
+  QuotedText,
+  isInsideQuotePopover,
+  quoteDestination,
+  quotedAsk,
+  readQuoteSelection,
+  withQuote,
+} from './quote'
+import {
   ANSWER_HISTORY,
   CHANGES,
   CONVERSATIONS,
@@ -386,6 +397,13 @@ export const Message = defineMessageUnion({
   ClickedReturnConversation: { open: Schema.Boolean },
   SelectedDiscussionTarget: { target: Schema.String },
   ClickedConversationStarter: { target: Schema.String, text: Schema.String },
+  SelectedQuoteText: { quoted: QuotedText },
+  ClearedQuoteSelection: {},
+  DismissedQuote: {},
+  ClickedQuoteInDiscussion: {},
+  ClickedQuoteReply: {},
+  SubmittedQuoteReply: {},
+  CompletedReadQuoteBox: { text: Schema.String },
   ClickedRedeliverAsk: {
     askId: Schema.Number,
     stepId: Schema.String,
@@ -527,6 +545,31 @@ const grillIdOf = (model: Model): Option.Option<string> =>
     AsyncData.getData(model.page),
     Option.map(snapshot => snapshot.grill.id),
   )
+
+const withQuoteSelection = (model: Model, quote: QuoteSelection): Model =>
+  modifyFields(model, {
+    workspace: value => modifyFields(value, { quote: () => quote }),
+  })
+
+const quotedTextOf = (quote: QuoteSelection): Option.Option<QuotedText> =>
+  quote._tag === 'Idle' ? Option.none() : Option.some(quote.quoted)
+
+const quoteTargetOf = (model: Model, quoted: QuotedText): string =>
+  quoteDestination(
+    model.side === 'Talk',
+    model.workspace.maybeDiscussionTarget,
+    quoted.stepId,
+  )
+
+const openDiscussionOn = (model: Model, target: string): Model =>
+  modifyFields(model, {
+    side: () => 'Talk',
+    talkGeneration: count => count + 1,
+    workspace: value =>
+      modifyFields(value, {
+        maybeDiscussionTarget: () => Option.some(target),
+      }),
+  })
 
 const postEvent = (
   model: Model,
@@ -1437,6 +1480,88 @@ export const update = (model: Model, message: Message) =>
       }),
       commands: [FocusTalkBox()],
     }),
+    SelectedQuoteText: ({ quoted }) =>
+      model.workspace.quote._tag === 'Composing'
+        ? { model }
+        : {
+            model: withQuoteSelection(
+              model,
+              QuoteSelection.Offered({ quoted }),
+            ),
+          },
+    ClearedQuoteSelection: () =>
+      model.workspace.quote._tag === 'Offered'
+        ? { model: withQuoteSelection(model, QuoteSelection.Idle()) }
+        : { model },
+    DismissedQuote: () => ({
+      model: modifyFields(withQuoteSelection(model, QuoteSelection.Idle()), {
+        talkDrafts: Record.remove(QUOTE_DRAFT),
+      }),
+    }),
+    ClickedQuoteReply: () =>
+      model.workspace.quote._tag === 'Offered'
+        ? {
+            model: withQuoteSelection(
+              model,
+              QuoteSelection.Composing({
+                quoted: model.workspace.quote.quoted,
+              }),
+            ),
+            commands: [FocusQuoteBox()],
+          }
+        : { model },
+    ClickedQuoteInDiscussion: () =>
+      Option.match(quotedTextOf(model.workspace.quote), {
+        onNone: () => ({ model }),
+        onSome: quoted => {
+          const target = quoteTargetOf(model, quoted)
+          return {
+            model: modifyFields(
+              openDiscussionOn(
+                withQuoteSelection(model, QuoteSelection.Idle()),
+                target,
+              ),
+              {
+                talkDrafts: drafts =>
+                  Record.set(
+                    drafts,
+                    threadDraftKey(target),
+                    withQuote(
+                      drafts[threadDraftKey(target)] ?? '',
+                      quoted.text,
+                    ),
+                  ),
+              },
+            ),
+            commands: [FocusTalkBox()],
+          }
+        },
+      }),
+    SubmittedQuoteReply: () => ({ model, commands: [ReadQuoteBox()] }),
+    CompletedReadQuoteBox: ({ text }) =>
+      Option.match(quotedTextOf(model.workspace.quote), {
+        onNone: () => ({ model }),
+        onSome: quoted => {
+          if (text.trim() === '') {
+            return { model }
+          }
+          const target = quoteTargetOf(model, quoted)
+          return postEvent(
+            modifyFields(
+              openDiscussionOn(
+                withQuoteSelection(model, QuoteSelection.Idle()),
+                target,
+              ),
+              { talkDrafts: Record.remove(QUOTE_DRAFT) },
+            ),
+            {
+              kind: 'asked',
+              stepId: target,
+              text: quotedAsk(quoted.text, text),
+            },
+          )
+        },
+      }),
     ClickedRedeliverAsk: ({ askId, stepId, route }) =>
       postEvent(model, { kind: 'redelivered', askId, stepId, route }),
     SubmittedWorkspaceDiscussion: ({ target }) => ({
@@ -3731,6 +3856,15 @@ export const FocusTalkBox = Command.define('FocusTalkBox', {
   ),
 })
 
+export const FocusQuoteBox = Command.define('FocusQuoteBox', {
+  messages: [Message.CompletedFocus],
+  execute: pipe(
+    Dom.focus(`#${QUOTE_BOX}`),
+    Effect.catch(() => Effect.void),
+    Effect.map(() => Message.CompletedFocus()),
+  ),
+})
+
 // Dictation tools can set a box's text without an input event, which a value bound to the
 // Model would undo at once. So these boxes own their text: the Model fills them when they
 // mount and reads them when they send.
@@ -3798,6 +3932,13 @@ export const ReadSendBoxCommand = Command.define('ReadSendBox', {
   messages: [Message.ReadSendBox],
   execute: Effect.sync(() =>
     Message.ReadSendBox({ text: boxText('send-message') }),
+  ),
+})
+
+export const ReadQuoteBox = Command.define('ReadQuoteBox', {
+  messages: [Message.CompletedReadQuoteBox],
+  execute: Effect.sync(() =>
+    Message.CompletedReadQuoteBox({ text: boxText(QUOTE_BOX) }),
   ),
 })
 
@@ -4392,6 +4533,59 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
           ],
           { concurrency: 'unbounded' },
         ),
+    },
+  ),
+  quoteSelection: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled: model.currentPart.startsWith(QUESTION_PAGE),
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        !enabled
+          ? Stream.empty
+          : Stream.mergeAll(
+              [
+                Dom.streamFromEventFilterMap({
+                  target: document,
+                  type: 'pointerup',
+                  filterMapEvent: event =>
+                    isInsideQuotePopover(event.target)
+                      ? Option.none()
+                      : Option.some(undefined),
+                }),
+                Dom.streamFromEventFilterMap({
+                  target: document,
+                  type: 'keyup',
+                  filterMapEvent: event =>
+                    event.shiftKey && !isInsideQuotePopover(event.target)
+                      ? Option.some(undefined)
+                      : Option.none(),
+                }),
+              ],
+              { concurrency: 'unbounded' },
+            ).pipe(
+              // A click inside a selection collapses it only after pointerup.
+              Stream.mapEffect(() =>
+                Effect.as(Effect.sleep(Duration.millis(0)), undefined),
+              ),
+              Stream.map(() =>
+                Option.match(readQuoteSelection(), {
+                  onNone: () => Message.ClearedQuoteSelection(),
+                  onSome: quoted => Message.SelectedQuoteText({ quoted }),
+                }),
+              ),
+              Stream.merge(
+                Dom.streamFromEventFilterMap({
+                  target: document,
+                  type: 'keydown',
+                  filterMapEvent: event =>
+                    event.key === 'Escape'
+                      ? Option.some(Message.DismissedQuote())
+                      : Option.none(),
+                }),
+              ),
+            ),
     },
   ),
   commandHeld: entry(

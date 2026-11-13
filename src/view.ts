@@ -94,6 +94,7 @@ import {
   unreadMessagesOf,
   visibleToastsOf,
 } from './main'
+import { splitQuote } from './quote'
 import { isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
 
@@ -3301,11 +3302,18 @@ const saidOn = (
   const grill = snapshot.grill
   const asks = Array.filter(snapshot.asks, ask => ask.stepId === target)
   const said = Array.flatMap(asks, (ask): ReadonlyArray<Said> => {
+    const split = splitQuote(ask.text)
     const mine: Said = {
       at: ask.at,
       who: 'you',
       id: '',
-      body: [h.p([], inline(ask.text, grill, h))],
+      body: [
+        ...Option.match(split.maybeQuote, {
+          onNone: () => [],
+          onSome: quote => [h.blockquote([h.Class('ask-quote')], [quote])],
+        }),
+        h.p([], inline(split.rest, grill, h)),
+      ],
     }
     const replies = Array.filter(
       snapshot.revisions,

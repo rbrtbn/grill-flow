@@ -17,6 +17,7 @@ import {
   sendableLines,
   statusOf,
 } from './domain'
+import { QuoteSelection } from './quote'
 
 export const QUESTION_PAGE = 'question:'
 export const REVIEW = 'review'
@@ -108,6 +109,7 @@ export const Workspace = Schema.Struct({
   discussionScroll: Schema.Record(Schema.String, Schema.Number),
   maybeDiscussionTarget: Schema.Option(Schema.String),
   excluded: Schema.Array(Schema.String),
+  quote: QuoteSelection,
 })
 export type Workspace = typeof Workspace.Type
 
@@ -141,6 +143,7 @@ export const initialWorkspace: Workspace = {
   discussionScroll: {},
   maybeDiscussionTarget: Option.none(),
   excluded: [],
+  quote: QuoteSelection.Idle(),
 }
 
 export const isWorkspacePage = (page: string): boolean =>
