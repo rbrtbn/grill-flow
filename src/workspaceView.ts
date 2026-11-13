@@ -41,6 +41,12 @@ import {
   type SidebarEdge,
   threadDraftKey,
 } from './main'
+import {
+  QUOTE_BOX,
+  QUOTE_DRAFT,
+  QUOTE_POPOVER_CLASS,
+  quoteDestination,
+} from './quote'
 import { rosterView } from './rosterView'
 import {
   ANSWER_HISTORY,
@@ -1282,8 +1288,13 @@ const questionView = (
         [
           h.div([h.Id('workspace-top'), h.Tabindex(-1)]),
           h.div(
-            [h.Class('f-reading'), h.Id(`q-${q.id}`)],
             [
+              h.Class('f-reading'),
+              h.Id(`q-${q.id}`),
+              h.DataAttribute('quote-step', step.id),
+            ],
+            [
+              quotePopover(model, snapshot, step, h),
               h.header(
                 [h.Class('f-question-reference')],
                 [
@@ -1407,6 +1418,108 @@ const questionView = (
       ),
     ],
   )
+}
+
+const quoteDestinationLabel = (snapshot: Snapshot, target: string): string =>
+  target === GRILL_FLOW_TARGET
+    ? 'Grill-flow'
+    : target === RUN_TARGET
+      ? 'the run'
+      : (snapshot.grill.steps.find(item => item.id === target)?.question.id ??
+        snapshot.grill.parts.find(part => `part:${part.id}` === target)
+          ?.title ??
+        target)
+
+const quotePopover = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+): Html => {
+  if (
+    model.workspace.quote._tag === 'Idle' ||
+    model.workspace.quote.quoted.stepId !== step.id
+  ) {
+    return h.empty
+  }
+  const quote = model.workspace.quote
+  const quoted = quote.quoted
+  const destination = quoteDestinationLabel(
+    snapshot,
+    quoteDestination(
+      model.side === 'Talk',
+      model.workspace.maybeDiscussionTarget,
+      step.id,
+    ),
+  )
+  const position = h.Style({
+    top: `${quoted.placement === 'Above' ? quoted.top : quoted.bottom}px`,
+    left: `${quoted.left}px`,
+  })
+  const placement = `is-${quoted.placement.toLowerCase()}`
+  return quote._tag === 'Offered'
+    ? h.div(
+        [
+          h.Class(`${QUOTE_POPOVER_CLASS} ${placement}`),
+          h.Role('toolbar'),
+          h.AriaLabel('Selected text'),
+          position,
+        ],
+        [
+          h.button(
+            [
+              h.Type('button'),
+              h.Title(`Add it as a quote to the ${destination} discussion`),
+              h.OnClick(Message.ClickedQuoteInDiscussion()),
+            ],
+            ['Quote'],
+          ),
+          h.button(
+            [h.Type('button'), h.OnClick(Message.ClickedQuoteReply())],
+            ['Reply'],
+          ),
+        ],
+      )
+    : h.form(
+        [
+          h.Class(`${QUOTE_POPOVER_CLASS} ${placement} is-composing`),
+          h.AriaLabel('Reply to the selected text'),
+          position,
+          h.OnSubmit(Message.SubmittedQuoteReply()),
+        ],
+        [
+          h.blockquote([h.Class('f-quote-excerpt')], [quoted.text]),
+          h.label([h.For(QUOTE_BOX)], [`Reply · to ${destination}`]),
+          h.keyed('textarea')(`${QUOTE_BOX}-${model.talkGeneration}`, [
+            h.Id(QUOTE_BOX),
+            h.Rows(3),
+            h.OnMount(FillBox({ text: model.talkDrafts[QUOTE_DRAFT] ?? '' })),
+            h.Placeholder('Ask about this, or push back on it…'),
+            h.OnInput(value =>
+              Message.UpdatedTalkDraft({ partId: QUOTE_DRAFT, value }),
+            ),
+            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
+              key === 'Enter' && !shiftKey
+                ? Option.some(Message.SubmittedQuoteReply())
+                : Option.none(),
+            ),
+          ]),
+          h.div(
+            [h.Class('f-quote-foot')],
+            [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('text-button'),
+                  h.OnClick(Message.DismissedQuote()),
+                ],
+                ['Cancel'],
+              ),
+              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+            ],
+          ),
+        ],
+      )
 }
 
 const issueLink = (
@@ -2006,7 +2119,7 @@ const discussionView = (
             [h.Class('hint')],
             [
               isMaintainer
-                ? `Grill-flow · ${snapshot.maintainerSession ?? 'Unavailable'}`
+                ? `Grill-flow · ${maintainerLabel(snapshot)}`
                 : questionAgent(snapshot.grill, step?.question),
             ],
           ),
@@ -2094,6 +2207,7 @@ const discussionView = (
         ],
         [
           expanded || step !== undefined ? context : h.empty,
+          isMaintainer ? maintainerWarning(snapshot, h) : h.empty,
           ...(Array.isReadonlyArrayEmpty(thread)
             ? [
                 h.div(
@@ -2174,6 +2288,29 @@ const discussionView = (
   )
 }
 
+const maintainerLabel = (snapshot: Snapshot): string =>
+  snapshot.maintainerSession === undefined
+    ? 'Unavailable'
+    : snapshot.maintainerState === 'missing'
+      ? `${snapshot.maintainerSession} · not in Herdr`
+      : snapshot.maintainerState === 'stopped'
+        ? `${snapshot.maintainerSession} · stopped`
+        : snapshot.maintainerSession
+
+const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
+  snapshot.maintainerState === 'missing' ||
+  snapshot.maintainerState === 'stopped'
+    ? h.p(
+        [h.Class('f-maintainer-warning'), h.Role('status')],
+        [
+          `${snapshot.maintainerSession} is ${snapshot.maintainerState === 'missing' ? 'no longer in Herdr' : 'not running'}, so messages here will not reach it.`,
+          snapshot.grill.session === ''
+            ? ' Restart grill-flow with GF_MAINTAINER_SESSION set to a running session.'
+            : ` Each undelivered message offers to go to ${snapshot.grill.session} instead.`,
+        ],
+      )
+    : h.empty
+
 const conversationPage = (
   model: Model,
   snapshot: Snapshot,
@@ -2249,9 +2386,7 @@ const conversationPage = (
                   'Grill-flow',
                   h.small(
                     [],
-                    [
-                      `Interface & improvements · ${snapshot.maintainerSession}`,
-                    ],
+                    [`Interface & improvements · ${maintainerLabel(snapshot)}`],
                   ),
                 ],
               ),
