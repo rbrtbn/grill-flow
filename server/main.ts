@@ -29,6 +29,7 @@ import { createReferenceReader } from './referenceReader'
 import { startRemotes } from './remote'
 import { createRosterReader, readRosterCommand } from './roster'
 import { SendRequest, selectSend } from './sendSelection'
+import { createSessionProbe, getSessionCommand } from './sessionProbe'
 import {
   eventDestination,
   listPages,
@@ -167,6 +168,7 @@ const sessionFor = (grillSession: string): string =>
   PREVIEW ? '' : (process.env.GF_SESSION ?? grillSession)
 
 const readRoster = createRosterReader(readRosterCommand)
+const probeSession = createSessionProbe(getSessionCommand)
 const readReferences = createReferenceReader(db, readProviderCommand)
 
 const clientSnapshot = (grill: Grill) => {
@@ -220,8 +222,58 @@ const clientSnapshot = (grill: Grill) => {
         ? page.members.map(member => member.state.grill.id)
         : [grill.id],
     ),
-    maintainerSession: process.env.GF_MAINTAINER_SESSION?.trim() || undefined,
+    ...maintainerFields(),
   }
+}
+
+const maintainerFields = () => {
+  const session = process.env.GF_MAINTAINER_SESSION?.trim() || undefined
+  const state =
+    session === undefined || sessionFor(session) === ''
+      ? undefined
+      : probeSession(sessionFor(session))
+  return {
+    ...(session === undefined ? {} : { maintainerSession: session }),
+    ...(state === undefined ? {} : { maintainerState: state }),
+  }
+}
+
+// An ask's own recipient; a failed one may instead go to the grill's session (docs/adr/0005).
+const askRecipient = (
+  grill: Grill,
+  stepId: string,
+  route: 'own' | 'fallback',
+): string | undefined =>
+  route === 'fallback'
+    ? questionSession(grill)
+    : stepId === GRILL_FLOW_TARGET
+      ? process.env.GF_MAINTAINER_SESSION?.trim() || undefined
+      : questionSession(
+          grill,
+          grill.steps.find(step => step.id === stepId)?.question,
+        )
+
+const deliverAsk = async (
+  grillId: string,
+  ask: Readonly<{ id: number; stepId: string; text: string }>,
+  recipient: string,
+): Promise<void> => {
+  const result = await sendToSession(
+    sessionFor(recipient),
+    askMessage(
+      grillId,
+      ask.stepId,
+      ask.id,
+      ask.text,
+      gfFor(grillId, recipient),
+    ),
+  )
+  appendEvent(db, grillId, 'sent', {
+    ...result,
+    what: 'ask',
+    askId: ask.id,
+    to: recipient,
+  })
 }
 
 const handleEvent = async (
@@ -374,13 +426,7 @@ const handleEvent = async (
       if (!hasTarget(grill, stepId) || text === '') {
         return json({ error: 'unknown step or empty ask' }, 400)
       }
-      const recipient =
-        stepId === GRILL_FLOW_TARGET
-          ? process.env.GF_MAINTAINER_SESSION?.trim()
-          : questionSession(
-              grill,
-              grill.steps.find(step => step.id === stepId)?.question,
-            )
+      const recipient = askRecipient(grill, stepId, 'own')
       if (recipient === undefined) {
         return json(
           { error: 'The grill-flow discussion session is not configured.' },
@@ -388,11 +434,22 @@ const handleEvent = async (
         )
       }
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })
-      const result = await sendToSession(
-        sessionFor(recipient),
-        askMessage(grillId, stepId, askId, text, gfFor(grillId, recipient)),
+      await deliverAsk(grillId, { id: askId, stepId, text }, recipient)
+      break
+    }
+    case 'redelivered': {
+      const ask = snapshot(db, grill).asks.find(
+        item => item.id === body.askId && item.stepId === body.stepId,
       )
-      appendEvent(db, grillId, 'sent', { ...result, what: 'ask', askId })
+      const route = body.route === 'fallback' ? 'fallback' : 'own'
+      if (ask === undefined || ask.answered) {
+        return json({ error: 'unknown or answered ask' }, 400)
+      }
+      const recipient = askRecipient(grill, ask.stepId, route)
+      if (recipient === undefined || recipient === '') {
+        return json({ error: 'No session to deliver this ask to.' }, 400)
+      }
+      await deliverAsk(grillId, ask, recipient)
       break
     }
     default:

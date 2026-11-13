@@ -471,6 +471,17 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
       }
       case 'sent':
         if (p.what === 'ask') {
+          const index = asks.findIndex(ask => ask.id === p.askId)
+          if (index !== -1) {
+            asks[index] = {
+              ...asks[index]!,
+              delivery: {
+                state: p.ok === true ? 'delivered' : 'failed',
+                to: String(p.to ?? ''),
+                detail: String(p.detail ?? ''),
+              },
+            }
+          }
           break
         }
         if (p.ok === true) {

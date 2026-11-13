@@ -2006,7 +2006,7 @@ const discussionView = (
             [h.Class('hint')],
             [
               isMaintainer
-                ? `Grill-flow · ${snapshot.maintainerSession ?? 'Unavailable'}`
+                ? `Grill-flow · ${maintainerLabel(snapshot)}`
                 : questionAgent(snapshot.grill, step?.question),
             ],
           ),
@@ -2094,6 +2094,7 @@ const discussionView = (
         ],
         [
           expanded || step !== undefined ? context : h.empty,
+          isMaintainer ? maintainerWarning(snapshot, h) : h.empty,
           ...(Array.isReadonlyArrayEmpty(thread)
             ? [
                 h.div(
@@ -2174,6 +2175,29 @@ const discussionView = (
   )
 }
 
+const maintainerLabel = (snapshot: Snapshot): string =>
+  snapshot.maintainerSession === undefined
+    ? 'Unavailable'
+    : snapshot.maintainerState === 'missing'
+      ? `${snapshot.maintainerSession} · not in Herdr`
+      : snapshot.maintainerState === 'stopped'
+        ? `${snapshot.maintainerSession} · stopped`
+        : snapshot.maintainerSession
+
+const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
+  snapshot.maintainerState === 'missing' ||
+  snapshot.maintainerState === 'stopped'
+    ? h.p(
+        [h.Class('f-maintainer-warning'), h.Role('status')],
+        [
+          `${snapshot.maintainerSession} is ${snapshot.maintainerState === 'missing' ? 'no longer in Herdr' : 'not running'}, so messages here will not reach it.`,
+          snapshot.grill.session === ''
+            ? ' Restart grill-flow with GF_MAINTAINER_SESSION set to a running session.'
+            : ` Each undelivered message offers to go to ${snapshot.grill.session} instead.`,
+        ],
+      )
+    : h.empty
+
 const conversationPage = (
   model: Model,
   snapshot: Snapshot,
@@ -2249,9 +2273,7 @@ const conversationPage = (
                   'Grill-flow',
                   h.small(
                     [],
-                    [
-                      `Interface & improvements · ${snapshot.maintainerSession}`,
-                    ],
+                    [`Interface & improvements · ${maintainerLabel(snapshot)}`],
                   ),
                 ],
               ),

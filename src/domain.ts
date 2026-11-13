@@ -435,12 +435,21 @@ export const urgencyRank = (question: Question): number =>
 
 // SNAPSHOT
 
+export const AskDelivery = Schema.Struct({
+  state: Schema.Literals(['delivered', 'failed']),
+  to: Schema.String,
+  detail: Schema.String,
+})
+export type AskDelivery = typeof AskDelivery.Type
+
 export const Ask = Schema.Struct({
   id: Schema.Number,
   stepId: Schema.String,
   text: Schema.String,
   at: Schema.Number,
   answered: Schema.Boolean,
+  // The latest attempt to put the ask in front of its agent; absent from servers that predate it.
+  delivery: Schema.optionalKey(AskDelivery),
 })
 export type Ask = typeof Ask.Type
 
@@ -504,6 +513,9 @@ export const AnswerHistoryEntry = Schema.Struct({
   state: Schema.Literals(['pending', 'delivered', 'failed']),
 })
 
+export const SessionState = Schema.Literals(['live', 'stopped', 'missing'])
+export type SessionState = typeof SessionState.Type
+
 export const Snapshot = Schema.Struct({
   grill: Grill,
   activity: Schema.optionalKey(ActivityFeed),
@@ -527,6 +539,8 @@ export const Snapshot = Schema.Struct({
   ),
   retirement: Schema.optionalKey(Retirement),
   maintainerSession: Schema.optionalKey(Schema.String),
+  // Absent until Herdr has been asked, and on servers that do not probe it.
+  maintainerState: Schema.optionalKey(SessionState),
   questionRevisions: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String),
   ),

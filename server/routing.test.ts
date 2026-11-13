@@ -70,6 +70,10 @@ beforeAll(async () => {
     `#!${process.execPath}
 import { appendFileSync } from 'node:fs'
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n')
+if (process.argv[2] === 'get') {
+  if (process.argv[3] === 'maintainer') { console.log('{"state":"live"}'); process.exit(0) }
+  console.error('{"error":{"kind":"not_found"}}'); process.exit(3)
+}
 if (process.argv[3] === 'failed-worker') { console.error('worker unavailable'); process.exit(1) }
 `,
   )
@@ -226,6 +230,43 @@ describe('HTTP delivery routing', () => {
     expect(calls[2]?.[2]).toContain('--kind comment')
     expect(calls[2]?.[2]).not.toContain('GF_OUTBOX')
     expect(state.maintainerSession).toBe('maintainer')
+  })
+
+  it('shows a failed ask and redelivers it to the grill session', async () => {
+    const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
+    const stepId = fixture.steps[2].id
+    const asked = await request('events', {
+      kind: 'asked',
+      stepId,
+      text: 'Is anyone there?',
+    })
+    const ask = asked.asks.at(-1)
+    expect(ask.delivery).toEqual({
+      state: 'failed',
+      to: 'failed-worker',
+      detail: 'worker unavailable',
+    })
+    const redelivered = await request('events', {
+      kind: 'redelivered',
+      askId: ask.id,
+      stepId,
+      route: 'fallback',
+    })
+    expect(received().at(-1)?.[1]).toBe('lead')
+    expect(received().at(-1)?.[2]).toContain(`(ask ${ask.id})`)
+    expect(
+      redelivered.asks.find((item: { id: number }) => item.id === ask.id)
+        .delivery,
+    ).toEqual({ state: 'delivered', to: 'lead', detail: 'sent to lead' })
+  })
+
+  it('reports whether the grill-flow session is running', async () => {
+    const read = async () =>
+      (await (await fetch(`${base}/api/grills/routing-fixture`)).json())
+        .maintainerState
+    await read()
+    await Bun.sleep(300)
+    expect(await read()).toBe('live')
   })
 
   it.each([

@@ -2673,3 +2673,24 @@ body[data-gf-preview] .f-workspace {
     --reading-inset: 16px;
   }
 }
+
+.f-maintainer-warning,
+.ask-undelivered {
+  padding: 10px 12px;
+  border-left: 3px solid var(--rust);
+  background: var(--rust-wash);
+  color: var(--ink);
+  font: 400 13px/1.6 var(--label);
+}
+.f-discussion-messages > .f-maintainer-warning {
+  margin: 12px 0 0;
+}
+.ask-undelivered p {
+  margin: 0;
+}
+.ask-undelivered .ask-undelivered-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 6px;
+}

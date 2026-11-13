@@ -386,6 +386,11 @@ export const Message = defineMessageUnion({
   ClickedReturnConversation: { open: Schema.Boolean },
   SelectedDiscussionTarget: { target: Schema.String },
   ClickedConversationStarter: { target: Schema.String, text: Schema.String },
+  ClickedRedeliverAsk: {
+    askId: Schema.Number,
+    stepId: Schema.String,
+    route: Schema.Literals(['own', 'fallback']),
+  },
   SubmittedWorkspaceDiscussion: { target: Schema.String },
   ReadWorkspaceDiscussion: { target: Schema.String, text: Schema.String },
   ToggledReviewAnswer: { question: Schema.String },
@@ -1432,6 +1437,8 @@ export const update = (model: Model, message: Message) =>
       }),
       commands: [FocusTalkBox()],
     }),
+    ClickedRedeliverAsk: ({ askId, stepId, route }) =>
+      postEvent(model, { kind: 'redelivered', askId, stepId, route }),
     SubmittedWorkspaceDiscussion: ({ target }) => ({
       model,
       commands: [ReadWorkspaceDiscussionBox({ target })],

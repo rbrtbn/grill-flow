@@ -14,6 +14,7 @@ import {
 import { roundLabel, roundOf } from './domain'
 import {
   type AgentMessage,
+  type Ask,
   type DiffBlock,
   type DiffLine,
   FORMAT_VERSION,
@@ -3317,7 +3318,7 @@ const saidOn = (
           at: ask.at + 1,
           who: 'agent',
           id: '',
-          body: [h.p([], [h.em([], ['Working on it…'])])],
+          body: [waitingView(grill, ask, h)],
         },
       ]
     }
@@ -3361,6 +3362,82 @@ const saidOn = (
     ]
   })
   return Array.sort(said, bySaidTime)
+}
+
+const waitingView = (grill: Grill, ask: Ask, h: H): Html => {
+  const delivery = ask.delivery
+  if (delivery?.state !== 'failed') {
+    return h.p(
+      [],
+      [
+        h.em(
+          [],
+          [
+            delivery === undefined || delivery.to === ''
+              ? 'Working on it…'
+              : `Sent to ${delivery.to} · waiting for a reply…`,
+          ],
+        ),
+      ],
+    )
+  }
+  const recipient = delivery.to === '' ? 'its agent' : delivery.to
+  const fallback = grill.session
+  const redeliver = (route: 'own' | 'fallback', label: string): Html =>
+    h.button(
+      [
+        h.Type('button'),
+        h.Class('text-button'),
+        h.OnClick(
+          Message.ClickedRedeliverAsk({
+            askId: ask.id,
+            stepId: ask.stepId,
+            route,
+          }),
+        ),
+      ],
+      [label],
+    )
+  return h.div(
+    [h.Class('ask-undelivered'), h.Role('alert')],
+    [
+      h.p(
+        [],
+        [
+          h.strong([], [`Not delivered to ${recipient}.`]),
+          ' ',
+          deliveryReason(delivery.detail),
+        ],
+      ),
+      h.p(
+        [h.Class('ask-undelivered-actions')],
+        [
+          fallback === '' || fallback === delivery.to
+            ? h.empty
+            : redeliver('fallback', `Send to ${fallback} instead`),
+          redeliver('own', `Try ${recipient} again`),
+        ],
+      ),
+    ],
+  )
+}
+
+// hc reports a missing terminal as JSON; the page shows its message, not the envelope.
+const deliveryReason = (detail: string): string => {
+  try {
+    const parsed: unknown = JSON.parse(detail)
+    return typeof parsed === 'object' &&
+      parsed !== null &&
+      'error' in parsed &&
+      typeof parsed.error === 'object' &&
+      parsed.error !== null &&
+      'message' in parsed.error &&
+      typeof parsed.error.message === 'string'
+      ? `Herdr says: ${parsed.error.message}.`
+      : detail
+  } catch {
+    return detail
+  }
 }
 
 const saidView = (message: Said, h: H): Html =>
