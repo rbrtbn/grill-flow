@@ -10,7 +10,9 @@ import {
 } from '../src/domain'
 import { ContextUnavailable, readSubmission } from './answerReceipts'
 import {
+  EXPECT_REV_REQUIRED,
   REASON_REQUIRED,
+  expectRevWarning,
   guideText,
   guideView,
   isAuthoringCommand,
@@ -22,7 +24,15 @@ import {
 import { publishItem } from './channel'
 import { publishDrawing } from './drawings'
 import {
-  currentRev,
+  EDIT_USAGE,
+  StaleRev,
+  loadChecked,
+  parseExpectRev,
+  readJsonFile,
+  runEditCommand,
+  unknownKeyWarning,
+} from './grillEdit'
+import {
   grillRevisions,
   questionHistory,
   questionLines,
@@ -36,7 +46,6 @@ import {
   appendEvent,
   events,
   getGrill,
-  loadGrill,
   open,
   replyToGrill,
   restoreGrill,
@@ -56,8 +65,13 @@ const usage = `gf: grill-flow's agent-side commands
   author, default $HC_TERMINAL_ID.
 
   gf up                                start the server unless it already answers
-  gf load <grill.json> [--solo]        load or replace a grill; without a squad field it joins
-                                       the GF_SQUAD page, and --solo keeps it a page of its own
+  gf load <grill.json> [--solo] [--expect-rev <rev>]
+                                       load or replace a grill; without a squad field it joins
+                                       the GF_SQUAD page, and --solo keeps it a page of its own.
+                                       --expect-rev refuses (exit 3) when another write landed
+                                       since <rev>; missing, it warns (GF_REQUIRE_EXPECT_REV=1
+                                       refuses). Unknown keys anywhere are errors.
+${EDIT_USAGE}
   gf handover <page> --session <address> --reason <text> [--member <grill-id>]
                                        make <address> the page's lead; deliveries still naming
                                        the previous lead go to it
@@ -92,7 +106,8 @@ const usage = `gf: grill-flow's agent-side commands
   gf remote ls | rm <machine>          list or drop the outboxes this server pulls
 
   With GF_OUTBOX=<folder>, load, item, draw, revise, reply, state, events and wait use that folder instead,
-  for an agent on a machine whose grills a server elsewhere pulls (gf remote add there).`
+  for an agent on a machine whose grills a server elsewhere pulls (gf remote add there).
+  get, question and patch run on the serving machine only.`
 
 const flag = (
   args: ReadonlyArray<string>,
@@ -156,6 +171,21 @@ const withSquadDefault = (raw: unknown, solo: boolean): unknown => {
     )
   }
   return raw
+}
+
+// Refusals print their message rather than a stack; a stale --expect-rev exits 3.
+const guarded = <T>(write: () => T): T => {
+  try {
+    return write()
+  } catch (error) {
+    if (error instanceof StaleRev) {
+      return fail(error.message, 3)
+    }
+    if (error instanceof Error) {
+      return fail(error.message)
+    }
+    throw error
+  }
 }
 
 const [command, ...args] = process.argv.slice(2)
@@ -340,22 +370,49 @@ switch (command) {
     break
   }
   case 'load': {
-    const grill = loadGrill(
-      db,
-      withSquadDefault(
-        JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
-        args.includes('--solo'),
+    const expectRev = args.includes('--expect-rev')
+      ? guarded(() => parseExpectRev(flag(args, '--expect-rev')))
+      : undefined
+    if (expectRev === undefined) {
+      if (EXPECT_REV_REQUIRED) {
+        fail(expectRevWarning())
+      }
+      console.error(expectRevWarning())
+    }
+    const { grill, rev, unknownKeys } = guarded(() =>
+      loadChecked(
+        db,
+        withSquadDefault(
+          readJsonFile(args[0] ?? fail(usage)),
+          args.includes('--solo'),
+        ),
+        provenance,
+        expectRev,
       ),
-      provenance,
     )
+    if (unknownKeys.length > 0) {
+      console.warn(unknownKeyWarning(unknownKeys))
+    }
     console.log(
-      `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id} (rev ${currentRev(db, grill.id)})`,
+      `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id} (rev ${rev})`,
     )
     if ((grill.version ?? 1) > FORMAT_VERSION) {
       console.warn(
         `grill format ${grill.version} is newer than this checkout's ${FORMAT_VERSION}: the page shows what it knows; pull grill-flow for the rest`,
       )
     }
+    break
+  }
+  case 'get':
+  case 'question':
+  case 'patch': {
+    const { out, err } = guarded(() =>
+      runEditCommand(db, command, args, provenance, BASE),
+    )
+    if (err !== '') {
+      console.error(err)
+    }
+    console.log(out)
     break
   }
   case 'state': {

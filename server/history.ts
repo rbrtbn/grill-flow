@@ -275,16 +275,17 @@ export const revisionLines = (
       `rev ${revision.rev}  ${when(revision.at)}  ${revision.author || '-'}  ${revision.reason || '(no reason given)'}`,
   )
 
+export const fieldLine = (field: FieldChange): string =>
+  field.change === 'added'
+    ? `  + ${field.field}: ${shown(field.after)}`
+    : field.change === 'removed'
+      ? `  - ${field.field}: ${shown(field.before)}`
+      : `  ~ ${field.field}: ${shown(field.before)} -> ${shown(field.after)}`
+
 export const questionLines = (
   changes: ReadonlyArray<QuestionChange>,
 ): ReadonlyArray<string> =>
   changes.flatMap(change => [
     `rev ${change.rev}  ${when(change.at)}  ${change.author || '-'}  ${change.reason || '(no reason given)'}  [${change.change}]`,
-    ...change.fields.map(field =>
-      field.change === 'added'
-        ? `  + ${field.field}: ${shown(field.after)}`
-        : field.change === 'removed'
-          ? `  - ${field.field}: ${shown(field.before)}`
-          : `  ~ ${field.field}: ${shown(field.before)} -> ${shown(field.after)}`,
-    ),
+    ...change.fields.map(fieldLine),
   ])

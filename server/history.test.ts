@@ -368,7 +368,15 @@ it('gf load takes --reason and --session, and gf history reports them', async ()
   const file = join(dir, 'grill.json')
   const skill = ['--skill-revision', String(SKILL_REVISION)]
   writeFileSync(file, JSON.stringify(fixture))
-  const first = await run(dir, ['load', file, '--reason', 'round 1', ...skill])
+  const first = await run(dir, [
+    'load',
+    file,
+    '--reason',
+    'round 1',
+    '--expect-rev',
+    '0',
+    ...skill,
+  ])
   expect(first).toMatchObject({ code: 0, error: '' })
   expect(first.out).toContain('(rev 1)')
   writeFileSync(
