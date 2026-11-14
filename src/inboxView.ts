@@ -49,7 +49,7 @@ import {
 } from './inbox'
 import { Message, type Model, PAGE_LINK_COPY } from './main'
 import { refView } from './refCard'
-import { sessionCard } from './refCards'
+import { roundCard, sessionCard } from './refCards'
 import { QUESTION_PAGE } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -1963,6 +1963,8 @@ export const itemPage = (
 
 export const questionFilterView = (
   model: Model,
+  snapshot: Snapshot,
+  inbox: InboxData,
   all: ReadonlyArray<InboxQuestion>,
   currentQuestion: string,
   h: H,
@@ -1980,21 +1982,19 @@ export const questionFilterView = (
       : [...list, value]
   const pill = (
     on: boolean,
-    label: string,
+    label: Html | string,
     count: number,
     next: typeof query,
+    extra = '',
   ) =>
     h.button(
       [
         h.Type('button'),
-        h.Class(`f-pill${on ? ' is-on' : ''}`),
+        h.Class(`f-pill${on ? ' is-on' : ''}${extra}`),
         h.AriaPressed(String(on)),
         h.OnClick(go(page(next))),
       ],
-      [
-        `${on ? '✓ ' : ''}${label} `,
-        h.span([h.Class('f-count')], [String(count)]),
-      ],
+      [label, ' ', h.span([h.Class('f-count')], [String(count)])],
     )
   const chip = (
     label: string,
@@ -2032,24 +2032,7 @@ export const questionFilterView = (
     ],
     [
       h.div(
-        [h.Class('f-facet')],
-        [
-          h.span([h.Class('f-facet-label')], ['Session']),
-          h.div(
-            [h.Class('f-pills')],
-            sessions.map(session =>
-              pill(
-                query.session.includes(session),
-                session,
-                all.filter(question => question.session === session).length,
-                { ...query, session: toggle(query.session, session) },
-              ),
-            ),
-          ),
-        ],
-      ),
-      h.div(
-        [h.Class('f-facet')],
+        [h.Class('f-facet is-urgency')],
         [
           h.span([h.Class('f-facet-label')], ['Urgency']),
           h.div(
@@ -2057,7 +2040,16 @@ export const questionFilterView = (
             BUCKETS.map(bucket =>
               pill(
                 query.urgency.includes(bucket),
-                bucketLabel(bucket),
+                h.span(
+                  [],
+                  [
+                    h.span([
+                      h.Class(`f-urgency-dot is-${bucket}`),
+                      h.AriaHidden(true),
+                    ]),
+                    bucketLabel(bucket),
+                  ],
+                ),
                 all.filter(question => bucketOf(question.urgency) === bucket)
                   .length,
                 { ...query, urgency: toggle(query.urgency, bucket) },
@@ -2067,24 +2059,62 @@ export const questionFilterView = (
         ],
       ),
       h.div(
-        [h.Class('f-facet')],
+        [h.Class('f-facet is-round')],
         [
           h.span([h.Class('f-facet-label')], ['Round']),
           h.div(
-            [h.Class('f-pills')],
+            [h.Class('f-round-chips')],
             rounds.map(round => {
               const inRound = all.filter(question => question.round === round)
               const on = Option.getOrUndefined(query.maybeRound) === round
-              return pill(
-                on,
-                inRound[0]?.roundName ?? `Round ${round}`,
-                inRound.length,
-                {
-                  ...query,
-                  maybeRound: on ? Option.none() : Option.some(round),
-                },
+              const number =
+                snapshot.grill.roundNumbers?.[String(round)] ?? round
+              return refView(
+                roundCard(model, snapshot, round),
+                'question-filter',
+                pill(
+                  on,
+                  h.span(
+                    [],
+                    [
+                      `R${number}`,
+                      h.small([], [inRound[0]?.session ?? '']),
+                    ],
+                  ),
+                  inRound.length,
+                  {
+                    ...query,
+                    maybeRound: on ? Option.none() : Option.some(round),
+                  },
+                  ' f-round-chip',
+                ),
+                h,
+                false,
               )
             }),
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('f-facet is-session')],
+        [
+          h.span([h.Class('f-facet-label')], ['Session']),
+          h.div(
+            [h.Class('f-pills')],
+            sessions.map(session =>
+              refView(
+                sessionCard(model, snapshot, inbox, session),
+                'question-filter',
+                pill(
+                  query.session.includes(session),
+                  session,
+                  all.filter(question => question.session === session).length,
+                  { ...query, session: toggle(query.session, session) },
+                ),
+                h,
+                false,
+              ),
+            ),
           ),
         ],
       ),

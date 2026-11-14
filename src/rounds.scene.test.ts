@@ -3,7 +3,6 @@ import { Url } from 'foldkit'
 import {
   Mount,
   all,
-  click,
   expect,
   expectAll,
   given,
@@ -77,7 +76,6 @@ describe('named rounds and nested blockers', () => {
         [FillBox, Message.CompletedFillBox()],
         [FillBox, Message.CompletedFillBox()],
       ),
-      click(selector('.f-question-list-toggle')),
       expectAll(all.selector('.f-question-list-row')).toHaveCount(3),
       expect(selector('.f-question-list-row')).toContainText(
         'Stage definitions',

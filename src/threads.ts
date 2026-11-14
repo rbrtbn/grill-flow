@@ -137,15 +137,9 @@ export const fixtureThreads = (
 }
 
 export const STARTERS: ReadonlyArray<readonly [string, string]> = [
-  ['Contextualize this for me', 'Contextualize this for me.'],
-  ['Give me an example', 'Give me an example.'],
-  ['Compare the choices', 'Compare the choices.'],
-  [
-    'Ask for a clearer rewrite',
-    'Please rewrite this question and its reasoning more clearly.',
-  ],
-  [
-    'What would you pick?',
-    'What would you pick, and what would change your mind?',
-  ],
+  ['Explain in context', 'Explain this in the context of the work it affects.'],
+  ['Example', 'Give me an example.'],
+  ['Compare', 'Compare the choices.'],
+  ['Rewrite', 'Please rewrite this question and its reasoning more clearly.'],
+  ['Your pick?', 'What would you pick, and what would change your mind?'],
 ]

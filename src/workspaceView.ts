@@ -31,7 +31,6 @@ import {
   planPhaseOf,
   questionAgent,
   questionSession,
-  roundLabel,
   roundOf,
   statusOf,
   unreadOf,
@@ -79,6 +78,8 @@ import {
   quoteDestination,
   quotedAsk,
 } from './quote'
+import { refView } from './refCard'
+import { linkCard, roundCard, sessionCard } from './refCards'
 import { retirementView } from './retirementView'
 import { rosterView } from './rosterView'
 import {
@@ -838,13 +839,6 @@ const questionView = (
 ): Html => {
   const q = step.question
   const grill = snapshot.grill
-  const state = questionState(
-    snapshot,
-    step,
-    model.answers,
-    model.notes,
-    model.own,
-  )
   const askerAddress = questionSession(grill, q)
   const askerName =
     (q.from === undefined ? undefined : grill.sources?.[q.from]?.text) ??
@@ -858,82 +852,51 @@ const questionView = (
           h.div([h.Id('workspace-top'), h.Tabindex(-1)]),
           questionsBar(model, snapshot, step, inbox, h),
           h.div(
+            [h.Class('f-question-grid')],
             [
-              h.Class('f-reading'),
-              h.Id(`q-${q.id}`),
-              h.DataAttribute('quote-step', step.id),
-            ],
-            [
-              quotePopover(model, snapshot, step, h),
-              h.header(
-                [h.Class('f-question-reference')],
+              questionSideList(model, snapshot, step, h),
+              h.div(
                 [
-                  h.div(
-                    [h.Class('f-question-meta')],
+                  h.Class('f-reading'),
+                  h.Id(`q-${q.id}`),
+                  h.DataAttribute('quote-step', step.id),
+                ],
+                [
+                  quotePopover(model, snapshot, step, h),
+                  h.header(
+                    [h.Class('f-question-reference')],
                     [
-                      h.span([h.Class('f-question-id')], [q.id]),
-                      q.key === undefined
+                      h.h1([h.Class('f-question-title')], [q.title]),
+                      h.p(
+                        [h.Class('f-question-ask'), h.Id(`ask-text-${q.id}`)],
+                        reading.heading(q.ask, h),
+                      ),
+                      q.context === undefined || q.context.trim() === ''
                         ? h.empty
-                        : keyButton(model, q.key, h),
-                      issueLink(snapshot, q.issue, h),
-                      h.span(
-                        [],
-                        [
-                          q.round === undefined
-                            ? 'No round'
-                            : roundLabel(grill, q.round),
-                        ],
-                      ),
-                      h.span([], [`asked by ${askerName} (${askerAddress})`]),
-                      ...Option.toArray(
-                        Option.map(urgencyDetail(q), detail =>
-                          h.span([h.Class('f-question-urgency')], [detail]),
-                        ),
-                      ),
-                      h.span(
-                        [h.Class('f-state-label')],
-                        [
-                          stateMark(state, q, h),
-                          state === 'Draft' ? 'Draft · not sent' : state,
-                        ],
-                      ),
-                      ...Option.toArray(
-                        Option.map(answeredLabel(model, step), label =>
-                          h.span([h.Class('f-answered-label')], [label]),
-                        ),
-                      ),
-                      unreadBadge(questionUnread(model, snapshot, step), h),
-                      questionTimesView(snapshot, q.id, h),
+                        : h.p(
+                            [h.Class('f-question-lead')],
+                            reading.inline(q.context, h),
+                          ),
                     ],
                   ),
-                  h.h1([h.Class('f-question-title')], [q.title]),
-                  h.p(
-                    [h.Class('f-question-ask'), h.Id(`ask-text-${q.id}`)],
-                    reading.heading(q.ask, h),
-                  ),
-                  q.context === undefined || q.context.trim() === ''
-                    ? h.empty
-                    : h.p(
-                        [h.Class('f-question-lead')],
-                        reading.inline(q.context, h),
+                  h.div(
+                    [h.Class('f-question-body')],
+                    [
+                      reading.status(step, h),
+                      answersView(model, snapshot, step, reading, h),
+                      questionMetaView(model, snapshot, step, inbox, h),
+                      backgroundView(model, snapshot, step, reading, inbox, h),
+                      questionConversationView(
+                        model,
+                        snapshot,
+                        step,
+                        reading,
+                        inbox,
+                        askerName,
+                        askerAddress,
+                        h,
                       ),
-                ],
-              ),
-              h.div(
-                [h.Class('f-question-body')],
-                [
-                  reading.status(step, h),
-                  answersView(model, snapshot, step, reading, h),
-                  backgroundView(model, snapshot, step, reading, inbox, h),
-                  questionConversationView(
-                    model,
-                    snapshot,
-                    step,
-                    reading,
-                    inbox,
-                    askerName,
-                    askerAddress,
-                    h,
+                    ],
                   ),
                 ],
               ),
@@ -1072,18 +1035,12 @@ const questionsBar = (
             [h.Class('f-question-position')],
             [
               arrow('Previous', previous),
-              h.button(
-                [
-                  h.Type('button'),
-                  h.Class('f-question-list-toggle'),
-                  h.AriaExpanded(model.inbox.isQuestionListOpen),
-                  h.OnClick(Message.ClickedQuestionList()),
-                ],
+              h.span(
+                [h.Class('f-question-count'), h.AriaLive('polite')],
                 [
                   index >= 0
                     ? `${index + 1} of ${list.length}`
                     : `${list.length} in this list`,
-                  ' ▾',
                 ],
               ),
               arrow('Next', next),
@@ -1093,12 +1050,108 @@ const questionsBar = (
       ),
       questionFilterView(
         model,
+        snapshot,
+        inbox,
         visibleAll.map(item => questionOf(snapshot, item)),
         step.question.id,
         h,
       ),
-      model.inbox.isQuestionListOpen
-        ? h.ol(
+    ],
+  )
+}
+
+/** The question's facts in one line under its answers, each reference with its card. */
+const questionMetaView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  inbox: InboxData,
+  h: H,
+): Html => {
+  const q = step.question
+  const grill = snapshot.grill
+  const askerAddress = questionSession(grill, q)
+  const state = questionState(
+    snapshot,
+    step,
+    model.answers,
+    model.notes,
+    model.own,
+  )
+  return h.div(
+    [h.Class('f-question-meta')],
+    [
+      h.span([h.Class('f-question-id')], [q.id]),
+      q.key === undefined ? h.empty : keyButton(model, q.key, h),
+      q.issue === undefined
+        ? h.empty
+        : refView(
+            linkCard(snapshot, q.issue),
+            'question-meta',
+            issueLink(snapshot, q.issue, h),
+            h,
+            false,
+          ),
+      q.round === undefined
+        ? h.span([], ['No round'])
+        : refView(
+            roundCard(model, snapshot, q.round),
+            'question-meta',
+            `Round ${grill.roundNumbers?.[String(q.round)] ?? q.round}`,
+            h,
+          ),
+      refView(
+        sessionCard(model, snapshot, inbox, askerAddress),
+        'question-meta',
+        `asked by ${askerAddress}`,
+        h,
+      ),
+      ...Option.toArray(
+        Option.map(urgencyDetail(q), detail =>
+          h.span([h.Class('f-question-urgency')], [detail]),
+        ),
+      ),
+      h.span(
+        [h.Class('f-state-label')],
+        [
+          stateMark(state, q, h),
+          state === 'Draft' ? 'Draft · not sent' : state,
+        ],
+      ),
+      ...Option.toArray(
+        Option.map(answeredLabel(model, step), label =>
+          h.span([h.Class('f-answered-label')], [label]),
+        ),
+      ),
+      unreadBadge(questionUnread(model, snapshot, step), h),
+      questionTimesView(snapshot, q.id, h),
+    ],
+  )
+}
+
+/** F's side list: every question the filters keep, beside the one in view. */
+const questionSideList = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  h: H,
+): Html => {
+  const list = visibleQuestions(
+    model.workspace,
+    narrowedSnapshot(snapshot, model.pageQuery),
+    model.answers,
+    model.notes,
+    model.own,
+  )
+  const query = model.pageQuery
+  const pageOf = (item: Step) =>
+    `${QUESTION_PAGE}${item.question.id}${query === '' ? '' : `?${query}`}`
+  return h.nav(
+    [h.Class('f-question-side'), h.AriaLabel('Matching questions')],
+    [
+      Array.isReadonlyArrayEmpty(list)
+        ? h.p([h.Class('hint')], ['No question matches these filters.'])
+        : h.ol(
             [h.Class('f-question-list')],
             list.map(item => {
               const itemState = questionState(
@@ -1150,8 +1203,7 @@ const questionsBar = (
                 ],
               )
             }),
-          )
-        : h.empty,
+          ),
     ],
   )
 }
@@ -1219,17 +1271,6 @@ const backgroundView = (
     [
       h.h2([], ['Summary']),
       reading.summary(step, h),
-      h.button(
-        [
-          h.Type('button'),
-          h.Class('text-button f-background-toggle'),
-          h.AriaExpanded(isOpen),
-          h.OnClick(
-            Message.ClickedToggleWhy({ stepId: step.id, open: !isOpen }),
-          ),
-        ],
-        [isOpen ? 'Hide trade-offs and details' : parts.join(' · ')],
-      ),
       ...(isOpen
         ? [
             q.compare === undefined
@@ -1273,6 +1314,17 @@ const backgroundView = (
             ),
           ]
         : []),
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('text-button f-background-toggle'),
+          h.AriaExpanded(isOpen),
+          h.OnClick(
+            Message.ClickedToggleWhy({ stepId: step.id, open: !isOpen }),
+          ),
+        ],
+        [isOpen ? 'Hide trade-offs and details' : parts.join(' · ')],
+      ),
     ],
   )
 }
@@ -1406,6 +1458,25 @@ const threadLineView = (line: ThreadLine, h: H): Html =>
     ],
   )
 
+/** One-click asks by the composer; each sends at once, its full wording in the title. */
+const startersView = (step: Step, h: H): Html =>
+  h.div(
+    [h.Class('f-starters'), h.Role('group'), h.AriaLabel('Quick asks')],
+    STARTERS.map(([label, text]) =>
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('f-starter'),
+          h.Title(`Sends: ${text}`),
+          h.OnClick(
+            Message.ClickedConversationStarter({ target: step.id, text }),
+          ),
+        ],
+        [label],
+      ),
+    ),
+  )
+
 const questionConversationView = (
   model: Model,
   snapshot: Snapshot,
@@ -1441,27 +1512,6 @@ const questionConversationView = (
     [h.Class('f-question-conversation'), h.AriaLabel('Conversation')],
     [
       h.h2([], ['Conversation']),
-      h.div(
-        [h.Class('f-starters')],
-        [
-          h.span([h.Class('hint')], [`Ask ${askerName}, sent on click:`]),
-          ...STARTERS.map(([label, text]) =>
-            h.button(
-              [
-                h.Type('button'),
-                h.Class('f-starter'),
-                h.OnClick(
-                  Message.ClickedConversationStarter({
-                    target: step.id,
-                    text,
-                  }),
-                ),
-              ],
-              [label],
-            ),
-          ),
-        ],
-      ),
       h.div(
         [h.Class('f-timeline')],
         [
@@ -1550,6 +1600,13 @@ const questionConversationView = (
             ),
           ]),
           textLimitCount(draft, h),
+          Array.isReadonlyArrayEmpty(thread) &&
+          Array.isReadonlyArrayEmpty(nested)
+            ? startersView(step, h)
+            : h.details(
+                [h.Class('f-suggestions')],
+                [h.summary([], ['Suggestions']), startersView(step, h)],
+              ),
           h.div(
             [h.Class('f-send-foot')],
             [

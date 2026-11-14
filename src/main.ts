@@ -672,7 +672,6 @@ export const Message = defineMessageUnion({
   ClickedNestedThread: { key: Schema.String },
   ClickedStartSideThread: {},
   ClickedSideThreadWith: { key: Schema.String },
-  ClickedQuestionList: {},
   ClickedCopyAndFocus: {
     source: Schema.String,
     item: Schema.String,
@@ -1562,14 +1561,6 @@ export const update = (model: Model, message: Message) =>
             isSidePickerOpen: () => false,
             sideThreads: keys => (keys.includes(key) ? keys : [...keys, key]),
             maybeOpenThread: () => Option.some(key),
-          }),
-      }),
-    }),
-    ClickedQuestionList: () => ({
-      model: modifyFields(model, {
-        inbox: inbox =>
-          modifyFields(inbox, {
-            isQuestionListOpen: open => !open,
           }),
       }),
     }),

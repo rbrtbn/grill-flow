@@ -86,7 +86,7 @@ it('walks only the questions the address filters keep', () => {
     { update, view },
     given(loaded('/g/fixture/question/Q1?run=t-even')),
     expect(selector('.f-active-filters')).toContainText('Session t-even'),
-    expect(role('button', { name: /^1 of / })).toExist(),
+    expect(selector('.f-question-count')).toHaveText(/^1 of /),
     Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
     click(role('button', { name: 'Next question' })),
     Command.expectExact(

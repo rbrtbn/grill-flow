@@ -102,7 +102,6 @@ export const InboxUi = Schema.Struct({
   // Side threads started on this page; delivery to `<subject>@<address>` comes later.
   sideThreads: Schema.Array(Schema.String),
   isSidePickerOpen: Schema.Boolean,
-  isQuestionListOpen: Schema.Boolean,
   // The sessions panel shows its directory until a row opens a conversation.
   isSessionDirectory: Schema.Boolean,
   sessionSearch: Schema.String,
@@ -126,7 +125,6 @@ export const initialInboxUi: InboxUi = {
   maybeOpenThread: Option.none(),
   sideThreads: [],
   isSidePickerOpen: false,
-  isQuestionListOpen: false,
   isSessionDirectory: true,
   sessionSearch: '',
   sessionGroup: 'Squad',

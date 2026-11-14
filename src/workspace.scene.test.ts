@@ -187,7 +187,7 @@ describe('the question workspace', () => {
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
       expect(selector('.f-question-meta')).toContainText('Q1'),
       expect(selector('.f-questions-bar .f-question-position')).toExist(),
-      expect(selector('.f-question-list-toggle')).toContainText('1 of 21'),
+      expect(selector('.f-question-count')).toContainText('1 of 21'),
     )
   })
 
@@ -434,7 +434,6 @@ describe('the question workspace', () => {
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: many }) }),
       fillOne,
-      click(selector('.f-question-list-toggle')),
       expectAll(all.selector('.f-question-list-row')).toHaveCount(size),
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
     )
@@ -573,7 +572,6 @@ it('counts asks and replies beside a question with a discussion in the question 
       }),
     }),
     fillOne,
-    click(selector('.f-question-list-toggle')),
     expect(selector('.f-question-list .f-message-count')).toHaveText('3'),
     expect(selector('.f-question-list .f-message-count')).toHaveAttr(
       'title',
@@ -587,7 +585,6 @@ it('shows no message count on a question without a discussion', () => {
     { update, view },
     given(loaded),
     fillOne,
-    click(selector('.f-question-list-toggle')),
     expectAll(all.selector('.f-question-list-row')).toHaveCount(21),
     expectAll(all.selector('.f-message-count')).toHaveCount(0),
   )
@@ -604,9 +601,25 @@ it('walks the filtered list with the arrows and shows the filter strip', () => {
     expect(selector('.f-question-filters')).toContainText('Session'),
     expect(selector('.f-question-filters')).toContainText('Urgency'),
     expect(selector('.f-question-filters')).toContainText('Round'),
-    expectAll(all.selector('.f-question-list')).toHaveCount(0),
-    click(selector('.f-question-list-toggle')),
-    expect(selector('.f-question-list')).toExist(),
+    expect(role('navigation', { name: 'Matching questions' })).toContainText(
+      'Q1',
+    ),
+    expect(selector('.f-question-reference')).toHaveText(/^Title Q1/),
+    expect(selector('.f-question-reference .f-question-meta')).not.toExist(),
+    expect(selector('.f-question-body .f-question-meta')).toContainText(
+      'asked by',
+    ),
+    expect(selector('.f-round-chip')).toHaveText(/^R\d/),
+    expect(selector('.is-round .f-ref-card')).toContainText('Answered'),
+    expect(
+      within(
+        selector('.f-question-compose'),
+        role('group', { name: 'Quick asks' }),
+      ),
+    ).toContainText('Your pick?'),
+    expect(selector('.f-question-conversation')).not.toContainText(
+      'sent on click',
+    ),
     click(role('button', { name: 'Next question' })),
     Command.resolve(PushPage, Message.CompletedNavigate()),
     Command.resolve(ScrollToTop, Message.CompletedScroll()),

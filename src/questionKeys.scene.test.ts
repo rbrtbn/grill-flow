@@ -138,7 +138,6 @@ it('finds a question by its key from the question filter strip', () => {
       role('searchbox', { name: 'Find a question or issue' }),
       'rollout-window',
     ),
-    click(selector('.f-question-list-toggle')),
     expectAll(all.selector('.f-question-list-row')).toHaveCount(1),
     expect(selector('.f-question-list-row')).toContainText('Q2'),
   )
