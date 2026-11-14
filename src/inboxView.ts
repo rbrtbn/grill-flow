@@ -1943,12 +1943,11 @@ export const itemPage = (
 
 export const questionFilterView = (
   model: Model,
-  data: InboxData,
+  all: ReadonlyArray<InboxQuestion>,
   currentQuestion: string,
   h: H,
 ): Html => {
   const query = questionQueryFrom(model.pageQuery)
-  const all = data.questions
   const shown = all.filter(question => questionPasses(query, question))
   const page = (next: typeof query) =>
     withQuery(
@@ -2101,9 +2100,3 @@ export const questionFilterView = (
     ],
   )
 }
-
-/** Whether a question shows in the queue under the address's Questions filters. */
-export const questionInQuery = (
-  model: Model,
-  question: InboxQuestion,
-): boolean => questionPasses(questionQueryFrom(model.pageQuery), question)

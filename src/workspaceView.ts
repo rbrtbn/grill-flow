@@ -46,7 +46,9 @@ import {
   RUNS,
   RUN_PAGE,
   inboxData,
+  narrowedSnapshot,
   questionOf,
+  sessionOf,
 } from './inbox'
 import {
   freezePillView,
@@ -54,7 +56,6 @@ import {
   inboxPage,
   itemPage,
   questionFilterView,
-  questionInQuery,
   quickLookView,
   runsPage,
 } from './inboxView'
@@ -85,6 +86,13 @@ import {
   unsentTrayView,
 } from './sendShortcutsView'
 import { textLimitCount } from './textLimitView'
+import {
+  type NestedThread,
+  STARTERS,
+  type ThreadLine,
+  fixtureThreads,
+  threadTarget,
+} from './threads'
 import {
   ANSWER_HISTORY,
   CHANGES,
@@ -128,11 +136,14 @@ type Reading = Readonly<{
   drawing: (drawing: QuestionDrawing, h: H) => Html
   related: (step: Step, h: H) => Html
   reasoning: (step: Step, h: H) => Html
+  summary: (step: Step, h: H) => Html
+  details: (step: Step, h: H) => Html
   thread: (target: string, h: H) => ReadonlyArray<Html>
   overview: (h: H) => Html
   decided: (h: H) => Html
   resize: (edge: SidebarEdge, h: H) => Html
   notices: (h: H) => Html
+  floatingNotices: (h: H) => Html
 }>
 
 const link = (label: string, message: Message, h: H): Html =>
@@ -478,6 +489,8 @@ export const workspaceView = (
     model.inbox.isFixture,
   )
   const isFullWidth =
+    model.currentPart.startsWith(QUESTION_PAGE) ||
+    model.currentPart === CONVERSATIONS ||
     model.currentPart === INBOX ||
     model.currentPart === RUNS ||
     model.currentPart.startsWith(RUN_PAGE) ||
@@ -533,6 +546,7 @@ export const workspaceView = (
                                         snapshot,
                                         step,
                                         reading,
+                                        inbox,
                                         h,
                                       ),
                                     onNone: () => reading.overview(h),
@@ -595,7 +609,7 @@ export const workspaceView = (
         ],
         [
           isFullWidth
-            ? h.empty
+            ? reading.floatingNotices(h)
             : navigationView(model, snapshot, inbox, reading.notices, h),
           isFullWidth ? h.empty : reading.resize('Nav', h),
           h.main(
@@ -898,33 +912,10 @@ const workspaceHeaderView = (
   )
 }
 
-const queueCache = new WeakMap<
-  Snapshot,
-  Readonly<{ query: string; snapshot: Snapshot }>
->()
-
-// The address's Questions filters narrow the queue; one narrowed snapshot per query keeps the
-// snapshot-keyed caches below warm.
-const queueSnapshot = (model: Model, snapshot: Snapshot): Snapshot => {
-  if (model.pageQuery === '' || !model.currentPart.startsWith(QUESTION_PAGE)) {
-    return snapshot
-  }
-  const cached = queueCache.get(snapshot)
-  if (cached?.query === model.pageQuery) {
-    return cached.snapshot
-  }
-  const narrowed = modifyFields(snapshot, {
-    grill: grill =>
-      modifyFields(grill, {
-        steps: steps =>
-          steps.filter(step =>
-            questionInQuery(model, questionOf(snapshot, step)),
-          ),
-      }),
-  })
-  queueCache.set(snapshot, { query: model.pageQuery, snapshot: narrowed })
-  return narrowed
-}
+const queueSnapshot = (model: Model, snapshot: Snapshot): Snapshot =>
+  model.currentPart.startsWith(QUESTION_PAGE)
+    ? narrowedSnapshot(snapshot, model.pageQuery)
+    : snapshot
 
 const navigationView = (
   model: Model,
@@ -1081,14 +1072,6 @@ const navigationView = (
                 h.Value(model.workspace.search),
                 h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
               ]),
-              model.currentPart.startsWith(QUESTION_PAGE)
-                ? questionFilterView(
-                    model,
-                    inbox,
-                    model.currentPart.slice(QUESTION_PAGE.length),
-                    h,
-                  )
-                : h.empty,
               h.div(
                 [
                   h.Class('f-quick-views'),
@@ -1397,9 +1380,11 @@ const questionView = (
   snapshot: Snapshot,
   step: Step,
   reading: Reading,
+  inbox: InboxData,
   h: H,
 ): Html => {
   const q = step.question
+  const grill = snapshot.grill
   const state = questionState(
     snapshot,
     step,
@@ -1407,37 +1392,147 @@ const questionView = (
     model.notes,
     model.own,
   )
-  const previous = adjacentQuestion(
+  const askerAddress = questionSession(grill, q)
+  const askerName =
+    (q.from === undefined ? undefined : grill.sources?.[q.from]?.text) ??
+    askerAddress
+  return h.div(
+    [h.Class('f-question-layout')],
+    [
+      h.article(
+        [h.Class('f-reading-scroller')],
+        [
+          h.div([h.Id('workspace-top'), h.Tabindex(-1)]),
+          questionsBar(model, snapshot, step, inbox, h),
+          h.div(
+            [
+              h.Class('f-reading'),
+              h.Id(`q-${q.id}`),
+              h.DataAttribute('quote-step', step.id),
+            ],
+            [
+              quotePopover(model, snapshot, step, h),
+              h.header(
+                [h.Class('f-question-reference')],
+                [
+                  h.div(
+                    [h.Class('f-question-meta')],
+                    [
+                      h.span([h.Class('f-question-id')], [q.id]),
+                      q.key === undefined
+                        ? h.empty
+                        : keyButton(model, q.key, h),
+                      issueLink(snapshot, q.issue, h),
+                      h.span(
+                        [],
+                        [
+                          q.round === undefined
+                            ? 'No round'
+                            : roundLabel(grill, q.round),
+                        ],
+                      ),
+                      h.span([], [`asked by ${askerName} (${askerAddress})`]),
+                      ...Option.toArray(
+                        Option.map(urgencyDetail(q), detail =>
+                          h.span([h.Class('f-question-urgency')], [detail]),
+                        ),
+                      ),
+                      h.span(
+                        [h.Class('f-state-label')],
+                        [
+                          stateMark(state, q, h),
+                          state === 'Draft' ? 'Draft · not sent' : state,
+                        ],
+                      ),
+                      questionTimesView(snapshot, q.id, h),
+                    ],
+                  ),
+                  h.h1([h.Class('f-question-title')], [q.title]),
+                  h.p(
+                    [h.Class('f-question-ask'), h.Id(`ask-text-${q.id}`)],
+                    reading.heading(q.ask, h),
+                  ),
+                  q.context === undefined || q.context.trim() === ''
+                    ? h.empty
+                    : h.p(
+                        [h.Class('f-question-lead')],
+                        reading.inline(q.context, h),
+                      ),
+                ],
+              ),
+              h.div(
+                [h.Class('f-question-body')],
+                [
+                  reading.status(step, h),
+                  answersView(model, snapshot, step, reading, h),
+                  backgroundView(model, snapshot, step, reading, inbox, h),
+                  questionConversationView(
+                    model,
+                    snapshot,
+                    step,
+                    reading,
+                    inbox,
+                    askerName,
+                    askerAddress,
+                    h,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+/** Filter the queue, then step through it: F's facets above I's one-question page. */
+const questionsBar = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  inbox: InboxData,
+  h: H,
+): Html => {
+  const visibleAll = visibleQuestions(
     model.workspace,
     snapshot,
     model.answers,
     model.notes,
     model.own,
-    model.currentPart,
-    'Previous',
   )
-  const next = adjacentQuestion(
+  const narrowed = narrowedSnapshot(snapshot, model.pageQuery)
+  const list = visibleQuestions(
     model.workspace,
-    snapshot,
+    narrowed,
     model.answers,
     model.notes,
     model.own,
-    model.currentPart,
-    'Next',
   )
-  const arrow = (direction: 'Previous' | 'Next', disabled: boolean): Html =>
+  const index = list.findIndex(item => item.id === step.id)
+  const query = model.pageQuery
+  const pageOf = (item: Step) =>
+    `${QUESTION_PAGE}${item.question.id}${query === '' ? '' : `?${query}`}`
+  const previous = index > 0 ? list[index - 1] : undefined
+  const next = index >= 0 ? list[index + 1] : list[0]
+  const arrow = (direction: 'Previous' | 'Next', target: Step | undefined) =>
     h.button(
       [
+        h.Type('button'),
         h.Class('f-question-arrow'),
-        h.Disabled(disabled),
+        h.Disabled(target === undefined),
         h.AriaLabel(`${direction} question`),
         h.AriaKeyshortcuts(
           direction === 'Previous' ? 'ArrowLeft' : 'ArrowRight',
         ),
         h.Title(
-          `${direction} question (${direction === 'Previous' ? 'Left' : 'Right'} arrow)`,
+          `${direction} in this list (${direction === 'Previous' ? 'Left' : 'Right'} arrow)`,
         ),
-        h.OnClick(Message.ClickedQuestionArrow({ direction })),
+        ...(target === undefined
+          ? []
+          : [
+              h.OnClick(Message.ClickedWorkspacePage({ page: pageOf(target) })),
+            ]),
       ],
       [
         h.svg(
@@ -1457,147 +1552,524 @@ const questionView = (
         ),
       ],
     )
-  return h.div(
-    [h.Class('f-question-layout')],
+  const count = (filter: typeof model.workspace.filter) =>
+    visibleQuestions(
+      modifyFields(model.workspace, {
+        filter: () => filter,
+        urgencyFilter: () => 'All',
+      }),
+      narrowed,
+      model.answers,
+      model.notes,
+      model.own,
+    ).length
+  return h.section(
+    [h.Class('f-questions-bar'), h.AriaLabel('Questions to work through')],
     [
-      h.article(
-        [h.Class('f-reading-scroller')],
+      h.div(
+        [h.Class('f-questions-bar-top')],
         [
-          h.div([h.Id('workspace-top'), h.Tabindex(-1)]),
           h.div(
-            [
-              h.Class('f-reading'),
-              h.Id(`q-${q.id}`),
-              h.DataAttribute('quote-step', step.id),
-            ],
-            [
-              quotePopover(model, snapshot, step, h),
-              h.header(
-                [h.Class('f-question-reference')],
+            [h.Class('f-segmented'), h.Role('group'), h.AriaLabel('Show')],
+            quickViews.map(preset =>
+              h.button(
                 [
-                  h.div(
-                    [h.Class('f-question-context-bar')],
+                  h.Type('button'),
+                  h.Class(
+                    model.workspace.filter === preset.filter &&
+                      model.workspace.urgencyFilter === preset.urgencyFilter
+                      ? 'is-on'
+                      : '',
+                  ),
+                  h.AriaPressed(
+                    String(
+                      model.workspace.filter === preset.filter &&
+                        model.workspace.urgencyFilter === preset.urgencyFilter,
+                    ),
+                  ),
+                  h.OnClick(
+                    Message.SelectedQuestionView({
+                      filter: preset.filter,
+                      urgencyFilter: preset.urgencyFilter,
+                    }),
+                  ),
+                ],
+                [
+                  `${preset.label} `,
+                  h.span([h.Class('f-count')], [String(count(preset.filter))]),
+                ],
+              ),
+            ),
+          ),
+          h.input([
+            h.Type('search'),
+            h.Class('f-questions-search'),
+            h.Placeholder('Find a question or issue…'),
+            h.AriaLabel('Find a question or issue'),
+            h.Value(model.workspace.search),
+            h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
+          ]),
+          h.div(
+            [h.Class('f-question-position')],
+            [
+              arrow('Previous', previous),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('f-question-list-toggle'),
+                  h.AriaExpanded(model.inbox.isQuestionListOpen),
+                  h.OnClick(Message.ClickedQuestionList()),
+                ],
+                [
+                  index >= 0
+                    ? `${index + 1} of ${list.length}`
+                    : `${list.length} in this list`,
+                  ' ▾',
+                ],
+              ),
+              arrow('Next', next),
+            ],
+          ),
+        ],
+      ),
+      questionFilterView(
+        model,
+        visibleAll.map(item => questionOf(snapshot, item)),
+        step.question.id,
+        h,
+      ),
+      model.inbox.isQuestionListOpen
+        ? h.ol(
+            [h.Class('f-question-list')],
+            list.map(item => {
+              const itemState = questionState(
+                snapshot,
+                item,
+                model.answers,
+                model.notes,
+                model.own,
+              )
+              const answered = model.answers[item.question.id]
+              return h.keyed('li')(
+                item.id,
+                [],
+                [
+                  h.button(
                     [
-                      h.div(
-                        [h.Class('f-question-meta')],
-                        [
-                          h.span([], [q.id]),
-                          q.key === undefined
-                            ? h.empty
-                            : keyButton(model, q.key, h),
-                          issueLink(snapshot, q.issue, h),
-                          h.span([], [questionAgent(snapshot.grill, q)]),
-                          h.span(
-                            [],
-                            [
-                              q.round === undefined
-                                ? 'No round'
-                                : roundLabel(snapshot.grill, q.round),
-                            ],
-                          ),
-                          ...Option.toArray(
-                            Option.map(urgencyDetail(q), detail =>
-                              h.span([h.Class('f-question-urgency')], [detail]),
-                            ),
-                          ),
-                          h.span(
-                            [h.Class('f-state-label')],
-                            [
-                              stateMark(state, q, h),
-                              state === 'Draft' ? 'Draft · not sent' : state,
-                            ],
-                          ),
-                          questionTimesView(snapshot, q.id, h),
-                        ],
+                      h.Type('button'),
+                      h.Class(
+                        `f-question-list-row${item.id === step.id ? ' is-current' : ''}`,
                       ),
-                      h.nav(
-                        [
-                          h.Class('f-question-navigation'),
-                          h.AriaLabel('Question navigation'),
-                        ],
-                        [
-                          arrow('Previous', Option.isNone(previous)),
-                          arrow('Next', Option.isNone(next)),
-                        ],
+                      h.AriaCurrent(item.id === step.id ? 'page' : 'false'),
+                      h.OnClick(
+                        Message.ClickedWorkspacePage({ page: pageOf(item) }),
                       ),
                     ],
-                  ),
-                  q.context === undefined || q.context.trim() === ''
-                    ? h.empty
-                    : h.p(
-                        [h.Class('f-question-lead')],
-                        reading.inline(q.context, h),
+                    [
+                      stateMark(itemState, item.question, h),
+                      h.span([h.Class('f-question-id')], [item.question.id]),
+                      h.span(
+                        [h.Class('f-question-list-title')],
+                        [item.question.title],
                       ),
-                  h.h1(
-                    [h.Class('f-question-title'), h.Id(`ask-text-${q.id}`)],
-                    reading.heading(q.ask, h),
+                      h.small(
+                        [],
+                        [
+                          `${questionSession(snapshot.grill, item.question)} · ${sidebarRoundName(snapshot, roundOf(snapshot.grill, item.question))}${answered === undefined ? '' : ` · Answered ${answered === OWN ? 'own' : answered}`}`,
+                        ],
+                      ),
+                      messagesCount(snapshot, item, h),
+                    ],
+                  ),
+                ],
+              )
+            }),
+          )
+        : h.empty,
+    ],
+  )
+}
+
+const messagesCount = (snapshot: Snapshot, step: Step, h: H): Html => {
+  const ref = snapshot.discussions?.[step.question.id]
+  return ref === undefined || ref.asks + ref.replies === 0
+    ? h.empty
+    : h.span(
+        [h.Class('f-message-count'), h.Title(messageCount(ref))],
+        [String(ref.asks + ref.replies)],
+      )
+}
+
+const backgroundView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  reading: Reading,
+  inbox: InboxData,
+  h: H,
+): Html => {
+  const q = step.question
+  const isOpen = model.whyOpen[step.id] === true
+  const passages = model.inbox.isFixture
+    ? fixtureThreads(snapshot, step, '').filter(
+        thread => thread.kind === 'Passage',
+      ).length
+    : 0
+  const parts = [
+    'Trade-offs and details',
+    ...(q.compare === undefined ? [] : ['comparison table']),
+    ...(passages > 0 ? [`${passages} quoted passages`] : []),
+  ]
+  return h.section(
+    [h.Class('f-background'), h.Id('workspace-reasoning')],
+    [
+      h.h2([], ['Summary']),
+      reading.summary(step, h),
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('text-button f-background-toggle'),
+          h.AriaExpanded(isOpen),
+          h.OnClick(
+            Message.ClickedToggleWhy({ stepId: step.id, open: !isOpen }),
+          ),
+        ],
+        [isOpen ? 'Hide trade-offs and details' : parts.join(' · ')],
+      ),
+      ...(isOpen
+        ? [
+            q.compare === undefined
+              ? h.empty
+              : h.h3([], ['How the answers compare']),
+            reading.comparison(step, h),
+            drawingPanel(model, snapshot, step, reading.drawing, h),
+            h.h3([], ['Details']),
+            reading.details(step, h),
+            reading.related(step, h),
+            h.p(
+              [h.Class('hint')],
+              ['Select a sentence to quote it into a new thread below.'],
+            ),
+            h.details(
+              [h.Class('f-question-source')],
+              [
+                h.summary([], ['Scope and source details']),
+                h.p([], [q.scope]),
+                reading.source(step, h),
+                snapshot.questionOrigins?.[q.id] === undefined
+                  ? h.empty
+                  : h.p(
+                      [],
+                      [
+                        h.a(
+                          [
+                            h.Href(
+                              sourceQuestionHref(
+                                snapshot.grill.id,
+                                snapshot.questionOrigins[q.id]!.grill,
+                                snapshot.questionOrigins[q.id]!.question,
+                              ),
+                            ),
+                          ],
+                          ['Source question link'],
+                        ),
+                      ],
+                    ),
+              ],
+            ),
+          ]
+        : []),
+    ],
+  )
+}
+
+const nestedThreadView = (model: Model, thread: NestedThread, h: H): Html => {
+  const isOpen = Option.contains(model.inbox.maybeOpenThread, thread.key)
+  const local = model.inbox.threads[thread.key] ?? []
+  const lines: ReadonlyArray<ThreadLine> = [
+    ...thread.lines,
+    ...local.map(message => ({
+      isYou: message.from === 'You',
+      name: message.from === 'You' ? 'You' : thread.name,
+      text: message.text,
+      time: '',
+    })),
+  ]
+  const shown = isOpen ? lines : lines.slice(-1)
+  const draft = model.inbox.threadDrafts[thread.key] ?? ''
+  const fresh = lines.filter(line => line.isNew === true).length
+  return h.keyed('div')(
+    thread.key,
+    [
+      h.Class(
+        `f-nested is-${thread.kind.toLowerCase()}${isOpen ? ' is-open' : ''}`,
+      ),
+    ],
+    [
+      h.div(
+        [h.Class('f-nested-title')],
+        thread.kind === 'Passage'
+          ? [
+              h.span([h.Class('f-quote-mark'), h.AriaHidden(true)], ['“']),
+              h.em(
+                [h.Class(thread.orphanedIn === undefined ? '' : 'is-orphan')],
+                [thread.quote ?? ''],
+              ),
+              thread.orphanedIn === undefined
+                ? h.empty
+                : h.small(
+                    [h.Class('hint')],
+                    [
+                      ` · this passage changed in revision ${thread.orphanedIn}; the thread stays here`,
+                    ],
+                  ),
+              fresh > 0
+                ? h.span([h.Class('f-new-badge')], [`${fresh} new`])
+                : h.empty,
+            ]
+          : [
+              h.span([h.Class('f-thread-dot'), h.AriaHidden(true)]),
+              `Side thread with ${thread.name} · ${thread.address}`,
+            ],
+      ),
+      ...shown.map(line => threadLineView(line, h)),
+      isOpen
+        ? h.form(
+            [
+              h.Class('f-inline-reply'),
+              h.OnSubmit(Message.SubmittedThreadMessage({ item: thread.key })),
+            ],
+            [
+              h.textarea([
+                h.Rows(2),
+                h.Value(draft),
+                h.AriaLabel(`Reply to ${thread.name} in this thread`),
+                h.Placeholder(`Reply to ${thread.name} in this thread…`),
+                h.OnInput(text =>
+                  Message.UpdatedThreadDraft({ item: thread.key, text }),
+                ),
+              ]),
+              h.div(
+                [h.Class('f-send-foot')],
+                [
+                  h.span(
+                    [h.Class('hint')],
+                    [`Preview: stays here until ${thread.key} delivery lands`],
+                  ),
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-button'),
+                      h.OnClick(
+                        Message.ClickedNestedThread({ key: thread.key }),
+                      ),
+                    ],
+                    ['Collapse'],
+                  ),
+                  h.button(
+                    [
+                      h.Type('submit'),
+                      h.Class('send-button'),
+                      h.Disabled(draft.trim() === ''),
+                    ],
+                    ['Reply in thread'],
                   ),
                 ],
               ),
-              h.div(
-                [h.Class('f-question-body')],
+            ],
+          )
+        : h.button(
+            [
+              h.Type('button'),
+              h.Class('text-button'),
+              h.OnClick(Message.ClickedNestedThread({ key: thread.key })),
+            ],
+            [
+              lines.length > 1
+                ? `Show all ${lines.length} · reply in thread`
+                : 'Reply in thread',
+            ],
+          ),
+    ],
+  )
+}
+
+const threadLineView = (line: ThreadLine, h: H): Html =>
+  h.div(
+    [h.Class(`f-thread-line${line.isYou ? ' is-you' : ''}`)],
+    [
+      h.div(
+        [h.Class('f-thread-line-head')],
+        [
+          h.b([], [line.name]),
+          line.time === '' ? h.empty : h.span([h.Class('hint')], [line.time]),
+          line.isNew === true
+            ? h.span([h.Class('f-new-badge')], ['New'])
+            : h.empty,
+        ],
+      ),
+      h.p([], [line.text]),
+    ],
+  )
+
+const questionConversationView = (
+  model: Model,
+  snapshot: Snapshot,
+  step: Step,
+  reading: Reading,
+  inbox: InboxData,
+  askerName: string,
+  askerAddress: string,
+  h: H,
+): Html => {
+  const thread = reading.thread(step.id, h)
+  const draftKey = threadDraftKey(step.id)
+  const draft = model.talkDrafts[draftKey] ?? ''
+  const isClosed = Option.exists(
+    sessionOf(inbox, askerAddress),
+    session => session.type === 'Ended',
+  )
+  const lead = snapshot.grill.session
+  const routedTo = isClosed && lead !== '' ? lead : askerAddress
+  const nested = [
+    ...(model.inbox.isFixture ? fixtureThreads(snapshot, step, askerName) : []),
+    ...model.inbox.sideThreads
+      .filter(key => key.startsWith(`${step.id}@`))
+      .map((key): NestedThread => ({
+        key,
+        kind: 'Side',
+        address: key.slice(step.id.length + 1),
+        name: key.slice(step.id.length + 1),
+        lines: [],
+      })),
+  ]
+  return h.section(
+    [h.Class('f-question-conversation'), h.AriaLabel('Conversation')],
+    [
+      h.h2([], ['Conversation']),
+      h.div(
+        [h.Class('f-starters')],
+        [
+          h.span([h.Class('hint')], [`Ask ${askerName}, sent on click:`]),
+          ...STARTERS.map(([label, text]) =>
+            h.button(
+              [
+                h.Type('button'),
+                h.Class('f-starter'),
+                h.OnClick(
+                  Message.ClickedConversationStarter({
+                    target: step.id,
+                    text,
+                  }),
+                ),
+              ],
+              [label],
+            ),
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('f-timeline')],
+        [
+          ...thread,
+          ...nested.map(item => nestedThreadView(model, item, h)),
+          Array.isReadonlyArrayEmpty(thread) &&
+          Array.isReadonlyArrayEmpty(nested)
+            ? h.p(
+                [h.Class('hint')],
                 [
-                  reading.status(step, h),
-                  answersView(model, snapshot, step, reading, h),
-                  reading.comparison(step, h),
-                  drawingPanel(model, snapshot, step, reading.drawing, h),
-                  h.section(
-                    [h.Class('f-reasoning'), h.Id('workspace-reasoning')],
-                    [
-                      h.h2([], ['Why this question']),
-                      reading.reasoning(step, h),
-                      h.div(
-                        [h.Class('f-starters')],
-                        [
-                          'Contextualize this for me',
-                          'Give me an example',
-                          'Compare the choices',
-                          'Ask for a clearer rewrite',
-                        ].map(text =>
-                          link(
-                            text,
-                            Message.ClickedConversationStarter({
-                              target: step.id,
-                              text:
-                                text === 'Ask for a clearer rewrite'
-                                  ? 'Please rewrite this question and its reasoning more clearly.'
-                                  : `${text}.`,
-                            }),
-                            h,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  reading.related(step, h),
-                  h.details(
-                    [h.Class('f-question-source')],
-                    [
-                      h.summary([], ['Scope and source details']),
-                      h.p([], [q.scope]),
-                      reading.source(step, h),
-                      snapshot.questionOrigins?.[q.id] === undefined
-                        ? h.empty
-                        : h.p(
-                            [],
-                            [
-                              h.a(
-                                [
-                                  h.Href(
-                                    sourceQuestionHref(
-                                      snapshot.grill.id,
-                                      snapshot.questionOrigins[q.id]!.grill,
-                                      snapshot.questionOrigins[q.id]!.question,
-                                    ),
-                                  ),
-                                ],
-                                ['Source question link'],
-                              ),
-                            ],
-                          ),
-                    ],
-                  ),
+                  'No conversation yet. Ask about an option, challenge the reasoning, or select a passage to quote it.',
                 ],
+              )
+            : h.empty,
+        ],
+      ),
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('text-button f-side-start'),
+          h.AriaExpanded(model.inbox.isSidePickerOpen),
+          h.OnClick(Message.ClickedStartSideThread()),
+        ],
+        ['+ Start a side thread with someone else about this question'],
+      ),
+      model.inbox.isSidePickerOpen
+        ? h.div(
+            [h.Class('f-side-picker')],
+            inbox.sessions
+              .filter(
+                session =>
+                  session.address !== askerAddress && session.type !== 'Ended',
+              )
+              .map(session =>
+                h.button(
+                  [
+                    h.Type('button'),
+                    h.Class('f-side-picker-row'),
+                    h.OnClick(
+                      Message.ClickedSideThreadWith({
+                        key: threadTarget(step.id, session.address),
+                      }),
+                    ),
+                  ],
+                  [h.b([], [session.label]), h.small([], [session.address])],
+                ),
+              ),
+          )
+        : h.empty,
+      h.form(
+        [
+          h.Class('f-question-compose'),
+          h.OnSubmit(Message.SubmittedWorkspaceDiscussion({ target: step.id })),
+        ],
+        [
+          h.label(
+            [h.For(`compose-${step.id}`), h.Class('f-compose-to')],
+            [
+              'Reply to ',
+              h.b([], [`${askerName} · ${routedTo}`]),
+              h.small(
+                [h.Class('hint')],
+                [
+                  isClosed
+                    ? ` ${askerAddress} is closed; messages go to the lead, ${lead}`
+                    : ' asked this question',
+                ],
+              ),
+            ],
+          ),
+          h.keyed('textarea')(`compose-${step.id}-${model.talkGeneration}`, [
+            h.Id(`compose-${step.id}`),
+            h.DataAttribute(DRAFT_ATTRIBUTE, draftKey),
+            h.Rows(3),
+            h.OnMount(FillBox({ text: draft })),
+            h.Placeholder(`Reply to ${askerName}…`),
+            h.OnInput(value =>
+              Message.UpdatedTalkDraft({ partId: draftKey, value }),
+            ),
+            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
+              key === 'Enter' && !shiftKey
+                ? Option.some(
+                    Message.SubmittedWorkspaceDiscussion({ target: step.id }),
+                  )
+                : Option.none(),
+            ),
+          ]),
+          textLimitCount(draft, h),
+          h.div(
+            [h.Class('f-send-foot')],
+            [
+              h.span(
+                [h.Class('hint')],
+                ['Enter to send · thread replies go in their thread above'],
+              ),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(draft.trim())),
+                ],
+                [`Send to ${askerName}`],
               ),
             ],
           ),
@@ -1797,6 +2269,13 @@ const answersView = (
   const selected = model.answers[q.id]
   const state = statusOf(snapshot.grill, model.answers, q.id, model.skipped)
   const blocked = state._tag === 'Waiting' || state._tag === 'NotNeeded'
+  const sentState = questionState(
+    snapshot,
+    step,
+    model.answers,
+    model.notes,
+    model.own,
+  )
   const pick = (
     key: string,
     label: string,
@@ -1806,10 +2285,13 @@ const answersView = (
     h.button(
       [
         h.Type('button'),
-        h.Class(`f-option${selected === key ? ' is-selected' : ''}`),
+        h.Class(
+          `f-answer-pill${selected === key ? ' is-selected' : ''}${key === OWN ? ' is-own' : ''}`,
+        ),
         h.Role('radio'),
         h.AriaChecked(selected === key),
         h.Disabled(blocked),
+        h.Title(effect),
         h.OnClick(
           key === OWN
             ? Message.SelectedOwnAnswer({ question: q.id })
@@ -1817,29 +2299,22 @@ const answersView = (
         ),
       ],
       [
-        h.span([h.Class('f-option-key')], [key === OWN ? '?' : key]),
-        h.div(
-          [],
-          [
-            h.div(
-              [h.Class('f-option-label')],
-              [
-                h.b([], reading.answer(label, h)),
-                recommended
-                  ? h.span([h.Class('f-recommended')], ['Recommended'])
-                  : h.empty,
-              ],
-            ),
-            h.p([h.Class('f-option-effect')], reading.answer(effect, h)),
-          ],
-        ),
+        h.span([h.Class('f-answer-radio'), h.AriaHidden(true)]),
+        key === OWN ? h.empty : h.b([], [key]),
+        h.span([], reading.answer(label, h)),
+        recommended
+          ? h.span(
+              [h.Class('f-recommended-dot'), h.Title('Recommended')],
+              [h.span([h.Class('sr-only')], ['Recommended'])],
+            )
+          : h.empty,
       ],
     )
+  const pickedOption = q.options.find(option => option.key === selected)
   const saved =
     model.pendingEvents > 0
       ? 'Saving…'
-      : questionState(snapshot, step, model.answers, model.notes, model.own) ===
-          'Sent'
+      : sentState === 'Sent'
         ? 'Sent'
         : selected === undefined
           ? 'Nothing sent yet'
@@ -1849,7 +2324,7 @@ const answersView = (
     [
       h.div(
         [
-          h.Class('f-options'),
+          h.Class('f-answer-row'),
           h.Role('radiogroup'),
           h.AriaLabelledBy(`ask-text-${q.id}`),
         ],
@@ -1859,17 +2334,38 @@ const answersView = (
           ),
           pick(
             OWN,
-            'My own answer',
+            'Write my own…',
             'A different choice, in your words.',
             false,
           ),
         ],
       ),
+      sentState === 'Sent' && selected !== undefined
+        ? h.p(
+            [h.Class('f-sent-line')],
+            [
+              h.b(
+                [],
+                [
+                  selected === OWN
+                    ? 'Sent your own answer'
+                    : `Sent ${selected} · ${pickedOption?.label ?? ''}`,
+                ],
+              ),
+              (model.notes[q.id] ?? '') === ''
+                ? ''
+                : ` with note: “${model.notes[q.id]}”`,
+              ' · pick another answer to change it.',
+            ],
+          )
+        : h.empty,
       selected === OWN
         ? h.textarea([
             h.Id(`own-${q.id}`),
+            h.Class('f-own-box'),
             h.Rows(3),
             h.AriaLabel('Your own answer'),
+            h.Placeholder('Write your answer…'),
             h.OnMount(FillBox({ text: model.own[q.id] ?? '' })),
             h.OnInput(value =>
               Message.UpdatedOwnAnswer({ question: q.id, value }),
@@ -1878,15 +2374,25 @@ const answersView = (
           ])
         : h.empty,
       selected === OWN ? textLimitCount(model.own[q.id] ?? '', h) : h.empty,
+      selected !== undefined && selected !== OWN
+        ? h.textarea([
+            h.Class('f-note'),
+            h.Id(`note-${q.id}`),
+            h.Rows(2),
+            h.AriaLabel('Note with this answer'),
+            h.Placeholder(
+              `Add a note to ${selected} · ${pickedOption?.label ?? ''} (optional)…`,
+            ),
+            h.OnMount(FillBox({ text: model.notes[q.id] ?? '' })),
+            h.OnInput(value => Message.UpdatedNote({ question: q.id, value })),
+            h.OnBlur(Message.BlurredNote({ question: q.id })),
+          ])
+        : h.empty,
+      textLimitCount(model.notes[q.id] ?? '', h),
+      sendStripView(model, snapshot, step, h),
       h.div(
         [h.Class('f-answer-actions')],
         [
-          link(
-            'Add a note',
-            Message.ClickedQuestionNote({ question: q.id }),
-            h,
-          ),
-          link('Discuss', Message.ClickedDiscussion({ target: step.id }), h),
           drawingButton(model, snapshot, step, h),
           link('Skip for now', Message.ClickedSkip({ question: q.id }), h),
           selected === undefined
@@ -1899,23 +2405,6 @@ const answersView = (
           h.span([h.Class('f-saved'), h.Role('status')], [saved]),
         ],
       ),
-      model.workspace.noteOpen.includes(q.id) ||
-      (model.notes[q.id] ?? '') !== ''
-        ? h.textarea([
-            h.Class('f-note'),
-            h.Id(`note-${q.id}`),
-            h.Rows(2),
-            h.AriaLabel('Note with this answer'),
-            h.Placeholder(
-              'Conditions, reservations or details to keep with your answer…',
-            ),
-            h.OnMount(FillBox({ text: model.notes[q.id] ?? '' })),
-            h.OnInput(value => Message.UpdatedNote({ question: q.id, value })),
-            h.OnBlur(Message.BlurredNote({ question: q.id })),
-          ])
-        : h.empty,
-      textLimitCount(model.notes[q.id] ?? '', h),
-      sendStripView(model, snapshot, step, h),
     ],
   )
 }

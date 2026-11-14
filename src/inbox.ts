@@ -87,6 +87,11 @@ export const InboxUi = Schema.Struct({
   threads: Schema.Record(Schema.String, Schema.Array(ThreadMessage)),
   threadDrafts: Schema.Record(Schema.String, Schema.String),
   isFixture: Schema.Boolean,
+  maybeOpenThread: Schema.Option(Schema.String),
+  // Side threads started on this page; delivery to `<subject>@<address>` comes later.
+  sideThreads: Schema.Array(Schema.String),
+  isSidePickerOpen: Schema.Boolean,
+  isQuestionListOpen: Schema.Boolean,
 })
 export type InboxUi = typeof InboxUi.Type
 
@@ -101,6 +106,10 @@ export const initialInboxUi: InboxUi = {
   threads: {},
   threadDrafts: {},
   isFixture: false,
+  maybeOpenThread: Option.none(),
+  sideThreads: [],
+  isSidePickerOpen: false,
+  isQuestionListOpen: false,
 }
 
 // DOMAIN: the Inbox's view of a snapshot. Plain types: these are derived every render, never
@@ -738,6 +747,37 @@ export const questionQueryString = (query: QuestionQuery): string => {
   }
   Option.map(query.maybeRound, round => params.set('round', String(round)))
   return params.toString()
+}
+
+const narrowedCache = new WeakMap<
+  Snapshot,
+  Readonly<{ query: string; snapshot: Snapshot }>
+>()
+
+/**
+ * The snapshot the Questions page walks: only the questions the address's filters keep. One
+ * narrowed snapshot per query keeps the snapshot-keyed caches downstream warm.
+ */
+export const narrowedSnapshot = (snapshot: Snapshot, query: string): Snapshot => {
+  const parsed = questionQueryFrom(query)
+  if (isQuestionQueryEmpty(parsed)) {
+    return snapshot
+  }
+  const cached = narrowedCache.get(snapshot)
+  if (cached?.query === query) {
+    return cached.snapshot
+  }
+  const narrowed: Snapshot = {
+    ...snapshot,
+    grill: {
+      ...snapshot.grill,
+      steps: snapshot.grill.steps.filter(step =>
+        questionPasses(parsed, questionOf(snapshot, step)),
+      ),
+    },
+  }
+  narrowedCache.set(snapshot, { query, snapshot: narrowed })
+  return narrowed
 }
 
 export const isQuestionQueryEmpty = (query: QuestionQuery): boolean =>

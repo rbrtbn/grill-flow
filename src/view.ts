@@ -883,6 +883,20 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
             : builder.empty,
         reasoning: (step, builder) =>
           reasoningView(model, snapshot, step, builder),
+        summary: (step, builder) =>
+          builder.div(
+            [builder.Class('prose f-summary')],
+            richProse(
+              model,
+              grill,
+              proseOf(snapshot, step).paragraphs.slice(0, 1),
+              `step:${step.id}`,
+              Option.some(step),
+              builder,
+            ),
+          ),
+        details: (step, builder) =>
+          reasoningView(model, snapshot, step, builder, 1),
         thread: (target, builder) =>
           saidOn(
             model,
@@ -895,6 +909,8 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
         decided: builder => decidedPageView(model, snapshot, builder),
         resize: (edge, builder) => resizeHandleView(model, edge, builder),
         notices: builder => toastsView(model, snapshot, 'Sidebar', builder),
+        floatingNotices: builder =>
+          toastsView(model, snapshot, 'Overlay', builder),
       },
       h,
     )
@@ -2886,9 +2902,14 @@ const reasoningView = (
   snapshot: Snapshot,
   step: Step,
   h: H,
+  from = 0,
 ): Html => {
   const grill = snapshot.grill
-  const prose = proseOf(snapshot, step)
+  const whole = proseOf(snapshot, step)
+  const prose = {
+    paragraphs: whole.paragraphs.slice(from),
+    previous: Option.map(whole.previous, paragraphs => paragraphs.slice(from)),
+  }
   const showDiff = Option.getOrElse(
     Record.get(model.diffShown, step.id),
     () => false,

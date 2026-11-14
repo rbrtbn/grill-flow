@@ -82,6 +82,7 @@ import {
   UpdateScope,
   filtersFrom,
   initialInboxUi,
+  narrowedSnapshot,
   queryOf,
   toggleFacet,
 } from './inbox'
@@ -658,6 +659,10 @@ export const Message = defineMessageUnion({
   UpdatedThreadDraft: { item: Schema.String, text: Schema.String },
   SubmittedThreadMessage: { item: Schema.String },
   ClickedCopyInboxLine: { key: Schema.String, text: Schema.String },
+  ClickedNestedThread: { key: Schema.String },
+  ClickedStartSideThread: {},
+  ClickedSideThreadWith: { key: Schema.String },
+  ClickedQuestionList: {},
   ClickedCopyAndFocus: {
     source: Schema.String,
     item: Schema.String,
@@ -1451,6 +1456,40 @@ export const update = (model: Model, message: Message) =>
             }),
           }
     },
+    ClickedNestedThread: ({ key }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            maybeOpenThread: current =>
+              Option.contains(current, key) ? Option.none() : Option.some(key),
+          }),
+      }),
+    }),
+    ClickedStartSideThread: () => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, { isSidePickerOpen: open => !open }),
+      }),
+    }),
+    ClickedSideThreadWith: ({ key }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            isSidePickerOpen: () => false,
+            sideThreads: keys =>
+              keys.includes(key) ? keys : [...keys, key],
+            maybeOpenThread: () => Option.some(key),
+          }),
+      }),
+    }),
+    ClickedQuestionList: () => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            isQuestionListOpen: open => !open,
+          }),
+      }),
+    }),
     ClickedCopyAndFocus: ({ source, item, revision }): UpdateReturn => {
       const copied: UpdateReturn = update(
         model,
@@ -2030,18 +2069,9 @@ export const update = (model: Model, message: Message) =>
         FocusTalkBox(),
       ],
     }),
-    ClickedConversationStarter: ({ target, text }) => ({
-      model: modifyFields(model, {
-        side: () => 'Talk',
-        talkGeneration: count => count + 1,
-        talkDrafts: Record.set(threadDraftKey(target), text),
-        workspace: value =>
-          modifyFields(value, {
-            maybeDiscussionTarget: () => Option.some(target),
-          }),
-      }),
-      commands: [FocusTalkBox()],
-    }),
+    // Starters send on click; the reply lands in the question's conversation.
+    ClickedConversationStarter: ({ target, text }) =>
+      postEvent(model, { kind: 'asked', stepId: target, text }),
     SelectedQuoteText: ({ quoted }) =>
       model.workspace.quote._tag === 'Composing'
         ? { model }
@@ -3896,7 +3926,7 @@ const navigateQuestion = (
     return Option.match(
       adjacentQuestion(
         model.workspace,
-        snapshot,
+        narrowedSnapshot(snapshot, model.pageQuery),
         model.answers,
         model.notes,
         model.own,
@@ -4300,7 +4330,10 @@ export const ReadWorkspaceDiscussionBox = Command.define(
     messages: [Message.ReadWorkspaceDiscussion],
     execute: ({ target }) =>
       Effect.sync(() =>
-        Message.ReadWorkspaceDiscussion({ target, text: boxText('talk-box') }),
+        Message.ReadWorkspaceDiscussion({
+          target,
+          text: draftBoxText(threadDraftKey(target)),
+        }),
       ),
   },
 )
@@ -4738,6 +4771,15 @@ export const FocusQuoteBox = Command.define('FocusQuoteBox', {
 
 const boxText = (id: string): string => {
   const element = document.getElementById(id)
+  return element instanceof HTMLTextAreaElement ? element.value : ''
+}
+
+// A conversation's composer can show on the question page and in the sessions panel at once;
+// its draft key, not an element id, says which box holds the text.
+const draftBoxText = (key: string): string => {
+  const element = document.querySelector(
+    `textarea[data-${DRAFT_ATTRIBUTE}="${CSS.escape(key)}"]`,
+  )
   return element instanceof HTMLTextAreaElement ? element.value : ''
 }
 
