@@ -250,7 +250,15 @@ export const loadChecked = (
       if (keyProblems.length > 0) {
         throw new GrillInvalid(keyProblems)
       }
-      const lint = lintGrill(grill, previous)
+      const lint = lintGrill(
+        grill,
+        previous,
+        grill.squad === undefined
+          ? []
+          : (readPage(db, grill.squad.id)?.members ?? [])
+              .map(member => member.state.grill)
+              .filter(member => member.id !== grill.id),
+      )
       const uncontexted = lint.filter(isMissingContext)
       if (CONTEXT_REQUIRED && uncontexted.length > 0) {
         throw new EditError(
