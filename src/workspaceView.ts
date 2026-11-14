@@ -3,16 +3,11 @@ import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 
-import { activityUnreadCount } from './activity'
-import { activityView } from './activityView'
-import { attentionView } from './attentionView'
 import { ownerWorkCounts } from './channel'
-import { channelRevealAttributes } from './channelReveal'
 import {
   answerHistoryView,
   sentOnQuestionView,
   sourceQuestionHref,
-  updatesView,
 } from './channelView'
 import {
   type DiscussionRef,
@@ -107,16 +102,12 @@ import {
 } from './threads'
 import {
   ANSWER_HISTORY,
-  CHANGES,
   CONVERSATIONS,
   GRILLS,
-  NEEDS,
   QUESTION_PAGE,
-  REPLIES,
   REVIEW,
   RUN_TARGET,
   SQUAD,
-  UPDATES,
   answerLabel,
   draftAnswerIds,
   draftQuestions,
@@ -410,48 +401,40 @@ export const workspaceView = (
                 reading.prose,
                 h,
               )
-            : model.currentPart === CHANGES
-              ? activityView(model, snapshot, h)
-              : model.currentPart === UPDATES
-                ? updatesView(model, snapshot, reading.prose, h)
-                : model.currentPart === ANSWER_HISTORY
-                  ? answerHistoryView(model, snapshot, h)
-                  : model.currentPart === SQUAD
-                    ? squadView(snapshot, h)
-                    : model.currentPart === GRILLS
-                      ? grillsView(model, snapshot, h)
-                      : model.currentPart === REVIEW
-                        ? reviewView(model, snapshot, reading, h)
-                        : model.currentPart === REPLIES
-                          ? repliesView(model, snapshot, reading, h)
-                          : model.currentPart === NEEDS
-                            ? needsView(model, snapshot, reading, h)
-                            : model.currentPart === 'plan' ||
-                                model.currentPart === 'status'
-                              ? runView(model, snapshot, reading, h)
-                              : model.currentPart === 'decided'
-                                ? reading.decided(h)
-                                : model.currentPart === CONVERSATIONS
-                                  ? sessionsPanelView(
-                                      model,
-                                      snapshot,
-                                      inbox,
-                                      panelConversation,
-                                      'Page',
-                                      h,
-                                    )
-                                  : Option.match(question, {
-                                      onSome: step =>
-                                        questionView(
-                                          model,
-                                          snapshot,
-                                          step,
-                                          reading,
-                                          inbox,
-                                          h,
-                                        ),
-                                      onNone: () => reading.overview(h),
-                                    })
+            : model.currentPart === ANSWER_HISTORY
+              ? answerHistoryView(model, snapshot, h)
+              : model.currentPart === SQUAD
+                ? squadView(snapshot, h)
+                : model.currentPart === GRILLS
+                  ? grillsView(model, snapshot, h)
+                  : model.currentPart === REVIEW
+                    ? reviewView(model, snapshot, reading, h)
+                    : model.currentPart === 'plan' ||
+                        model.currentPart === 'status'
+                      ? runView(model, snapshot, reading, h)
+                      : model.currentPart === 'decided'
+                        ? reading.decided(h)
+                        : model.currentPart === CONVERSATIONS
+                          ? sessionsPanelView(
+                              model,
+                              snapshot,
+                              inbox,
+                              panelConversation,
+                              'Page',
+                              h,
+                            )
+                          : Option.match(question, {
+                              onSome: step =>
+                                questionView(
+                                  model,
+                                  snapshot,
+                                  step,
+                                  reading,
+                                  inbox,
+                                  h,
+                                ),
+                              onNone: () => reading.overview(h),
+                            })
   return h.div(
     [
       h.Class(
@@ -578,7 +561,7 @@ const questionQueuePage = (model: Model, snapshot: Snapshot): string => {
     {
       onSome: step => `${QUESTION_PAGE}${step.question.id}`,
       onNone: () =>
-        first === undefined ? NEEDS : `${QUESTION_PAGE}${first.question.id}`,
+        first === undefined ? INBOX : `${QUESTION_PAGE}${first.question.id}`,
     },
   )
 }
@@ -588,10 +571,6 @@ const MORE_PAGES: ReadonlyArray<string> = [
   CONVERSATIONS,
   SQUAD,
   'overview',
-  NEEDS,
-  UPDATES,
-  CHANGES,
-  REPLIES,
   ANSWER_HISTORY,
   'plan',
   GRILLS,
@@ -607,15 +586,6 @@ const workspaceHeaderView = (
   h: H,
 ): Html => {
   const grill = snapshot.grill
-  const changes = activityUnreadCount(
-    snapshot.activity,
-    model.workspace.activityRead,
-  )
-  const unread = agentMessagesOf(snapshot).filter(
-    message =>
-      !model.readIds.includes(message.id) &&
-      message.at > Option.getOrElse(model.readSince, () => Infinity),
-  ).length
   const destination = (label: string, page: string, inMenu = false) =>
     h.button(
       [
@@ -723,18 +693,6 @@ const workspaceHeaderView = (
                   ? `Squad overview · ${openDecisions()} open decisions`
                   : 'Overview',
                 grill.kind === 'squad' ? SQUAD : 'overview',
-                true,
-              ),
-              destination('Needs you (old)', NEEDS, true),
-              destination('Updates (old)', UPDATES, true),
-              destination(
-                `What changed${changes !== '0' ? ` · ${changes} unread` : ''}`,
-                CHANGES,
-                true,
-              ),
-              destination(
-                `Replies${unread > 0 ? ` · ${unread} unread` : ''}`,
-                REPLIES,
                 true,
               ),
               destination('Log', ANSWER_HISTORY, true),
@@ -2818,112 +2776,6 @@ const workOf = (snapshot: Snapshot) => {
   }
 }
 
-const needsView = (
-  model: Model,
-  snapshot: Snapshot,
-  reading: Reading,
-  h: H,
-): Html => {
-  const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
-  const steps = snapshot.grill.steps.filter(step =>
-    ['Open', 'Waiting'].includes(
-      statusOf(snapshot.grill, model.answers, step.question.id, model.skipped)
-        ._tag,
-    ),
-  )
-  const ready = steps.filter(
-    step =>
-      statusOf(snapshot.grill, model.answers, step.question.id, model.skipped)
-        ._tag === 'Open',
-  )
-  const waiting = steps.filter(step => !ready.includes(step))
-  const rows = (items: ReadonlyArray<Step>) =>
-    items.map(step =>
-      h.keyed('button')(
-        step.id,
-        [
-          h.Class('f-decision-row'),
-          h.OnClick(
-            Message.ClickedWorkspacePage({
-              page: `${QUESTION_PAGE}${step.question.id}`,
-            }),
-          ),
-        ],
-        [
-          h.span([h.Class('f-decision-id')], [step.question.id]),
-          h.div(
-            [],
-            [
-              h.b([], [step.question.title]),
-              h.p([], reading.answer(step.question.ask, h)),
-            ],
-          ),
-          h.small([], [step.question.issue ?? '']),
-        ],
-      ),
-    )
-  return h.section(
-    [h.Class('f-page f-attention')],
-    [
-      h.h1([], ['Needs you']),
-      h.p(
-        [h.Class('f-lead')],
-        ['Decisions, owner actions and answers ready to return to the agent.'],
-      ),
-      h.section(
-        [h.Class('f-attention-summary')],
-        [
-          h.div(
-            [],
-            [
-              h.h2(
-                [],
-                [
-                  `${drafts.length} draft${drafts.length === 1 ? '' : 's'} ready to send`,
-                ],
-              ),
-              h.p(
-                [h.Class('hint')],
-                ['Review the selected answers and include a message.'],
-              ),
-            ],
-          ),
-          h.button(
-            [
-              h.Class('send-button'),
-              h.OnClick(Message.ClickedWorkspacePage({ page: REVIEW })),
-            ],
-            ['Review & send'],
-          ),
-        ],
-      ),
-      h.div(
-        [h.Class('f-section-heading')],
-        [
-          h.h2(
-            [],
-            [`${ready.length} open decision${ready.length === 1 ? '' : 's'}`],
-          ),
-          pageLink(
-            'See all in questions',
-            snapshot.grill.steps[0] === undefined
-              ? 'overview'
-              : `${QUESTION_PAGE}${ready[0]?.question.id ?? snapshot.grill.steps[0].question.id}`,
-            h,
-          ),
-        ],
-      ),
-      ...(ready.length === 0
-        ? [h.p([h.Class('hint')], ['No decisions are ready for an answer.'])]
-        : rows(ready)),
-      ...(waiting.length === 0
-        ? []
-        : [h.h2([], ['Waiting on another answer']), ...rows(waiting)]),
-      attentionView(model, snapshot, h),
-    ],
-  )
-}
-
 const workState = (
   snapshot: Snapshot,
   issue: PlanIssue,
@@ -3141,7 +2993,6 @@ const runView = (
           ...snapshot.grill.intro.map(text => reading.prose(text, h)),
           h.h2([], ['After this round']),
           ...snapshot.grill.next.map(text => reading.prose(text, h)),
-          pageLink('Replies and decisions', REPLIES, h),
         ],
       ),
     ],
@@ -3638,65 +3489,6 @@ const grillsView = (model: Model, snapshot: Snapshot, h: H): Html => {
           ],
         )
       }),
-    ],
-  )
-}
-
-const repliesView = (
-  model: Model,
-  snapshot: Snapshot,
-  reading: Reading,
-  h: H,
-): Html => {
-  const messages = Array.reverse(agentMessagesOf(snapshot))
-  return h.section(
-    [h.Class('f-page f-replies-page')],
-    [
-      h.h1([], ['Replies & decisions']),
-      ...messages.map(message =>
-        h.keyed('article')(
-          message.id,
-          [
-            h.Class('f-reply'),
-            ...channelRevealAttributes(model, `agent-${message.id}`, h),
-          ],
-          [
-            h.h2(
-              [],
-              [
-                message.kind === 'reply'
-                  ? 'Reply to your answers'
-                  : message.stepId === RUN_TARGET
-                    ? 'About the whole run'
-                    : (snapshot.grill.steps.find(
-                        step => step.id === message.stepId,
-                      )?.question.title ?? message.stepId),
-              ],
-            ),
-            reading.prose(message.text, h),
-            message.kind === 'answer'
-              ? link(
-                  'Open discussion',
-                  Message.ClickedAgentMessage({
-                    id: message.id,
-                    inReplies: false,
-                  }),
-                  h,
-                )
-              : h.empty,
-          ],
-        ),
-      ),
-      ...(snapshot.grill.decided ?? []).map(decision =>
-        h.keyed('article')(
-          decision.id,
-          [h.Class('f-reply')],
-          [reading.prose(decision.text, h)],
-        ),
-      ),
-      messages.length + (snapshot.grill.decided?.length ?? 0) === 0
-        ? h.p([h.Class('f-empty')], ['No replies or earlier decisions yet.'])
-        : h.empty,
     ],
   )
 }

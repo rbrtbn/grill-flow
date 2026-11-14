@@ -62,7 +62,7 @@ const fillOne = Mount.resolveAll([FillBox, filled])
 const fillTwo = Mount.resolveAll([FillBox, filled], [FillBox, filled])
 
 describe('the question workspace', () => {
-  it('puts Updates under More and retains the named home destination', () => {
+  it('keeps only the new destinations under More and retains the named home destination', () => {
     scene(
       { update, view },
       given({
@@ -86,14 +86,19 @@ describe('the question workspace', () => {
       expect(selector('.f-header-actions')).toHaveText(
         /Sessions.*Review & send.*Decisions · \d+ open/,
       ),
-      click(role('button', { name: 'Updates (old)' })),
-      Command.resolve(PushPage, Message.CompletedNavigate()),
-      Command.resolve(ScrollToTop, Message.CompletedScroll()),
-      Mount.expectEnded(FillBox),
-      expect(selector('.f-updates h1')).toHaveText('Updates'),
+      expect(role('group', { name: 'More destinations' })).toHaveText(
+        /Conversations.*Overview.*Log.*Your grills.*Settings/,
+      ),
+      expect(role('group', { name: 'More destinations' })).not.toContainText(
+        'Needs you',
+      ),
+      expect(role('group', { name: 'More destinations' })).not.toContainText(
+        'Updates',
+      ),
       click(role('button', { name: 'Session Board overview' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      Mount.expectEnded(FillBox),
       expect(selector('.concept-title')).toHaveText('Session Board'),
       click(role('button', { name: 'Your grills' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
@@ -381,36 +386,6 @@ describe('the question workspace', () => {
         grill.steps[0]!.question.options[0]!.label,
       ),
       expect(selector('#talk-box')).toExist(),
-    )
-  })
-
-  it('lists both run replies and answers from question discussions', () => {
-    const replies = {
-      ...snapshot,
-      replies: [{ id: 1, at: 2, text: 'The run is ready.' }],
-      revisions: [
-        {
-          id: 7,
-          at: 3,
-          stepId: 'step-q1',
-          askId: 6,
-          kind: 'comment' satisfies 'comment',
-          text: 'Here is why the first choice fits.',
-        },
-      ],
-    }
-    scene(
-      { update, view },
-      given({
-        ...loaded,
-        currentPart: 'replies',
-        page: PageData.Success({ data: replies }),
-      }),
-      expect(selector('#agent-reply-1')).toContainText('The run is ready.'),
-      expect(selector('#agent-answer-7')).toContainText(
-        'Here is why the first choice fits.',
-      ),
-      expect(role('button', { name: 'Open discussion' })).toExist(),
     )
   })
 

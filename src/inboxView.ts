@@ -1,7 +1,7 @@
 import { Array, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { decisionArticle } from './attentionView'
+import { decisionArticle } from './decisionView'
 import { sessionAvatar } from './avatar'
 import { channelItemKey } from './channel'
 import type { Snapshot } from './domain'

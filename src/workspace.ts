@@ -29,6 +29,14 @@ export const UPDATES = 'updates'
 export const ANSWER_HISTORY = 'answer-history'
 export const CHANGES = 'changes'
 export const NEEDS = 'needs-you'
+
+// Retired pages and where their parts went; old links in messages land there.
+export const RETIRED_PAGES: Readonly<Record<string, string>> = {
+  [NEEDS]: 'inbox',
+  [UPDATES]: 'runs',
+  [CHANGES]: 'inbox',
+  [REPLIES]: 'conversations',
+}
 export const SQUAD = 'squad'
 export const GRILLS = 'grills'
 export const RUN_TARGET = 'run'
@@ -164,11 +172,7 @@ export const isWorkspacePage = (page: string): boolean =>
     RUNS,
     REVIEW,
     CONVERSATIONS,
-    REPLIES,
-    UPDATES,
     ANSWER_HISTORY,
-    CHANGES,
-    NEEDS,
     SQUAD,
     GRILLS,
     'overview',

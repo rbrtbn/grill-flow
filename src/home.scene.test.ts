@@ -77,3 +77,20 @@ it('opens Squad overview from the brand and ends it with the retirement list', (
     ),
   )
 })
+
+it.each([
+  ['needs-you', 'inbox'],
+  ['updates', 'runs'],
+  ['changes', 'inbox'],
+  ['replies', 'conversations'],
+])('sends an old /%s link to the page that holds its parts', (old, home) => {
+  const started = init(
+    Option.getOrThrow(Url.fromString(`http://localhost/g/fixture/${old}`)),
+  )
+  expectValue(started.model.currentPart).toBe(home)
+  expectValue(
+    started.commands
+      .filter(command => command.name === ReplacePage.name)
+      .map(command => command.args),
+  ).toEqual([{ url: `/g/fixture/${home}` }])
+})

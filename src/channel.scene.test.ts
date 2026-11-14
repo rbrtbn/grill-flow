@@ -35,64 +35,6 @@ const start = init(
 ).model
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
-it('reads source-owned updates without answer controls and keeps superseded context available', () => {
-  const updates: NonNullable<Snapshot['updates']> = [
-    {
-      source: 'member',
-      event: 2,
-      at: 2,
-      displayBody: 'The current update about Q7.',
-      item: {
-        version: 1,
-        kind: 'update',
-        id: 'new',
-        previous: 0,
-        revision: 1,
-        session: 't-worker',
-        body: 'The current update about Q1.',
-        question: 'Q1',
-        supersedes: 'old',
-      },
-    },
-    {
-      source: 'member',
-      event: 1,
-      at: 1,
-      supersededBy: 'new',
-      item: {
-        version: 1,
-        kind: 'update',
-        id: 'old',
-        previous: 0,
-        revision: 1,
-        session: 't-worker',
-        body: 'Earlier context',
-      },
-    },
-  ]
-  scene(
-    { update, view },
-    given({
-      ...loaded,
-      currentPart: UPDATES,
-      page: PageData.Success({ data: { ...snapshot, updates } }),
-    }),
-    expect(selector('.f-updates h1')).toHaveText('Updates'),
-    expect(selector('.f-updates')).toContainText('The current update about Q7'),
-    expect(selector('.f-updates')).not.toContainText(
-      'The current update about Q1.',
-    ),
-    expect(selector('.f-updates .f-source-question-link')).toHaveAttr(
-      'href',
-      '/g/fixture/question/Q1?source=member',
-    ),
-    expect(selector('.f-earlier-updates summary')).toHaveText(
-      'Superseded updates · 1',
-    ),
-    expectAll(all.selector('.f-updates [role="radio"]')).toHaveCount(0),
-  )
-})
-
 it('shows captured wording and note rather than substituting the latest question meaning', () => {
   const history: NonNullable<Snapshot['answerHistory']> = [
     {
@@ -196,7 +138,7 @@ it('shows captured wording and note rather than substituting the latest question
   )
 })
 
-it.each([UPDATES, ANSWER_HISTORY])(
+it.each([ANSWER_HISTORY])(
   'keeps an empty reading page usable with legacy snapshots: %s',
   currentPart => {
     scene(

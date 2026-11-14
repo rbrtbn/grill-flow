@@ -137,40 +137,9 @@ const snapshot = Schema.decodeUnknownSync(Snapshot)({
   })),
 })
 const start = init(
-  Option.getOrThrow(Url.fromString('http://localhost/g/fixture/needs-you')),
+  Option.getOrThrow(Url.fromString('http://localhost/g/fixture/decision/alpha%2Fnightly')),
 ).model
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
-
-it('offers an exact owner action to copy and a destination, with only reported completion proof', () => {
-  const key = channelItemKey('alpha', 'typed-line', 1)
-  scene(
-    { update, view },
-    given(loaded),
-    expect(selector('.f-owner-action')).toHaveText('use concurrency 4'),
-    expect(role('link', { name: 'Open destination' })).toHaveAttr(
-      'href',
-      'https://example.test/session/t-owner',
-    ),
-    expect(selector('.f-owner-destination')).toContainText('rob-mbp'),
-    click(role('button', { name: 'Copy action' })),
-    Command.expectExact(CopyOwnerStep({ key, text: 'use concurrency 4' })),
-    Command.resolve(
-      CopyOwnerStep,
-      Message.CompletedCopyOwnerStep({ key, copied: true }),
-    ),
-    expect(role('button', { name: 'Copied action' })).toExist(),
-    expect(selector('.f-earlier-owner-steps')).toContainText(
-      'Reported completed',
-    ),
-    expect(selector('.f-owner-proof')).toContainText('Agent-reported proof'),
-    expect(selector('.f-owner-proof')).toContainText('Evidence expired'),
-    expect(selector('.f-owner-proof a')).toHaveAttr(
-      'href',
-      'https://example.test/proof',
-    ),
-    expectAll(all.role('button', { name: 'Mark complete' })).toHaveCount(0),
-  )
-})
 
 it('keeps a failed page request retryable and records the canonical decision identity', () => {
   const pending = Schema.decodeUnknownSync(Snapshot)({
@@ -282,7 +251,7 @@ it.each([
   )
 })
 
-it('uses the server window, offers a late request and exposes named blocker states', () => {
+it('uses the server window and offers a late request on the decision page', () => {
   const incoming = Schema.decodeUnknownSync(Snapshot)({
     ...snapshot,
     decisions: [{ ...decision, window: 'expired' }],
@@ -294,62 +263,6 @@ it('uses the server window, offers a late request and exposes named blocker stat
     expect(selector('.f-provisional-decision')).toContainText(
       'Veto window expired',
     ),
-    expect(selector('.f-blocker-section')).toContainText('Condition met'),
-    expect(selector('.f-blocker-section')).toContainText('Blocked'),
-    expect(selector('.f-blocker-section')).toContainText('Unknown'),
-    expect(
-      within(selector('.f-blocker'), role('link', { name: 'alpha · Q1' })),
-    ).toHaveAttr('href', '/g/fixture/question/Q1?source=alpha'),
-  )
-})
-
-it('opens only the published local session and keeps failed focus retryable', () => {
-  const incoming = Schema.decodeUnknownSync(Snapshot)({
-    ...snapshot,
-    ownerSteps: [
-      {
-        ...owner,
-        item: {
-          ...owner.item,
-          destination: { kind: 'terminal', address: 't42' },
-        },
-      },
-    ],
-  })
-  const key = channelItemKey('alpha', 'typed-line', 1)
-  scene(
-    { update, view },
-    given({ ...loaded, page: PageData.Success({ data: incoming }) }),
-    click(role('button', { name: 'Open session t42' })),
-    Command.expectExact(
-      OpenOwnerDestination({
-        grillId: 'fixture',
-        source: 'alpha',
-        item: 'typed-line',
-        revision: 1,
-        key,
-      }),
-    ),
-    expect(role('button', { name: 'Open session t42' })).toBeDisabled(),
-    Command.resolve(
-      OpenOwnerDestination,
-      Message.CompletedOpenOwnerDestination({
-        key,
-        result: Result.fail('Session unavailable'),
-      }),
-    ),
-    expect(role('status')).toContainText('Session unavailable'),
-    expect(role('button', { name: 'Open session t42' })).toBeEnabled(),
-    click(role('button', { name: 'Open session t42' })),
-    Command.resolve(
-      OpenOwnerDestination,
-      Message.CompletedOpenOwnerDestination({
-        key,
-        result: Result.succeed(incoming),
-      }),
-    ),
-    expect(role('status')).toContainText('Session opened.'),
-    expect(role('button', { name: 'Copy action' })).toExist(),
   )
 })
 

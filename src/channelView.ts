@@ -1,7 +1,7 @@
 import { Array } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { answerAnchor, itemAnchor } from './activity'
+import { answerAnchor } from './activity'
 import { channelRevealAttributes } from './channelReveal'
 import { OWN, type Question, type Snapshot, diffWords } from './domain'
 import type { Message, Model } from './main'
@@ -10,7 +10,6 @@ import { sourceQuestionHref } from './sourceLinks'
 export { sourceQuestionHref } from './sourceLinks'
 
 type H = HtmlBuilder<Message>
-type Update = NonNullable<Snapshot['updates']>[number]
 type History = NonNullable<Snapshot['answerHistory']>[number]
 
 const sourceLink = (
@@ -44,64 +43,6 @@ const wording = (
         `${option.key}${option.recommended ? ' · Recommended' : ''}: ${option.label}\n${option.effect}`,
     ),
   ].join('\n\n')
-
-export const updatesView = (
-  model: Model,
-  snapshot: Snapshot,
-  prose: (text: string, h: H) => Html,
-  h: H,
-): Html => {
-  const updates = snapshot.updates ?? []
-  const active = updates.filter(update => update.supersededBy === undefined)
-  const earlier = updates.filter(update => update.supersededBy !== undefined)
-  const entry = (update: Update): Html =>
-    h.keyed('article')(
-      `${update.source}::${update.item.id}`,
-      [
-        h.Class('f-channel-entry'),
-        ...channelRevealAttributes(
-          model,
-          itemAnchor(update.source, update.item.id),
-          h,
-        ),
-      ],
-      [
-        h.p(
-          [h.Class('f-channel-meta')],
-          [update.source, ' · ', update.item.session, ' · ', when(update.at)],
-        ),
-        prose(update.displayBody ?? update.item.body, h),
-        update.item.question === undefined
-          ? h.empty
-          : h.p(
-              [],
-              [sourceLink(snapshot, update.source, update.item.question, h)],
-            ),
-      ],
-    )
-  return h.section(
-    [h.Class('f-page f-updates')],
-    [
-      h.h1([], ['Updates']),
-      h.p([h.Class('f-lead')], ['Progress and context from your agents.']),
-      ...Array.match(active, {
-        onEmpty: () => [
-          h.p([h.Class('f-empty hint')], ['No current updates.']),
-        ],
-        onNonEmpty: entries => entries.map(entry),
-      }),
-      Array.isReadonlyArrayEmpty(earlier)
-        ? h.empty
-        : h.details(
-            [h.Class('f-earlier-updates')],
-            [
-              h.summary([], [`Superseded updates · ${earlier.length}`]),
-              ...earlier.map(entry),
-            ],
-          ),
-    ],
-  )
-}
 
 const savedAnswer = (
   snapshot: Snapshot,

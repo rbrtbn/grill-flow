@@ -116,21 +116,18 @@ import {
 } from './sendShortcuts'
 import {
   ANSWER_HISTORY,
-  CHANGES,
   CONVERSATIONS,
   CatalogData,
   GRILLS,
-  NEEDS,
   QUESTION_PAGE,
   QuestionFilter,
   QuestionGrouping,
   QuestionSort,
   QuestionUrgencyFilter,
-  REPLIES,
+  RETIRED_PAGES,
   REVIEW,
   RUN_TARGET,
   SQUAD,
-  UPDATES,
   WorkSection,
   Workspace,
   adjacentQuestion,
@@ -3734,13 +3731,9 @@ export const pathOfPage = (grillId: string, page: string): string => {
     [
       REVIEW,
       CONVERSATIONS,
-      REPLIES,
-      NEEDS,
       SQUAD,
       GRILLS,
-      UPDATES,
       ANSWER_HISTORY,
-      CHANGES,
       INBOX,
       RUNS,
     ].includes(page)
@@ -3764,22 +3757,17 @@ export const pageOfPath = (pathname: string): string => {
   if (kind === RUNS) {
     return decoded === '' ? RUNS : `${RUN_PAGE}${decoded}`
   }
+  const retired = RETIRED_PAGES[kind ?? '']
+  if (retired !== undefined) {
+    return retired
+  }
   return kind === OVERVIEW ||
     kind === PLAN ||
     kind === STATUS ||
     kind === DECIDED ||
-    [
-      REVIEW,
-      CONVERSATIONS,
-      REPLIES,
-      NEEDS,
-      SQUAD,
-      GRILLS,
-      UPDATES,
-      ANSWER_HISTORY,
-      CHANGES,
-      INBOX,
-    ].includes(kind ?? '')
+    [REVIEW, CONVERSATIONS, SQUAD, GRILLS, ANSWER_HISTORY, INBOX].includes(
+      kind ?? '',
+    )
     ? (kind ?? '')
     : kind === 'concept'
       ? decoded
@@ -4242,8 +4230,21 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     RestoreBrowserNotices(),
     RestoreDiscussionState(),
     RestoreInboxSeen(),
+    ...Option.match(retiredRedirect(url.pathname), {
+      onNone: () => [],
+      onSome: redirect => [ReplacePage({ url: redirect })],
+    }),
   ],
 })
+
+/** An old link to a retired page gets the address of the page that holds its parts now. */
+const retiredRedirect = (pathname: string): Option.Option<string> => {
+  const [, grillId, kind] = pathname.split('/').filter(part => part !== '')
+  const target = RETIRED_PAGES[kind ?? '']
+  return grillId === undefined || target === undefined
+    ? Option.none()
+    : Option.some(pathOfPage(decodeURIComponent(grillId), target))
+}
 
 // COMMAND
 

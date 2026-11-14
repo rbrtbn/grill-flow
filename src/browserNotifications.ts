@@ -1,6 +1,5 @@
 import { Schema } from 'effect'
 
-import { itemAnchor } from './activity'
 import { type Snapshot, statusOf } from './domain'
 import { sourceQuestionHref } from './sourceLinks'
 
@@ -115,7 +114,7 @@ export const noticeCandidates = (
     version: event,
     urgency: item.progress.state === 'open' ? urgent(item.urgency) : 'none',
     title: item.title ?? 'Owner action',
-    href: `/g/${encodeURIComponent(source)}/needs-you#${itemAnchor(source, item.id)}`,
+    href: `/g/${encodeURIComponent(source)}/item/${encodeURIComponent(item.id)}`,
   })),
 ]
 

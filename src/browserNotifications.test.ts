@@ -355,7 +355,7 @@ it('alerts on published urgent owner steps without exposing their action or body
   const active = noticeCandidates(snapshot)
   await syncBrowserNotices(active, false)
   expect(MockNotice.notices[0]?.options.body).toBe('Owner task')
-  expect(active[0]?.href.startsWith('/g/alpha/needs-you#gf-item-')).toBe(true)
+  expect(active[0]?.href.startsWith('/g/alpha/item/')).toBe(true)
   const completed = Schema.decodeUnknownSync(Snapshot)({
     ...snapshot,
     ownerSteps: [
