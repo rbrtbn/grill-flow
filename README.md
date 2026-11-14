@@ -183,7 +183,8 @@ release.
 
 ### Releases
 
-Bump `version` in `package.json` on `main` to release. CI tests every pull request and push; on
+grill-flow has one version, in `package.json` and `plugin/.claude-plugin/plugin.json`; a test
+fails CI when they differ. Bump both on `main` to release. CI tests every pull request and push; on
 `main`, when `v<version>` is not yet a tag, it tags the commit and publishes a GitHub release
 with generated notes. `GET /api/version` reports the running server's version and the authoring
 guide revision.

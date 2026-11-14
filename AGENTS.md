@@ -22,9 +22,10 @@ The `grill` skill in `plugin/skills/grill/SKILL.md` owns how an agent writes a g
 answers asks and reads the reply. `examples/` holds a whole grill; `grills/` (gitignored) holds
 the live ones.
 
-Bump `version` in `plugin/.claude-plugin/plugin.json` with every change under `plugin/`, then
-run `claude plugin update grill-flow@grill-flow` in each account. Installed copies are cached
-by version, so an unbumped change never reaches agents.
+grill-flow has one version: `package.json` and `plugin/.claude-plugin/plugin.json` always match
+(a test fails CI otherwise), and a new one is a release (Delivery, below). Bump both with every
+change under `plugin/`, then run `claude plugin update grill-flow@grill-flow` in each account.
+Installed copies are cached by version, so an unbumped change never reaches agents.
 
 ### Running
 
@@ -50,8 +51,8 @@ live grill data.
 
 The page on 127.0.0.1:4317 is a launchd service serving the latest GitHub release, not this
 checkout; an updater moves it to a new release within about ten minutes (docs/adr/0035). To
-release, bump `version` in `package.json`: CI tags `v<version>` and publishes the release when
-that push to `main` passes its tests. Unreleased work never reaches the running page. Try a
+release, bump `version` in `package.json` and `plugin/.claude-plugin/plugin.json` together: CI
+tags `v<version>` and publishes the release when that push to `main` passes its tests. Unreleased work never reaches the running page. Try a
 change on a second server instead (`GF_PORT=<spare> GF_DB=<scratch> bun run serve`).
 
 ### Discussion routing
