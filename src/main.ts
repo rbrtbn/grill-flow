@@ -705,10 +705,20 @@ const quoteTargetOf = (model: Model, quoted: QuotedText): string =>
     quoted.stepId,
   )
 
+// A question's own thread shows on its page, so only other targets open the sessions panel.
 const openDiscussionOn = (model: Model, target: string): Model =>
   modifyFields(model, {
-    side: () => 'Talk',
+    side: side =>
+      Option.exists(AsyncData.getData(model.page), snapshot =>
+        Option.exists(
+          questionOnPage(snapshot, model.currentPart),
+          step => step.id === target,
+        ),
+      )
+        ? side
+        : 'Talk',
     talkGeneration: count => count + 1,
+    inbox: inbox => modifyFields(inbox, { isSessionDirectory: () => false }),
     workspace: value =>
       modifyFields(value, {
         maybeDiscussionTarget: () => Option.some(target),
@@ -1468,8 +1478,7 @@ export const update = (model: Model, message: Message) =>
     ClickedSessions: () => ({
       model: modifyFields(model, {
         side: side => (side === 'Talk' ? 'None' : 'Talk'),
-        inbox: inbox =>
-          modifyFields(inbox, { isSessionDirectory: () => true }),
+        inbox: inbox => modifyFields(inbox, { isSessionDirectory: () => true }),
       }),
     }),
     ClickedOpenSession: ({ target }) => ({
@@ -1486,8 +1495,7 @@ export const update = (model: Model, message: Message) =>
     }),
     ClickedSessionsBack: () => ({
       model: modifyFields(model, {
-        inbox: inbox =>
-          modifyFields(inbox, { isSessionDirectory: () => true }),
+        inbox: inbox => modifyFields(inbox, { isSessionDirectory: () => true }),
       }),
     }),
     UpdatedSessionSearch: ({ value }) => ({
@@ -1531,8 +1539,7 @@ export const update = (model: Model, message: Message) =>
         inbox: inbox =>
           modifyFields(inbox, {
             isSidePickerOpen: () => false,
-            sideThreads: keys =>
-              keys.includes(key) ? keys : [...keys, key],
+            sideThreads: keys => (keys.includes(key) ? keys : [...keys, key]),
             maybeOpenThread: () => Option.some(key),
           }),
       }),
@@ -2182,7 +2189,7 @@ export const update = (model: Model, message: Message) =>
                   ),
               },
             ),
-            commands: [FocusTalkBox()],
+            commands: [FocusDraftBox({ key: threadDraftKey(target) })],
           }
         },
       }),
@@ -4800,6 +4807,21 @@ export const KeepPlaceBelow = Command.define('KeepPlaceBelow', {
         }
         return Message.CompletedScroll()
       }),
+    ),
+})
+
+// The quoted question's composer may be on the page or in the sessions panel; its draft key finds it.
+export const FocusDraftBox = Command.define('FocusDraftBox', {
+  args: { key: Schema.String },
+  messages: [Message.CompletedFocus],
+  execute: ({ key }) =>
+    pipe(
+      Effect.sleep(Duration.millis(30)),
+      Effect.flatMap(() =>
+        Dom.focus(`textarea[data-${DRAFT_ATTRIBUTE}="${CSS.escape(key)}"]`),
+      ),
+      Effect.catch(() => Effect.void),
+      Effect.map(() => Message.CompletedFocus()),
     ),
 })
 

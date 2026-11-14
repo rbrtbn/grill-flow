@@ -17,8 +17,8 @@ import { describe, it } from 'vitest'
 import { GRILL_FLOW_TARGET, Grill, type Snapshot } from './domain'
 import {
   FillBox,
+  FocusDraftBox,
   FocusQuoteBox,
-  FocusTalkBox,
   Message,
   PageData,
   PostEvent,
@@ -56,7 +56,9 @@ const quoted = {
   left: 300,
   placement: 'Above' as const,
 }
+const fillOne = Mount.resolveAll([FillBox, Message.CompletedFillBox()])
 const discussionMounted = Mount.resolveAll(
+  [FillBox, Message.CompletedFillBox()],
   [FillBox, Message.CompletedFillBox()],
   [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
 )
@@ -66,6 +68,7 @@ describe('the selection popover', () => {
     scene(
       { update, view },
       given(loaded),
+      fillOne,
       Subscription.emit(Message.SelectedQuoteText({ quoted })),
       expect(role('toolbar', { name: 'Selected text' })).toExist(),
       expect(selector('.f-quote-popover')).toHaveStyle('top', '120px'),
@@ -100,12 +103,9 @@ describe('the selection popover', () => {
         PostEvent,
         Message.CompletedPostEvent({ result: Result.fail('offline') }),
       ),
-      Mount.resolve(
-        RestoreDiscussionScroll,
-        Message.CompletedRestoreDiscussionScroll(),
-      ),
+      Mount.expectEnded(FillBox),
       expect(selector('.f-quote-popover')).not.toExist(),
-      expect(selector('.f-discussion')).toExist(),
+      expect(selector('aside.f-sessions')).not.toExist(),
     )
   })
 
@@ -115,6 +115,7 @@ describe('the selection popover', () => {
       given({
         ...loaded,
         side: 'Talk',
+        inbox: { ...loaded.inbox, isSessionDirectory: false },
         talkDrafts: { 'ask:grill-flow': 'Two things.' },
         workspace: {
           ...loaded.workspace,
@@ -125,11 +126,11 @@ describe('the selection popover', () => {
       Subscription.emit(Message.SelectedQuoteText({ quoted })),
       expect(role('button', { name: 'Quote' })).toHaveAttr(
         'title',
-        'Add it as a quote to the Grill-flow discussion',
+        'Add it as a quote to the Squad Board discussion',
       ),
       click(role('button', { name: 'Quote' })),
-      Command.expectExact(FocusTalkBox()),
-      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+      Command.expectExact(FocusDraftBox({ key: 'ask:grill-flow' })),
+      Command.resolve(FocusDraftBox, Message.CompletedFocus()),
       expect(selector('.f-quote-popover')).not.toExist(),
     )
   })
@@ -138,6 +139,7 @@ describe('the selection popover', () => {
     scene(
       { update, view },
       given(loaded),
+      fillOne,
       Subscription.emit(Message.SelectedQuoteText({ quoted })),
       Subscription.emit(Message.ClearedQuoteSelection()),
       expect(selector('.f-quote-popover')).not.toExist(),

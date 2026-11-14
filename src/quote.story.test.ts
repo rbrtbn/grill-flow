@@ -6,8 +6,8 @@ import { expect, it } from 'vitest'
 
 import { GRILL_FLOW_TARGET, Grill, type Snapshot } from './domain'
 import {
+  FocusDraftBox,
   FocusQuoteBox,
-  FocusTalkBox,
   Message,
   PageData,
   init,
@@ -61,12 +61,12 @@ it('adds the quote after the open discussion draft and opens that discussion', (
       expect(next.talkGeneration).toBe(loaded.talkGeneration + 1)
       expect(next.workspace.quote._tag).toBe('Idle')
     }),
-    Command.expectExact(FocusTalkBox()),
-    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    Command.expectExact(FocusDraftBox({ key: 'ask:grill-flow' })),
+    Command.resolve(FocusDraftBox, Message.CompletedFocus()),
   )
 })
 
-it('quotes into the selected question when the discussion panel is closed', () => {
+it('quotes into the question conversation on its page when the panel is closed', () => {
   story(
     update,
     given({
@@ -79,7 +79,7 @@ it('quotes into the selected question when the discussion panel is closed', () =
     message(Message.SelectedQuoteText({ quoted })),
     message(Message.ClickedQuoteInDiscussion()),
     model(next => {
-      expect(next.side).toBe('Talk')
+      expect(next.side).toBe('None')
       expect(next.workspace.maybeDiscussionTarget).toEqual(
         Option.some('step-q1'),
       )
@@ -87,7 +87,7 @@ it('quotes into the selected question when the discussion panel is closed', () =
         '> the reasoning behind it\n\n',
       )
     }),
-    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    Command.resolve(FocusDraftBox, Message.CompletedFocus()),
   )
 })
 
