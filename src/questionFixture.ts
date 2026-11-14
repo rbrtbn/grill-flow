@@ -338,6 +338,10 @@ const FIXTURE_IDS = new Set(SAMPLES.map(sample => sample.id))
 const FIXTURE_STEPS = new Set(SAMPLES.map(sample => `fixture-${sample.key}`))
 
 /** Whether a question id or step id belongs to the preview sample. */
+/** A channel source the preview fixture made up; nothing about it reaches the server. */
+export const isFixtureSource = (source: string): boolean =>
+  source.startsWith('fixture::')
+
 export const isFixtureQuestion = (id: string): boolean =>
   FIXTURE_IDS.has(id) || FIXTURE_STEPS.has(id)
 
@@ -402,6 +406,12 @@ export const withFixtureQuestions = (snapshot: Snapshot): Snapshot => {
   }
   const withThread: Snapshot = {
     ...merged,
+    decisions: [
+      ...(snapshot.decisions ?? []).filter(
+        entry => !isFixtureSource(entry.source),
+      ),
+      ...SAMPLE_DECISIONS,
+    ],
     asks: [
       ...snapshot.asks.filter(ask => ask.stepId !== SAMPLE_THREAD),
       ...SAMPLE_ASKS,
@@ -452,4 +462,60 @@ const SAMPLE_ANSWERS: Snapshot['revisions'] = [
     text: 'Yes: every thread whose subject is the question counts, passage and side ones included. I add read state per thread in the business-logic phase.',
     at: Date.parse('2026-11-14T04:15:00Z'),
   },
+]
+
+const decision = (
+  session: string,
+  id: string,
+  title: string,
+  body: string,
+  deadline: string,
+  affected: ReadonlyArray<string>,
+): NonNullable<Snapshot['decisions']>[number] => ({
+  source: `fixture::${session}`,
+  event: 1,
+  at: Date.parse('2026-11-14T03:40:00Z'),
+  window: 'open',
+  vetoes: [],
+  item: {
+    version: 1,
+    id,
+    previous: 0,
+    revision: 1,
+    session,
+    title,
+    body,
+    kind: 'decision',
+    deadline: Date.parse(deadline),
+    affected,
+    resolution: { state: 'provisional' },
+  },
+})
+
+// Provisional decisions: none exist in real data yet, so the quiet Inbox list has samples.
+const SAMPLE_DECISIONS: NonNullable<Snapshot['decisions']> = [
+  decision(
+    't2hq',
+    'keep-stage1-branch',
+    'Keep stage1 on its own branch until LAB-1449 merges',
+    'Rebasing stage1 onto main now would drag in the unreleased channel changes. I keep it separate and merge after LAB-1449.',
+    '2026-11-14T18:00:00Z',
+    ['stage1-t2cr', 'LAB-1449'],
+  ),
+  decision(
+    't2j8',
+    'shortcut-default-off',
+    'Ship the send shortcut off by default',
+    'Cmd-Enter sends only after you turn it on in Settings, so nobody sends a draft by habit.',
+    '2026-11-15T09:00:00Z',
+    ['send shortcuts'],
+  ),
+  decision(
+    't2cr',
+    'nightly-backup-window',
+    'Move the nightly backup to 03:30',
+    'The 02:00 backup overlaps the squad-eff digest; 03:30 is quiet on every host.',
+    '2026-11-15T12:00:00Z',
+    ['grill-flow service'],
+  ),
 ]

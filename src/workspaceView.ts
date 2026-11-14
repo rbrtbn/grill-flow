@@ -39,6 +39,7 @@ import {
 import { drawingButton, drawingPanel } from './drawingView'
 import type { QuestionDrawing } from './drawings'
 import {
+  DECISION_PAGE,
   INBOX,
   ITEM_PAGE,
   type InboxData,
@@ -52,6 +53,7 @@ import {
   sessionOf,
 } from './inbox'
 import {
+  decisionPage,
   freezePillView,
   inboxNavView,
   inboxPage,
@@ -384,56 +386,63 @@ export const workspaceView = (
               : Option.none(),
             h,
           )
-        : model.currentPart.startsWith(ITEM_PAGE)
-          ? itemPage(
+        : model.currentPart.startsWith(DECISION_PAGE)
+          ? decisionPage(
               model,
-              inbox,
-              model.currentPart.slice(ITEM_PAGE.length),
-              reading.prose,
+              snapshot,
+              model.currentPart.slice(DECISION_PAGE.length),
               h,
             )
-          : model.currentPart === CHANGES
-            ? activityView(model, snapshot, h)
-            : model.currentPart === UPDATES
-              ? updatesView(model, snapshot, reading.prose, h)
-              : model.currentPart === ANSWER_HISTORY
-                ? answerHistoryView(model, snapshot, h)
-                : model.currentPart === SQUAD
-                  ? squadView(model, snapshot, reading, h)
-                  : model.currentPart === GRILLS
-                    ? grillsView(model, snapshot, h)
-                    : model.currentPart === REVIEW
-                      ? reviewView(model, snapshot, reading, h)
-                      : model.currentPart === REPLIES
-                        ? repliesView(model, snapshot, reading, h)
-                        : model.currentPart === NEEDS
-                          ? needsView(model, snapshot, reading, h)
-                          : model.currentPart === 'plan' ||
-                              model.currentPart === 'status'
-                            ? runView(model, snapshot, reading, h)
-                            : model.currentPart === 'decided'
-                              ? reading.decided(h)
-                              : model.currentPart === CONVERSATIONS
-                                ? sessionsPanelView(
-                                    model,
-                                    snapshot,
-                                    inbox,
-                                    panelConversation,
-                                    'Page',
-                                    h,
-                                  )
-                                : Option.match(question, {
-                                    onSome: step =>
-                                      questionView(
-                                        model,
-                                        snapshot,
-                                        step,
-                                        reading,
-                                        inbox,
-                                        h,
-                                      ),
-                                    onNone: () => reading.overview(h),
-                                  })
+          : model.currentPart.startsWith(ITEM_PAGE)
+            ? itemPage(
+                model,
+                inbox,
+                model.currentPart.slice(ITEM_PAGE.length),
+                reading.prose,
+                h,
+              )
+            : model.currentPart === CHANGES
+              ? activityView(model, snapshot, h)
+              : model.currentPart === UPDATES
+                ? updatesView(model, snapshot, reading.prose, h)
+                : model.currentPart === ANSWER_HISTORY
+                  ? answerHistoryView(model, snapshot, h)
+                  : model.currentPart === SQUAD
+                    ? squadView(model, snapshot, reading, h)
+                    : model.currentPart === GRILLS
+                      ? grillsView(model, snapshot, h)
+                      : model.currentPart === REVIEW
+                        ? reviewView(model, snapshot, reading, h)
+                        : model.currentPart === REPLIES
+                          ? repliesView(model, snapshot, reading, h)
+                          : model.currentPart === NEEDS
+                            ? needsView(model, snapshot, reading, h)
+                            : model.currentPart === 'plan' ||
+                                model.currentPart === 'status'
+                              ? runView(model, snapshot, reading, h)
+                              : model.currentPart === 'decided'
+                                ? reading.decided(h)
+                                : model.currentPart === CONVERSATIONS
+                                  ? sessionsPanelView(
+                                      model,
+                                      snapshot,
+                                      inbox,
+                                      panelConversation,
+                                      'Page',
+                                      h,
+                                    )
+                                  : Option.match(question, {
+                                      onSome: step =>
+                                        questionView(
+                                          model,
+                                          snapshot,
+                                          step,
+                                          reading,
+                                          inbox,
+                                          h,
+                                        ),
+                                      onNone: () => reading.overview(h),
+                                    })
   return h.div(
     [
       h.Class(

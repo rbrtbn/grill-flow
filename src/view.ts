@@ -66,7 +66,15 @@ import {
   withRefs,
   withTerms,
 } from './domain'
-import { INBOX, ITEM_PAGE, NAMES, RUNS, RUN_PAGE, boardName } from './inbox'
+import {
+  DECISION_PAGE,
+  INBOX,
+  ITEM_PAGE,
+  NAMES,
+  RUNS,
+  RUN_PAGE,
+  boardName,
+} from './inbox'
 import type {
   Message as MessageType,
   Model,
@@ -123,6 +131,7 @@ const PAGE_TITLES: ReadonlyArray<readonly [string, string]> = [
   [RUNS, NAMES.runs],
   [RUN_PAGE, NAMES.runs],
   [ITEM_PAGE, NAMES.task],
+  [DECISION_PAGE, 'Decision'],
   ['conversations', NAMES.conversations],
 ]
 

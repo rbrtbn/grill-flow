@@ -118,3 +118,59 @@ it('toggles the quick look from the header', () => {
     expect(role('dialog', { name: 'Quick look' })).not.toExist(),
   )
 })
+
+it('lists provisional decisions quietly, folds the rest and opens one on its page', () => {
+  const decision = (id: string, deadline: number) => ({
+    source: 'alpha',
+    event: 1,
+    at: 1000,
+    window: 'open',
+    vetoes: [],
+    item: {
+      version: 1,
+      id,
+      previous: 0,
+      revision: 1,
+      session: 't-owner',
+      title: `Decide ${id}`,
+      body: `Why ${id}.`,
+      kind: 'decision',
+      deadline,
+      affected: [],
+      resolution: { state: 'provisional' },
+    },
+  })
+  const withDecisions = Schema.decodeUnknownSync(Snapshot)({
+    ...Schema.encodeSync(Snapshot)(snapshot),
+    decisions: [
+      decision('d4', 4000),
+      decision('d1', 1000),
+      decision('d2', 2000),
+      decision('d3', 3000),
+    ],
+  })
+  scene(
+    { update, view },
+    given({
+      ...init(
+        Option.getOrThrow(Url.fromString('http://localhost/g/fixture/inbox')),
+      ).model,
+      page: PageData.Success({ data: withDecisions }),
+    }),
+    expect(role('region', { name: 'Provisional decisions' })).toContainText(
+      'Show all 4',
+    ),
+    expect(selector('.f-decisions ul')).toHaveText(
+      /Decide d1.*Decide d2.*Decide d3/,
+    ),
+    click(role('button', { name: /^Decide d1/ })),
+    Command.expectExact(
+      PushPage({ url: '/g/fixture/decision/alpha%2Fd1' }),
+      ScrollToTop(),
+    ),
+    Command.resolve(PushPage, Message.CompletedNavigate()),
+    Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    expect(selector('.f-decision-page')).toContainText('Why d1.'),
+    expect(role('button', { name: 'Veto' })).toExist(),
+  )
+})

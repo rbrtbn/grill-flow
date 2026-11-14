@@ -973,3 +973,62 @@
   border-radius: 999px;
   font-size: 12px;
 }
+
+/* Provisional decisions: quiet, below the urgency groups, one at a time. */
+.f-decisions {
+  margin-top: 32px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.f-decisions h2 {
+  margin: 0;
+  color: var(--muted);
+  font: 600 12px/1.4 var(--label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.f-decisions .hint {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
+.f-decisions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.f-decisions summary {
+  margin-top: 6px;
+  color: var(--muted);
+  font: 500 13px/1.4 var(--label);
+  cursor: pointer;
+}
+.f-decision-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font: 400 14px/1.4 var(--label);
+  text-align: left;
+}
+.f-decision-row:hover {
+  background: var(--panel);
+}
+.f-decision-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.f-crumbs {
+  margin-bottom: 14px;
+  color: var(--muted);
+  font: 400 13px/1.4 var(--label);
+}
+.f-decision-title {
+  font: 500 14px/1.4 var(--label);
+}

@@ -47,6 +47,7 @@ export const INBOX = 'inbox'
 export const RUNS = 'runs'
 export const RUN_PAGE = 'runs:'
 export const ITEM_PAGE = 'item:'
+export const DECISION_PAGE = 'decision:'
 
 // MODEL
 
@@ -863,3 +864,23 @@ export const requestMessage = (
   scope: ReadonlyArray<UpdateScope>,
 ): string =>
   `[Squad Board] Rob asks for an up-to-date version of your ${scope.map(value => SCOPE_LABELS[value].toLowerCase()).join(', ') || 'items'} on page ${pageId}. Check each against the current state: revise what changed, withdraw what is done or no longer needed, add what is missing, then reply on the page.`
+
+type PublishedDecision = NonNullable<Snapshot['decisions']>[number]
+
+/** A decision's page key: its source and id, which together name it on the page. */
+export const decisionKey = (entry: PublishedDecision): string =>
+  `${entry.source}/${entry.item.id}`
+
+/** Decisions still open to a veto, nearest deadline first. */
+export const provisionalDecisions = (
+  snapshot: Snapshot,
+): ReadonlyArray<PublishedDecision> =>
+  Array.sort(
+    (snapshot.decisions ?? []).filter(
+      entry => entry.item.resolution.state === 'provisional',
+    ),
+    Order.mapInput(
+      Order.Number,
+      (entry: PublishedDecision) => entry.item.deadline,
+    ),
+  )

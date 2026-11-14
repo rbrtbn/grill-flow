@@ -75,6 +75,7 @@ import { drawingAttemptKey } from './drawings'
 import {
   ALL_SCOPES,
   INBOX,
+  DECISION_PAGE,
   ITEM_PAGE,
   InboxUi,
   RUNS,
@@ -88,7 +89,11 @@ import {
   queryOf,
   toggleFacet,
 } from './inbox'
-import { isFixtureQuestion, withFixtureQuestions } from './questionFixture'
+import {
+  isFixtureQuestion,
+  isFixtureSource,
+  withFixtureQuestions,
+} from './questionFixture'
 import {
   QUOTE_BOX,
   QUOTE_DRAFT,
@@ -2766,6 +2771,21 @@ export const update = (model: Model, message: Message) =>
         ) {
           return { model }
         }
+        if (isFixtureSource(source)) {
+          return {
+            model: modifyFields(model, {
+              vetoAttempts: attempts =>
+                Record.set(
+                  attempts,
+                  key,
+                  VetoAttemptState.Failed({
+                    error:
+                      'A sample decision: the preview doesn’t send vetoes.',
+                  }),
+                ),
+            }),
+          }
+        }
         return {
           model: modifyFields(model, {
             vetoAttempts: attempts =>
@@ -3657,6 +3677,7 @@ const PAGE_PATHS: ReadonlyArray<readonly [string, string]> = [
   [QUESTION_PAGE, 'question/'],
   [RUN_PAGE, 'runs/'],
   [ITEM_PAGE, 'item/'],
+  [DECISION_PAGE, 'decision/'],
   [CARD_PAGE, 'card/'],
   [ISSUE_PAGE, 'issue/'],
   [URGENCY_PAGE, 'urgency/'],

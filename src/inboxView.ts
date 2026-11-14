@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { decisionArticle } from './attentionView'
 import { sessionAvatar } from './avatar'
 import { channelItemKey } from './channel'
 import type { Snapshot } from './domain'
@@ -8,6 +9,7 @@ import {
   ALL_SCOPES,
   BUCKETS,
   type Bucket,
+  DECISION_PAGE,
   type Entry,
   type Filters,
   GROUP_BYS,
@@ -47,6 +49,8 @@ import {
   sessionOf,
   taskEntry,
   threadTarget,
+  decisionKey,
+  provisionalDecisions,
 } from './inbox'
 import { Message, type Model, PAGE_LINK_COPY } from './main'
 import { refView } from './refCard'
@@ -1293,6 +1297,125 @@ const lastActiveLine = (model: Model, session: SessionInfo): string =>
       `No status published · last active ${ago(model.now, last.at)} (${last.what})`,
   })
 
+const deadlineLabel = (now: number, deadline: number): string => {
+  const hours = Math.round((deadline - now) / 3_600_000)
+  return now === 0
+    ? new Date(deadline).toLocaleString('en-GB', {
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : hours <= 0
+      ? 'window closed'
+      : hours < 24
+        ? `veto within ${hours} h`
+        : `veto within ${Math.round(hours / 24)} d`
+}
+
+const decisionRow = (
+  model: Model,
+  entry: ReturnType<typeof provisionalDecisions>[number],
+  h: H,
+): Html =>
+  h.keyed('li')(
+    decisionKey(entry),
+    [],
+    [
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('f-decision-row'),
+          h.OnClick(go(`${DECISION_PAGE}${decisionKey(entry)}`)),
+        ],
+        [
+          sessionAvatar(entry.item.session, entry.item.session, h, 'Small'),
+          h.span(
+            [h.Class('f-decision-title')],
+            [entry.item.title?.trim() || entry.item.id],
+          ),
+          h.small(
+            [],
+            [
+              `${entry.item.session} · ${deadlineLabel(model.now, entry.item.deadline)}`,
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+
+// Shown before the rest fold behind "Show all N".
+const DECISIONS_SHOWN = 3
+
+/** Provisional decisions: a quiet list below the urgency groups, handled one by one. */
+const decisionsSection = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const decisions = provisionalDecisions(snapshot)
+  return Array.isReadonlyArrayEmpty(decisions)
+    ? h.empty
+    : h.section(
+        [h.Class('f-decisions'), h.AriaLabel('Provisional decisions')],
+        [
+          h.h2(
+            [],
+            [
+              'Provisional decisions ',
+              h.span([h.Class('f-count')], [String(decisions.length)]),
+            ],
+          ),
+          h.p(
+            [h.Class('hint')],
+            [
+              'Agents act on these unless you veto before the deadline. Open one to read it and veto.',
+            ],
+          ),
+          h.ul(
+            [],
+            Array.take(decisions, DECISIONS_SHOWN).map(entry =>
+              decisionRow(model, entry, h),
+            ),
+          ),
+          decisions.length > DECISIONS_SHOWN
+            ? h.details(
+                [],
+                [
+                  h.summary([], [`Show all ${decisions.length}`]),
+                  h.ul(
+                    [],
+                    Array.drop(decisions, DECISIONS_SHOWN).map(entry =>
+                      decisionRow(model, entry, h),
+                    ),
+                  ),
+                ],
+              )
+            : h.empty,
+        ],
+      )
+}
+
+/** One decision on its own page: the words, the deadline, Veto and its receipts. */
+export const decisionPage = (
+  model: Model,
+  snapshot: Snapshot,
+  key: string,
+  h: H,
+): Html => {
+  const entry = (snapshot.decisions ?? []).find(
+    item => decisionKey(item) === key,
+  )
+  return h.section(
+    [h.Class('f-page f-decision-page')],
+    [
+      h.nav(
+        [h.Class('f-crumbs'), h.AriaLabel('Breadcrumb')],
+        [navLink(NAMES.inbox, INBOX, h), ' › Decision'],
+      ),
+      entry === undefined
+        ? h.p([], ['No decision with this address on this page.'])
+        : decisionArticle(model, snapshot, entry, h),
+    ],
+  )
+}
+
 export const inboxPage = (
   model: Model,
   snapshot: Snapshot,
@@ -1364,6 +1487,7 @@ export const inboxPage = (
         onNonEmpty: nonEmpty =>
           nonEmpty.map(group => groupView(model, data, filters, group, h)),
       }),
+      decisionsSection(model, snapshot, h),
       Array.isReadonlyArrayNonEmpty(promised)
         ? h.section(
             [h.Class('f-inbox-group')],
