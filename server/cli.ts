@@ -65,6 +65,9 @@ const usage = `gf: grill-flow's agent-side commands
   load, item, draw, restore and revise --kind rewrite take --reason <why>, kept for gf history;
   missing reasons warn (GF_REQUIRE_REASON=1 refuses them). --session <address> names the
   author, default $HC_TERMINAL_ID.
+  Writes lint the questions they add or change and print lint: lines on stderr;
+  GF_REQUIRE_CONTEXT=1 refuses a question without context. A question's key works wherever
+  its id does.
 
   gf up                                start the server unless it already answers
   gf load <grill.json> [--solo] [--expect-rev <rev>]

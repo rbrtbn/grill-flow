@@ -3,7 +3,6 @@ import { Url } from 'foldkit'
 import {
   Command,
   all,
-  type,
   click,
   expect,
   expectAll,
@@ -11,6 +10,7 @@ import {
   role,
   scene,
   selector,
+  type,
   within,
 } from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
