@@ -16,7 +16,7 @@ import { it } from 'vitest'
 import { Grill, type Snapshot } from './domain'
 import { FillBox, Message, PageData, init, update } from './main'
 import { view } from './view'
-import { ANSWER_HISTORY, UPDATES } from './workspace'
+import { ANSWER_HISTORY } from './workspace'
 
 const grill = Schema.decodeUnknownSync(Grill)(
   JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),

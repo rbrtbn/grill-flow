@@ -2,30 +2,18 @@ import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
-  all,
   click,
   expect,
-  expectAll,
   given,
   role,
   scene,
   selector,
-  within,
 } from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
-import { channelItemKey } from './channel'
 import { Snapshot } from './domain'
-import {
-  CopyOwnerStep,
-  Message,
-  OpenOwnerDestination,
-  PageData,
-  PostVeto,
-  init,
-  update,
-} from './main'
+import { Message, PageData, PostVeto, init, update } from './main'
 import { view } from './view'
 import { CatalogData, GRILLS } from './workspace'
 
@@ -137,7 +125,9 @@ const snapshot = Schema.decodeUnknownSync(Snapshot)({
   })),
 })
 const start = init(
-  Option.getOrThrow(Url.fromString('http://localhost/g/fixture/decision/alpha%2Fnightly')),
+  Option.getOrThrow(
+    Url.fromString('http://localhost/g/fixture/decision/alpha%2Fnightly'),
+  ),
 ).model
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 

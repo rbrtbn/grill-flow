@@ -1,17 +1,5 @@
-import { Option, Result, Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
-import {
-  Command,
-  Mount,
-  all,
-  click,
-  expect,
-  expectAll,
-  given,
-  role,
-  scene,
-  selector,
-} from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
 import { expect as assert, it } from 'vitest'
 
@@ -23,16 +11,8 @@ import {
   revealAnchorFrom,
 } from './activity'
 import { Snapshot } from './domain'
-import {
-  ChannelReveal,
-  Message,
-  PageData,
-  RevealChannelItem,
-  SaveWorkspaceSettings,
-  init,
-  update,
-} from './main'
-import { view } from './view'
+import { Message, PageData, init, update } from './main'
+import {} from './view'
 
 const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
 const feed = {
