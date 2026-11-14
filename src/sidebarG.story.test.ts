@@ -9,6 +9,7 @@ import {
   Message,
   PageData,
   RestoreClosedLine,
+  RestoreKeptBack,
   RestoreRead,
   SaveWorkspaceSettings,
   ScrollToTop,
@@ -100,6 +101,7 @@ const loadResolved = () =>
       Message.RestoredRead({ maybeSince: Option.some(0), ids: [] }),
     ],
     [RestoreClosedLine, Message.RestoredClosedLine({ maybeId: Option.none() })],
+    [RestoreKeptBack, Message.RestoredKeptBack({ questions: [] })],
   )
 
 it.each(['settings-first', 'snapshot-first'])(

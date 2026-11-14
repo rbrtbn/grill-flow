@@ -219,68 +219,18 @@ describe('workspace navigation and drafts', () => {
 })
 
 describe('reviewing and sending real answers', () => {
-  it('saves custom text and a note before keyboard navigation removes their editors', () => {
-    const ownText = 'Use a narrower scope.'
-    const note = 'Only for this run.'
+  it('opens Review on ⌘↵ from a question without an unsent draft', () => {
     story(
       update,
-      given({
-        ...loaded,
-        answers: { Q1: 'other' },
-        own: { Q1: ownText },
-        notes: { Q1: note },
-      }),
+      given({ ...loaded, answers: {} }),
       message(Message.PressedWorkspaceShortcut()),
       model(current => {
         expect(current.currentPart).toBe(REVIEW)
-        expect(current.pendingEvents).toBe(2)
+        expect(current.maybeHeldSend).toEqual(Option.none())
       }),
       Command.expectExact(
-        PostEvent({
-          grillId: 'fixture',
-          body: JSON.stringify({
-            kind: 'answered',
-            question: 'Q1',
-            key: 'other',
-            text: ownText,
-          }),
-        }),
-        PostEvent({
-          grillId: 'fixture',
-          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
-        }),
         PushPage({ url: '/g/fixture/review' }),
         ScrollToTop(),
-      ),
-      Command.resolve(
-        PostEvent({
-          grillId: 'fixture',
-          body: JSON.stringify({
-            kind: 'answered',
-            question: 'Q1',
-            key: 'other',
-            text: ownText,
-          }),
-        }),
-        Message.CompletedPostEvent({
-          result: Result.succeed(snapshot),
-          body: JSON.stringify({
-            kind: 'answered',
-            question: 'Q1',
-            key: 'other',
-            text: ownText,
-          }),
-        }),
-      ),
-      Command.resolve(
-        PostEvent({
-          grillId: 'fixture',
-          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
-        }),
-        Message.CompletedPostEvent({
-          result: Result.succeed(snapshot),
-          body: JSON.stringify({ kind: 'noted', question: 'Q1', text: note }),
-        }),
       ),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),

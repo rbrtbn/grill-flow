@@ -83,6 +83,14 @@ import {
   withQuote,
 } from './quote'
 import {
+  HOLD_SECONDS,
+  IDLE_NUDGE_SECONDS,
+  readySteps,
+  roundSteps,
+  trayOrder,
+  unsentSteps,
+} from './sendShortcuts'
+import {
   ANSWER_HISTORY,
   CHANGES,
   CONVERSATIONS,
@@ -139,6 +147,29 @@ export const SendState = Schema.Literals(['Idle', 'Sending', 'Sent', 'Failed'])
 export type SendState = typeof SendState.Type
 
 export const QuickSendState = Schema.Literals(['Idle', 'Reading', 'Saving'])
+
+// A one-click send waiting out its undo window (docs/adr/0035). `left` reaches zero when the
+// window ends while another send is still in flight; it then goes as soon as that one settles.
+export const HeldSend = Schema.Struct({
+  questions: Schema.Array(Schema.String),
+  left: Schema.Number,
+})
+
+// A link to another page the reader followed with ready drafts unsent; `isSending` once they
+// chose to send them first.
+export const Leaving = Schema.Struct({
+  href: Schema.String,
+  isSending: Schema.Boolean,
+})
+
+export const TrayKey = Schema.Literals([
+  'Up',
+  'Down',
+  'Toggle',
+  'Keep',
+  'Send',
+  'Close',
+])
 
 export const CopyState = Schema.Literals(['Idle', 'Copied', 'Failed'])
 export type CopyState = typeof CopyState.Type
@@ -223,6 +254,19 @@ export const Model = Schema.Struct({
   // Bumped after each sent talk message, so the box remounts empty.
   talkGeneration: Schema.Number,
   sendDetail: Schema.String,
+  // The questions of a one-click send from its click until the server answers; none sends the
+  // Review selection.
+  maybeSendSubset: Schema.Option(Schema.Array(Schema.String)),
+  maybeHeldSend: Schema.Option(HeldSend),
+  // Drafts the reader holds on purpose: left out of the unsent count, nudges and Review's
+  // default selection. Kept per grill in the browser.
+  keptBack: Schema.Array(Schema.String),
+  isTrayOpen: Schema.Boolean,
+  trayCursor: Schema.Number,
+  // Bumped by each answer or note write; the idle nudge counts quiet time from the latest.
+  answerActivity: Schema.Number,
+  isNudging: Schema.Boolean,
+  maybeLeaving: Schema.Option(Leaving),
   copy: CopyState,
   channelReveal: ChannelReveal,
   browserNotices: BrowserNoticeState,
@@ -332,6 +376,24 @@ export const Message = defineMessageUnion({
   ClickedRetrySaves: {},
   ClickedWorkspacePage: { page: Schema.String },
   PressedWorkspaceShortcut: {},
+  PressedRoundSendShortcut: {},
+  ClickedSendQuestions: { questions: Schema.Array(Schema.String) },
+  TickedHeldSend: {},
+  ClickedUndoSend: {},
+  ClickedSendHeldNow: {},
+  ClickedUnsentTray: {},
+  PressedTrayKey: { key: TrayKey },
+  ClickedKeepBack: { question: Schema.String, kept: Schema.Boolean },
+  RestoredKeptBack: { questions: Schema.Array(Schema.String) },
+  CompletedSaveKeptBack: {},
+  ElapsedAnswerIdle: { activity: Schema.Number },
+  ClickedNotYet: {},
+  ClickedLeaveLink: { href: Schema.String },
+  ClickedStay: {},
+  ClickedLeave: {},
+  ClickedSendAndLeave: {},
+  CompletedLeavePage: {},
+  WarnedBeforeUnload: {},
   UpdatedCommandHeld: { held: Schema.Boolean },
   ClickedQuickSend: {},
   CompletedReadQuickSendEditors: {
@@ -610,10 +672,17 @@ const postEvent = (
             onSome: revision => ({ contextRevision: revision }),
           }),
         }
+  const isDraftEdit = ['answered', 'noted', 'cleared'].includes(
+    String(body.kind),
+  )
   return Option.match(grillIdOf(model), {
     onNone: () => ({ model }),
     onSome: grillId => ({
-      model: modifyFields(model, { pendingEvents: count => count + 1 }),
+      model: modifyFields(model, {
+        pendingEvents: count => count + 1,
+        answerActivity: count => (isDraftEdit ? count + 1 : count),
+        isNudging: nudging => nudging && !isDraftEdit,
+      }),
       commands: [PostEvent({ grillId, body: JSON.stringify(payload) })],
     }),
   })
@@ -621,34 +690,55 @@ const postEvent = (
 
 const sendDraftAnswers = (model: Model, text: string): UpdateReturn =>
   withSnapshot(model, snapshot => {
+    const unsent = modifyFields(model, {
+      maybeSendSubset: () => Option.none(),
+    })
     if (
       model.send === 'Sending' ||
       model.pendingEvents > 0 ||
       Option.isSome(model.maybeSaveError)
     ) {
-      return { model }
+      return { model: unsent }
     }
     const isWorkspace = isWorkspacePage(model.currentPart)
-    const questions = draftAnswerIds(
+    const drafts = draftAnswerIds(
       snapshot,
       model.answers,
       model.notes,
       model.own,
-    ).filter(id => !model.workspace.excluded.includes(id))
-    if (isWorkspace && Array.isArrayEmpty(questions)) {
-      return { model }
+    )
+    const questions = Option.match(model.maybeSendSubset, {
+      onNone: () =>
+        drafts.filter(
+          id =>
+            !model.workspace.excluded.includes(id) &&
+            !model.keptBack.includes(id),
+        ),
+      onSome: subset => drafts.filter(id => subset.includes(id)),
+    })
+    if (
+      (isWorkspace || Option.isSome(model.maybeSendSubset)) &&
+      Array.isArrayEmpty(questions)
+    ) {
+      return { model: unsent }
     }
+    // A one-click send carries no covering message; the Review box keeps its text.
+    const message = Option.isSome(model.maybeSendSubset) ? '' : text
     return {
       model: modifyFields(model, {
         send: () => 'Sending',
         sendDetail: () => '',
-        sendMessage: () => text,
+        sendMessage: current =>
+          Option.isSome(model.maybeSendSubset) ? current : text,
       }),
       commands: [
         SendAnswers({
           grillId: snapshot.grill.id,
-          message: text,
-          maybeQuestions: isWorkspace ? Option.some(questions) : Option.none(),
+          message,
+          maybeQuestions:
+            isWorkspace || Option.isSome(model.maybeSendSubset)
+              ? Option.some(questions)
+              : Option.none(),
           expectedLines: workspaceLines(
             snapshot,
             model.answers,
@@ -669,7 +759,12 @@ const continueQuickSend = (model: Model): UpdateReturn => {
     Option.isSome(model.maybeSaveError) ||
     Array.isReadonlyArrayNonEmpty(model.failedWrites)
   ) {
-    return { model: modifyFields(model, { quickSend: () => 'Idle' }) }
+    return {
+      model: modifyFields(model, {
+        quickSend: () => 'Idle',
+        maybeSendSubset: () => Option.none(),
+      }),
+    }
   }
   // A blur's save may still be in flight, and the send must not overtake it.
   if (model.pendingEvents > 0) {
@@ -700,6 +795,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
       return {
         model: modifyFields(model, {
           quickSend: () => 'Idle',
+          maybeSendSubset: () => Option.none(),
           send: () => 'Failed',
           sendDetail: () =>
             `An answer or note exceeds ${TEXT_LIMIT.toLocaleString('en-GB')} characters. Shorten it and try again; your draft is kept.`,
@@ -724,6 +820,159 @@ const continueQuickSend = (model: Model): UpdateReturn => {
     )
   })
 }
+
+export const readyOf = (model: Model, snapshot: Snapshot) =>
+  readySteps(snapshot, model.answers, model.notes, model.own, model.keptBack)
+
+// The tray's ticked drafts: ready ones, minus those unticked here or in Review.
+export const traySelection = (
+  model: Model,
+  snapshot: Snapshot,
+): ReadonlyArray<string> =>
+  readyOf(model, snapshot)
+    .map(step => step.question.id)
+    .filter(id => !model.workspace.excluded.includes(id))
+
+// One-click sends wait out an undo window first (docs/adr/0035). A second one inside the
+// window joins the first and restarts it, so only one send is ever pending.
+const holdSend = (
+  model: Model,
+  questions: ReadonlyArray<string>,
+): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    const unsent = unsentSteps(
+      snapshot,
+      model.answers,
+      model.notes,
+      model.own,
+    ).map(step => step.question.id)
+    const fresh = questions.filter(id => unsent.includes(id))
+    if (Array.isReadonlyArrayEmpty(fresh)) {
+      return { model }
+    }
+    const held = Option.match(model.maybeHeldSend, {
+      onNone: () => fresh,
+      onSome: current => Array.dedupe([...current.questions, ...fresh]),
+    })
+    return {
+      model: modifyFields(model, {
+        maybeHeldSend: () =>
+          Option.some({ questions: held, left: HOLD_SECONDS }),
+        isTrayOpen: () => false,
+        isNudging: () => false,
+      }),
+    }
+  })
+
+// Ends the undo window: the held answers go through quick send's save-then-send, or wait at
+// zero while another send is in flight.
+const releaseHeldSend = (model: Model): UpdateReturn =>
+  Option.match(model.maybeHeldSend, {
+    onNone: () => ({ model }),
+    onSome: held => {
+      if (model.send === 'Sending' || model.quickSend !== 'Idle') {
+        return {
+          model: modifyFields(model, {
+            maybeHeldSend: () => Option.some({ ...held, left: 0 }),
+          }),
+        }
+      }
+      const released = modifyFields(model, {
+        maybeHeldSend: () => Option.none(),
+      })
+      if (Option.isSome(model.maybeSaveError)) {
+        return {
+          model: modifyFields(released, {
+            send: () => 'Failed',
+            sendDetail: () =>
+              'a draft could not be saved, so nothing was sent. Retry saving, then send again; your drafts are kept',
+          }),
+        }
+      }
+      return withSnapshot(released, snapshot => ({
+        model: modifyFields(released, {
+          quickSend: () => 'Reading',
+          maybeSendSubset: () => Option.some(held.questions),
+        }),
+        commands: [
+          ReadQuickSendEditors({
+            questions: snapshot.grill.steps.map(step => step.question.id),
+            message: model.sendMessage,
+          }),
+        ],
+      }))
+    },
+  })
+
+// After a send settles: a held send that waited for it goes now; a reader leaving after
+// "Send and leave" goes once it delivered, and stays to see the failure otherwise.
+const afterSend = (model: Model, isSent: boolean): UpdateReturn => {
+  if (Option.exists(model.maybeHeldSend, held => held.left === 0)) {
+    return releaseHeldSend(model)
+  }
+  return Option.match(model.maybeLeaving, {
+    onNone: () => ({ model }),
+    onSome: leaving =>
+      !leaving.isSending
+        ? { model }
+        : isSent
+          ? { model, commands: [LeavePage({ href: leaving.href })] }
+          : {
+              model: modifyFields(model, {
+                maybeLeaving: () => Option.none(),
+              }),
+            },
+  })
+}
+
+// Ticking a kept-back draft in Review or the tray returns it, so a tick always means "send
+// this".
+const toggleReview = (model: Model, question: string): UpdateReturn =>
+  model.keptBack.includes(question)
+    ? keepBack(
+        modifyFields(model, {
+          workspace: value =>
+            modifyFields(value, {
+              excluded: ids => ids.filter(id => id !== question),
+            }),
+        }),
+        question,
+        false,
+      )
+    : {
+        model: modifyFields(model, {
+          workspace: value =>
+            modifyFields(value, {
+              excluded: ids =>
+                ids.includes(question)
+                  ? ids.filter(id => id !== question)
+                  : Array.append(ids, question),
+            }),
+        }),
+      }
+
+const saveKeptBack = (model: Model): UpdateReturn =>
+  Option.match(grillIdOf(model), {
+    onNone: () => ({ model }),
+    onSome: grillId => ({
+      model,
+      commands: [SaveKeptBack({ grillId, questions: model.keptBack })],
+    }),
+  })
+
+const keepBack = (
+  model: Model,
+  question: string,
+  kept: boolean,
+): UpdateReturn =>
+  saveKeptBack(
+    modifyFields(model, {
+      keptBack: ids =>
+        kept
+          ? Array.dedupe([...ids, question])
+          : ids.filter(id => id !== question),
+    }),
+  )
 
 const refreshPage = (model: Model, snapshot: Snapshot): Model =>
   modifyFields(model, {
@@ -947,7 +1196,8 @@ export const update = (model: Model, message: Message) =>
           }
     },
 
-    ClickedWorkspacePage: ({ page }) => workspaceNavigate(model, page),
+    ClickedWorkspacePage: ({ page }) =>
+      workspaceNavigate(modifyFields(model, { isTrayOpen: () => false }), page),
     ClickedQuestionNote: ({ question }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -999,12 +1249,33 @@ export const update = (model: Model, message: Message) =>
           }),
       }),
     }),
+    // ⌘↵ sends what is in front of the reader: the tray's selection, the question's own
+    // draft, or (with neither) opens Review as before.
     PressedWorkspaceShortcut: () =>
-      model.currentPart === REVIEW
-        ? { model, commands: [ReadSendBoxCommand()] }
-        : model.currentPart.startsWith(QUESTION_PAGE)
-          ? reviewFromQuestion(model)
-          : { model },
+      withSnapshot(model, snapshot => {
+        if (model.isTrayOpen) {
+          return holdSend(model, traySelection(model, snapshot))
+        }
+        if (model.currentPart === REVIEW) {
+          return { model, commands: [ReadSendBoxCommand()] }
+        }
+        if (!model.currentPart.startsWith(QUESTION_PAGE)) {
+          return { model }
+        }
+        const unsent = unsentSteps(
+          snapshot,
+          model.answers,
+          model.notes,
+          model.own,
+        )
+        return Option.match(questionOnPage(snapshot, model.currentPart), {
+          onNone: () => reviewFromQuestion(model),
+          onSome: step =>
+            unsent.some(item => item.question.id === step.question.id)
+              ? holdSend(model, [step.question.id])
+              : reviewFromQuestion(model),
+        })
+      }),
     UpdatedCommandHeld: ({ held }) => ({
       model: modifyFields(model, { isCommandHeld: () => held }),
     }),
@@ -1605,20 +1876,10 @@ export const update = (model: Model, message: Message) =>
         commands: [...(posted.commands ?? []), FocusTalkBox()],
       }
     },
-    ToggledReviewAnswer: ({ question }) => ({
-      model: modifyFields(model, {
-        workspace: value =>
-          modifyFields(value, {
-            excluded: ids =>
-              ids.includes(question)
-                ? ids.filter(id => id !== question)
-                : Array.append(ids, question),
-          }),
-      }),
-    }),
+    ToggledReviewAnswer: ({ question }) => toggleReview(model, question),
     ClickedSelectReview: ({ selected }) =>
-      withSnapshot(model, snapshot => ({
-        model: modifyFields(model, {
+      withSnapshot(model, snapshot => {
+        const chosen = modifyFields(model, {
           workspace: value =>
             modifyFields(value, {
               excluded: () =>
@@ -1631,8 +1892,158 @@ export const update = (model: Model, message: Message) =>
                       model.own,
                     ),
             }),
+        })
+        return selected && Array.isReadonlyArrayNonEmpty(model.keptBack)
+          ? saveKeptBack(modifyFields(chosen, { keptBack: () => [] }))
+          : { model: chosen }
+      }),
+
+    ClickedSendQuestions: ({ questions }) => holdSend(model, questions),
+    TickedHeldSend: () =>
+      Option.match(model.maybeHeldSend, {
+        onNone: () => ({ model }),
+        onSome: held =>
+          held.left > 1
+            ? {
+                model: modifyFields(model, {
+                  maybeHeldSend: () =>
+                    Option.some({ ...held, left: held.left - 1 }),
+                }),
+              }
+            : held.left === 1
+              ? releaseHeldSend(model)
+              : { model },
+      }),
+    ClickedUndoSend: () => ({
+      model: modifyFields(model, { maybeHeldSend: () => Option.none() }),
+    }),
+    ClickedSendHeldNow: () => releaseHeldSend(model),
+    PressedRoundSendShortcut: () =>
+      withSnapshot(model, snapshot =>
+        Option.match(questionOnPage(snapshot, model.currentPart), {
+          onNone: () => ({ model }),
+          onSome: step =>
+            holdSend(
+              model,
+              roundSteps(
+                snapshot.grill,
+                readyOf(model, snapshot),
+                roundOf(snapshot.grill, step.question),
+              ).map(item => item.question.id),
+            ),
+        }),
+      ),
+    ClickedUnsentTray: () => ({
+      model: modifyFields(model, {
+        isTrayOpen: open => !open,
+        trayCursor: () => 0,
+        isNudging: () => false,
+      }),
+    }),
+    PressedTrayKey: ({ key }) =>
+      withSnapshot(model, snapshot => {
+        const order = trayOrder(snapshot.grill, readyOf(model, snapshot))
+        const current = Option.map(
+          Array.get(order, model.trayCursor),
+          step => step.question.id,
+        )
+        const clamp = (cursor: number) =>
+          Math.max(0, Math.min(order.length - 1, cursor))
+        switch (key) {
+          case 'Up':
+          case 'Down':
+            return {
+              model: modifyFields(model, {
+                trayCursor: cursor => clamp(cursor + (key === 'Up' ? -1 : 1)),
+              }),
+            }
+          case 'Toggle':
+            return Option.match(current, {
+              onNone: () => ({ model }),
+              onSome: question => toggleReview(model, question),
+            })
+          case 'Keep':
+            return Option.match(current, {
+              onNone: () => ({ model }),
+              onSome: question => {
+                const kept = keepBack(model, question, true)
+                return {
+                  ...kept,
+                  model: modifyFields(kept.model, {
+                    trayCursor: cursor =>
+                      Math.max(0, Math.min(order.length - 2, cursor)),
+                  }),
+                }
+              },
+            })
+          case 'Send':
+            return holdSend(model, traySelection(model, snapshot))
+          case 'Close':
+            return {
+              model: modifyFields(model, { isTrayOpen: () => false }),
+            }
+        }
+      }),
+    ClickedKeepBack: ({ question, kept }) => keepBack(model, question, kept),
+    RestoredKeptBack: ({ questions }) => ({
+      model: modifyFields(model, { keptBack: () => questions }),
+    }),
+    CompletedSaveKeptBack: () => ({ model }),
+    ElapsedAnswerIdle: ({ activity }) =>
+      withSnapshot(model, snapshot => ({
+        model: modifyFields(model, {
+          isNudging: nudging =>
+            nudging ||
+            (activity === model.answerActivity &&
+              !model.isTrayOpen &&
+              Option.isNone(model.maybeHeldSend) &&
+              Array.isReadonlyArrayNonEmpty(readyOf(model, snapshot))),
         }),
       })),
+    ClickedNotYet: () => ({
+      model: modifyFields(model, { isNudging: () => false }),
+    }),
+    ClickedLeaveLink: ({ href }) => ({
+      model: modifyFields(model, {
+        maybeLeaving: () => Option.some({ href, isSending: false }),
+        isTrayOpen: () => false,
+      }),
+    }),
+    ClickedStay: () => ({
+      model: modifyFields(model, { maybeLeaving: () => Option.none() }),
+    }),
+    ClickedLeave: () =>
+      Option.match(model.maybeLeaving, {
+        onNone: () => ({ model }),
+        onSome: ({ href }) => ({ model, commands: [LeavePage({ href })] }),
+      }),
+    // Leaving ends the undo window, so these go at once rather than after a hold.
+    ClickedSendAndLeave: () =>
+      withSnapshot(model, snapshot =>
+        Option.match(model.maybeLeaving, {
+          onNone: () => ({ model }),
+          onSome: leaving =>
+            releaseHeldSend(
+              modifyFields(model, {
+                maybeLeaving: () =>
+                  Option.some({ ...leaving, isSending: true }),
+                maybeHeldSend: () =>
+                  Option.some({
+                    questions: Array.dedupe([
+                      ...Option.match(model.maybeHeldSend, {
+                        onNone: () => [],
+                        onSome: held => held.questions,
+                      }),
+                      ...readyOf(model, snapshot).map(step => step.question.id),
+                    ]),
+                    left: 0,
+                  }),
+              }),
+            ),
+        }),
+      ),
+    CompletedLeavePage: () => ({ model }),
+    WarnedBeforeUnload: () => ({ model }),
 
     TickedPoll: () => ({ model, commands: [LoadGrill(), CheckBuild()] }),
 
@@ -1863,23 +2274,29 @@ export const update = (model: Model, message: Message) =>
 
     CompletedSendAnswers: ({ result }) => {
       if (result._tag === 'Failure') {
-        return {
-          model: modifyFields(model, {
+        return afterSend(
+          modifyFields(model, {
             send: () => 'Failed' as const,
             sendDetail: () => result.failure,
+            maybeSendSubset: () => Option.none(),
           }),
-        }
+          false,
+        )
       }
       const isSent = latestSendState(result.success) === 'Sent'
+      // A one-click send leaves the Review message for a later Review send.
+      const clearsMessage = isSent && Option.isNone(model.maybeSendSubset)
       const settled = modifyFields(refreshPage(model, result.success), {
         send: () => latestSendState(result.success),
         sendDetail: () => latestSendDetail(result.success),
         isSendOpen: () => !isWorkspacePage(model.currentPart) && !isSent,
-        sendMessage: message => (isSent ? '' : message),
+        sendMessage: message => (clearsMessage ? '' : message),
+        maybeSendSubset: () => Option.none(),
       })
-      return isSent
-        ? { model: settled, commands: [ClearSendBox()] }
-        : { model: settled }
+      const next = afterSend(settled, isSent)
+      return clearsMessage
+        ? { ...next, commands: [ClearSendBox(), ...(next.commands ?? [])] }
+        : next
     },
 
     ClickedDrawing: ({ question }) =>
@@ -3041,6 +3458,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
       ...(model.channelReveal._tag !== 'None' ? [] : [ScrollToTop()]),
       RestoreRead({ grillId: snapshot.grill.id }),
       RestoreClosedLine({ grillId: snapshot.grill.id }),
+      RestoreKeptBack({ grillId: snapshot.grill.id }),
       ...([SQUAD, GRILLS].includes(next.currentPart)
         ? [LoadWorkspaceCatalog()]
         : []),
@@ -3256,6 +3674,14 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     sendMessage: '',
     talkGeneration: 0,
     sendDetail: '',
+    maybeSendSubset: Option.none(),
+    maybeHeldSend: Option.none(),
+    keptBack: [],
+    isTrayOpen: false,
+    trayCursor: 0,
+    answerActivity: 0,
+    isNudging: false,
+    maybeLeaving: Option.none(),
     copy: 'Idle',
     channelReveal: Option.match(revealAnchorFrom(url.hash), {
       onNone: () => ChannelReveal.None(),
@@ -4349,6 +4775,50 @@ const readKey = (grillId: string): string => `grill-flow:read:${grillId}`
 const closedLineKey = (grillId: string): string =>
   `grill-flow:closed-line:${grillId}`
 
+const keptBackKey = (grillId: string): string =>
+  `grill-flow:kept-back:${grillId}`
+
+export const SaveKeptBack = Command.define('SaveKeptBack', {
+  args: { grillId: Schema.String, questions: Schema.Array(Schema.String) },
+  messages: [Message.CompletedSaveKeptBack],
+  execute: ({ grillId, questions }) =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(
+          keptBackKey(grillId),
+          JSON.stringify(questions),
+        )
+      } catch {
+        // Storage can be off; the drafts then count as unsent again after a reload.
+      }
+      return Message.CompletedSaveKeptBack()
+    }),
+})
+
+export const RestoreKeptBack = Command.define('RestoreKeptBack', {
+  args: { grillId: Schema.String },
+  messages: [Message.RestoredKeptBack],
+  execute: ({ grillId }) =>
+    pipe(
+      Effect.try((): unknown =>
+        JSON.parse(window.localStorage.getItem(keptBackKey(grillId)) ?? '[]'),
+      ),
+      Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(Schema.String))),
+      Effect.catch(() => Effect.succeed<ReadonlyArray<string>>([])),
+      Effect.map(questions => Message.RestoredKeptBack({ questions })),
+    ),
+})
+
+export const LeavePage = Command.define('LeavePage', {
+  args: { href: Schema.String },
+  messages: [Message.CompletedLeavePage],
+  execute: ({ href }) =>
+    Effect.sync(() => {
+      window.location.assign(href)
+      return Message.CompletedLeavePage()
+    }),
+})
+
 export const SaveClosedLine = Command.define('SaveClosedLine', {
   args: { grillId: Schema.String, id: Schema.String },
   messages: [Message.CompletedSaveClosedLine],
@@ -4744,6 +5214,13 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(ISSUE_PAGE) ||
   page.startsWith(CARD_PAGE)
 
+// Keys typed into a field belong to the field; checkboxes and buttons don't take letters.
+const isTypingTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  target.closest(
+    'input:not([type="checkbox"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"]',
+  ) !== null
+
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
   // The clipboard must be read while the paste event is being dispatched (InsertPastedText).
   // An empty read, such as a pasted image, is left to the browser.
@@ -4945,6 +5422,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
       modelToDependencies: model => ({
         page:
           !model.workspace.isSettingsOpen &&
+          !model.isTrayOpen &&
           (model.currentPart === REVIEW ||
             model.currentPart.startsWith(QUESTION_PAGE))
             ? model.currentPart
@@ -4965,7 +5443,218 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
                 (event.target instanceof Element &&
                   event.target.closest('.f-discussion') !== null)
                   ? Option.none()
-                  : Option.some(Message.PressedWorkspaceShortcut()),
+                  : Option.some(
+                      event.shiftKey && page.startsWith(QUESTION_PAGE)
+                        ? Message.PressedRoundSendShortcut()
+                        : Message.PressedWorkspaceShortcut(),
+                    ),
+            }),
+    },
+  ),
+  heldSendTick: entry(
+    { holding: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        holding: Option.exists(model.maybeHeldSend, held => held.left > 0),
+      }),
+      dependenciesToStream: ({ holding }) =>
+        holding
+          ? Stream.tick(Duration.seconds(1)).pipe(
+              Stream.drop(1),
+              Stream.map(() => Message.TickedHeldSend()),
+            )
+          : Stream.empty,
+    },
+  ),
+  // While a send is held nothing has left the page, so closing it would drop the send; the
+  // browser asks first.
+  heldSendUnload: entry(
+    { holding: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        holding: Option.isSome(model.maybeHeldSend),
+      }),
+      dependenciesToStream: ({ holding }) =>
+        holding
+          ? Dom.streamFromEventFilterMapPreventDefault({
+              target: window,
+              type: 'beforeunload',
+              filterMapEvent: () => Option.some(Message.WarnedBeforeUnload()),
+            })
+          : Stream.empty,
+    },
+  ),
+  undoShortcut: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled: Option.isSome(model.maybeHeldSend),
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        enabled
+          ? Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event =>
+                event.key.toLowerCase() !== 'z' ||
+                !(event.metaKey || event.ctrlKey) ||
+                event.shiftKey ||
+                event.defaultPrevented ||
+                isTypingTarget(event.target)
+                  ? Option.none()
+                  : Option.some(Message.ClickedUndoSend()),
+            })
+          : Stream.empty,
+    },
+  ),
+  openTrayKey: entry(
+    { enabled: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled:
+          isWorkspacePage(model.currentPart) &&
+          !model.isTrayOpen &&
+          !model.workspace.isSettingsOpen &&
+          Option.isNone(model.maybeLeaving),
+      }),
+      dependenciesToStream: ({ enabled }) =>
+        enabled
+          ? Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event =>
+                event.key !== 'u' ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.altKey ||
+                event.repeat ||
+                event.defaultPrevented ||
+                isTypingTarget(event.target)
+                  ? Option.none()
+                  : Option.some(Message.ClickedUnsentTray()),
+            })
+          : Stream.empty,
+    },
+  ),
+  trayKeys: entry(
+    { open: Schema.Boolean },
+    {
+      modelToDependencies: model => ({ open: model.isTrayOpen }),
+      dependenciesToStream: ({ open }) =>
+        open
+          ? Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event => {
+                if (event.defaultPrevented || event.isComposing) {
+                  return Option.none()
+                }
+                if (event.key === 'Escape') {
+                  return Option.some(Message.PressedTrayKey({ key: 'Close' }))
+                }
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                  return Option.some(Message.PressedTrayKey({ key: 'Send' }))
+                }
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.altKey ||
+                  isTypingTarget(event.target)
+                ) {
+                  return Option.none()
+                }
+                const key =
+                  event.key === 'ArrowUp'
+                    ? 'Up'
+                    : event.key === 'ArrowDown'
+                      ? 'Down'
+                      : event.key === ' ' &&
+                          !(
+                            event.target instanceof Element &&
+                            event.target.closest('input, button') !== null
+                          )
+                        ? 'Toggle'
+                        : event.key === 'k'
+                          ? 'Keep'
+                          : event.key === 'u'
+                            ? 'Close'
+                            : undefined
+                return key === undefined
+                  ? Option.none()
+                  : Option.some(Message.PressedTrayKey({ key }))
+              },
+            })
+          : Stream.empty,
+    },
+  ),
+  idleNudge: entry(
+    { activity: Schema.Number, armed: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        activity: model.answerActivity,
+        armed: model.answerActivity > 0 && !model.isNudging,
+      }),
+      dependenciesToStream: ({ activity, armed }) =>
+        armed
+          ? Stream.fromEffect(
+              Effect.sleep(Duration.seconds(IDLE_NUDGE_SECONDS)).pipe(
+                Effect.as(Message.ElapsedAnswerIdle({ activity })),
+              ),
+            )
+          : Stream.empty,
+    },
+  ),
+  // A plain click on a link to another grill-flow page, with ready drafts unsent, asks first.
+  leaveLinks: entry(
+    { grillId: Schema.String },
+    {
+      modelToDependencies: model => ({
+        grillId: Option.match(AsyncData.getData(model.page), {
+          onNone: () => '',
+          onSome: snapshot =>
+            isWorkspacePage(model.currentPart) &&
+            Option.isNone(model.maybeLeaving) &&
+            Array.isReadonlyArrayNonEmpty(readyOf(model, snapshot))
+              ? snapshot.grill.id
+              : '',
+        }),
+      }),
+      dependenciesToStream: ({ grillId }) =>
+        grillId === ''
+          ? Stream.empty
+          : Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'click',
+              options: { capture: true },
+              filterMapEvent: event => {
+                const anchor =
+                  event.target instanceof Element
+                    ? event.target.closest('a[href]')
+                    : null
+                if (
+                  !(anchor instanceof HTMLAnchorElement) ||
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  (anchor.target !== '' && anchor.target !== '_self')
+                ) {
+                  return Option.none()
+                }
+                const url = new URL(anchor.href, window.location.href)
+                const own = `/g/${grillId}`
+                if (
+                  url.origin !== window.location.origin ||
+                  !url.pathname.startsWith('/g/') ||
+                  url.pathname === own ||
+                  url.pathname.startsWith(`${own}/`)
+                ) {
+                  return Option.none()
+                }
+                event.stopPropagation()
+                return Option.some(Message.ClickedLeaveLink({ href: url.href }))
+              },
             }),
     },
   ),

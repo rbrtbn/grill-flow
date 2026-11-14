@@ -9,6 +9,15 @@ The language keeps a request, evidence of delivery and a reported result distinc
 The grill that owns an item and its wording, even when another page displays it.
 _Avoid_: Shared question number as an item's identity
 
+**Held send**:
+A one-click send waiting out its few seconds of Undo in the page, before anything is frozen
+or delivered.
+_Avoid_: Sent, pending delivery
+
+**Kept back**:
+An unsent draft the reader holds on purpose: not counted as unsent and never nudged about.
+_Avoid_: Excluded (one Review send's unticked row), withdrawn
+
 **Drawing request**:
 A saved request for a question owner's comparison table or flow,
 tied to exact question wording.

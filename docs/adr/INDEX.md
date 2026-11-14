@@ -36,3 +36,4 @@
 | [0032](0032-edit-stored-grills-with-expected-revisions.md) | Edit stored grills with expected revisions | accepted |
 | [0033](0033-reference-discussions-from-served-grills.md) | Reference discussions from served grills | accepted |
 | [0034](0034-stable-question-keys-context-and-clarity-lint.md) | Stable question keys, context and a clarity lint | accepted |
+| [0035](0035-send-from-the-question-and-an-unsent-tray.md) | Send from the question and an unsent tray | accepted |

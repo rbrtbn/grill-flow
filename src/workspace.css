@@ -2797,3 +2797,271 @@ body[data-gf-preview] .f-workspace {
   align-items: center;
   gap: 14px;
 }
+
+/* Send shortcuts (docs/adr/0035): the strip under an answer, the unsent tray, its nudge, a held
+   send seen from elsewhere, and the prompt before leaving with drafts unsent. */
+.f-kbd {
+  font: 500 11px/1 var(--code);
+  padding: 2px 4px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--muted);
+  background: var(--paper);
+}
+.f-workspace .f-send-primary,
+.f-workspace .f-send-secondary {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font: 600 13px/1.2 var(--label);
+  cursor: pointer;
+}
+.f-workspace .f-send-primary {
+  background: var(--link);
+  color: var(--paper);
+  border: 1px solid var(--link);
+}
+.f-workspace .f-send-primary .f-kbd {
+  background: transparent;
+  color: inherit;
+  border-color: currentColor;
+  opacity: 0.75;
+}
+.f-workspace .f-send-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.f-workspace .f-send-secondary {
+  background: var(--paper);
+  color: var(--link);
+  border: 1px solid var(--rule);
+}
+.f-send-strip {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--link);
+  border-radius: 6px;
+  background: var(--link-wash);
+}
+.f-send-strip p {
+  margin: 0;
+}
+.f-send-strip.is-quiet {
+  background: var(--panel);
+  border-left-color: var(--muted);
+}
+.f-send-strip.is-held {
+  background: var(--ochre-wash);
+  border-left-color: var(--ochre);
+}
+.f-send-strip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+.f-send-strip-round {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+.f-send-strip-round small {
+  color: var(--muted);
+}
+.f-send-strip-others {
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--rule);
+  list-style: none;
+  color: var(--muted);
+  font-size: 14px;
+}
+.f-topbar .f-header-send.has-unsent {
+  background: var(--ochre-wash);
+  color: var(--ink);
+  border-color: var(--ochre);
+}
+.f-unsent-nudge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--ochre);
+  border-radius: 16px;
+  background: var(--ochre-wash);
+  font: 500 13px/1.3 var(--label);
+}
+.f-unsent-tray {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--bar) + 6px);
+  right: 12px;
+  width: min(600px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--bar) - 24px);
+  overflow: auto;
+  padding: 12px 14px 0;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.2);
+}
+.f-tray-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.f-tray-head small {
+  color: var(--muted);
+}
+.f-tray-round-head {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+.f-unsent-tray ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.f-tray-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.f-tray-row:last-child {
+  border-bottom: 0;
+}
+.f-tray-row.is-cursor {
+  background: var(--link-wash);
+  box-shadow: inset 3px 0 0 var(--link);
+}
+.f-workspace .f-tray-question {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.f-tray-question span {
+  overflow: hidden;
+  color: var(--muted);
+  font: 13px/1.4 var(--read);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.f-tray-to {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.f-workspace .f-tray-keep {
+  padding: 1px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: 12px var(--label);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.f-tray-kept {
+  margin-top: 14px;
+  font-size: 14px;
+}
+.f-tray-kept summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+.f-tray-kept li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 10px;
+}
+.f-tray-kept li > span:first-child {
+  flex: 1;
+}
+.f-tray-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 14px -14px 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+.f-tray-foot > span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+.f-held-send {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--ochre);
+  border-radius: 6px;
+  background: var(--ochre-wash);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.15);
+}
+.f-leave-scrim {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  padding-top: 18vh;
+  background: rgb(0 0 0 / 0.3);
+}
+.f-leave-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 20px 22px;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.25);
+}
+.f-leave-dialog h2 {
+  margin: 0 0 6px;
+  font: 600 21px/1.3 var(--read);
+}
+.f-leave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

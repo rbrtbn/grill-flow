@@ -45,6 +45,7 @@ import {
   type Model,
   RestoreDiscussionScroll,
   type SidebarEdge,
+  readyOf,
   threadDraftKey,
 } from './main'
 import {
@@ -55,6 +56,14 @@ import {
   quotedAsk,
 } from './quote'
 import { rosterView } from './rosterView'
+import {
+  heldSendBarView,
+  leaveDialogView,
+  nudgeView,
+  sendStripView,
+  unsentLabel,
+  unsentTrayView,
+} from './sendShortcutsView'
 import { textLimitCount } from './textLimitView'
 import {
   ANSWER_HISTORY,
@@ -421,9 +430,10 @@ export const workspaceView = (
   const grill = snapshot.grill
   const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
   const selectedDrafts = drafts.filter(
-    id => !model.workspace.excluded.includes(id),
+    id =>
+      !model.workspace.excluded.includes(id) && !model.keptBack.includes(id),
   )
-  const reviewLabel = `Review & send${drafts.length > 0 ? ` · ${drafts.length}` : ''}`
+  const reviewLabel = unsentLabel(model, snapshot)
   const sendLabel =
     model.send === 'Sending'
       ? 'Sending…'
@@ -502,6 +512,9 @@ export const workspaceView = (
           )
         : h.empty,
       workspaceHeaderView(model, snapshot, reviewLabel, sendLabel, h),
+      unsentTrayView(model, snapshot, h),
+      heldSendBarView(model, snapshot, question, h),
+      leaveDialogView(model, snapshot, h),
       Array.isReadonlyArrayNonEmpty(snapshot.unconfirmedSends ?? [])
         ? h.div(
             [h.Class('f-unconfirmed-sends'), h.Role('alert')],
@@ -769,16 +782,24 @@ const workspaceHeaderView = (
               ),
             ],
           ),
+          nudgeView(model, snapshot, h),
           h.button(
             [
               h.Type('button'),
               h.Id('workspace-review-send'),
-              h.Class('send-button f-header-send'),
+              h.Class(
+                `send-button f-header-send${readyOf(model, snapshot).length > 0 ? ' has-unsent' : ''}`,
+              ),
               h.AriaLabel(sendLabel),
+              h.AriaExpanded(model.isTrayOpen),
+              h.AriaKeyshortcuts('U'),
+              h.Title(
+                'Unsent answers (u) · ⌘-click sends your Review selection',
+              ),
               h.Disabled(
                 model.send === 'Sending' || model.quickSend !== 'Idle',
               ),
-              h.OnClick(Message.ClickedWorkspacePage({ page: REVIEW })),
+              h.OnClick(Message.ClickedUnsentTray()),
             ],
             [
               h.span(
@@ -1773,6 +1794,7 @@ const answersView = (
           ])
         : h.empty,
       textLimitCount(model.notes[q.id] ?? '', h),
+      sendStripView(model, snapshot, step, h),
     ],
   )
 }
@@ -1784,7 +1806,9 @@ const reviewView = (
   h: H,
 ): Html => {
   const drafts = draftAnswerIds(snapshot, model.answers, model.notes, model.own)
-  const selected = drafts.filter(id => !model.workspace.excluded.includes(id))
+  const isLeftOut = (id: string) =>
+    model.workspace.excluded.includes(id) || model.keptBack.includes(id)
+  const selected = drafts.filter(id => !isLeftOut(id))
   const recipients = Array.dedupe(
     selected.map(id =>
       questionSession(
@@ -1883,22 +1907,14 @@ const reviewView = (
                     return [
                       h.keyed('tr')(
                         step.id,
-                        [
-                          h.Class(
-                            model.workspace.excluded.includes(id)
-                              ? 'is-excluded'
-                              : '',
-                          ),
-                        ],
+                        [h.Class(isLeftOut(id) ? 'is-excluded' : '')],
                         [
                           h.td(
                             [],
                             [
                               h.input([
                                 h.Type('checkbox'),
-                                h.Checked(
-                                  !model.workspace.excluded.includes(id),
-                                ),
+                                h.Checked(!isLeftOut(id)),
                                 h.AriaLabel(`Send ${id}`),
                                 h.OnClick(
                                   Message.ToggledReviewAnswer({ question: id }),
@@ -1918,7 +1934,7 @@ const reviewView = (
                                 [
                                   `${id}${step.question.issue === undefined ? '' : ` · ${step.question.issue}`} · ${answerRoundLabel(snapshot.grill, step)}`,
                                   h.br([]),
-                                  `To ${questionAgent(snapshot.grill, step.question)}`,
+                                  `To ${questionAgent(snapshot.grill, step.question)}${model.keptBack.includes(id) ? ' · Kept back' : ''}`,
                                 ],
                               ),
                             ],

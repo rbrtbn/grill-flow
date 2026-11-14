@@ -192,10 +192,9 @@ it('qualifies matching round scopes by source and keeps global drafts available 
     ),
     expect(selector('.f-round-filter')).not.toContainText('Beta'),
     expectAll(all.selector('.f-question-item')).toHaveCount(1),
-    expect(
-      role('button', { name: 'Review & send · 1', exact: true }),
-    ).toExist(),
-    click(role('button', { name: 'Review & send · 1', exact: true })),
+    expect(role('button', { name: '1 unsent', exact: true })).toExist(),
+    click(role('button', { name: '1 unsent', exact: true })),
+    click(role('button', { name: 'Review & send with a message' })),
     Command.resolve(PushPage, Message.CompletedNavigate()),
     Command.resolve(ScrollToTop, Message.CompletedScroll()),
     Mount.resolve(FillBox, Message.CompletedFillBox()),
@@ -274,9 +273,7 @@ it('sorts the whole queue across rounds and keeps its filter and global draft co
       'true',
     ),
     expect(quick('Open')).toHaveAttr('aria-pressed', 'true'),
-    expect(
-      role('button', { name: 'Review & send · 1', exact: true }),
-    ).toExist(),
+    expect(role('button', { name: '1 unsent', exact: true })).toExist(),
     click(role('button', { name: 'Urgency', exact: true })),
     Command.resolve(
       SaveWorkspaceSettings,
