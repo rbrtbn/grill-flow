@@ -193,6 +193,8 @@ export type Freeze = Readonly<{
   body: string
   clearsWhen: string
   at: number
+  // A blocker whose evidence couldn't be checked: shown as a freeze, marked as unconfirmed.
+  isUnknown?: boolean
 }>
 
 export type InboxQuestion = Readonly<{
@@ -446,6 +448,34 @@ const sessionsOf = (
     })
 }
 
+type Blocker = NonNullable<Snapshot['blockers']>[number]
+
+const clearsWhenOf = (condition: Blocker['item']['condition']): string =>
+  condition.kind === 'question'
+    ? `${condition.question} is answered ${condition.oneOf.join(' or ')}`
+    : condition.kind === 'owner-step'
+      ? `the owner step ${condition.id} is done`
+      : `${
+          condition.reference.provider === 'linear'
+            ? condition.reference.id
+            : `${condition.reference.repository}#${condition.reference.number}`
+        } is no longer ${condition.state}`
+
+/** Published blockers hold work the way a freeze does: blocked and unknown show, clear doesn't. */
+export const blockerFreezes = (snapshot: Snapshot): ReadonlyArray<Freeze> =>
+  (snapshot.blockers ?? [])
+    .filter(blocker => blocker.state !== 'clear')
+    .map(blocker => ({
+      id: blocker.item.id,
+      session: blocker.item.session,
+      title:
+        blocker.item.title ?? blocker.item.body.split('\n')[0] ?? 'Blocked',
+      body: [blocker.item.body, blocker.detail].filter(Boolean).join(' '),
+      clearsWhen: clearsWhenOf(blocker.item.condition),
+      at: blocker.at,
+      ...(blocker.state === 'unknown' ? { isUnknown: true } : {}),
+    }))
+
 const statusesOf = (snapshot: Snapshot): ReadonlyArray<StatusLine> =>
   Array.sort(
     (snapshot.updates ?? [])
@@ -467,7 +497,7 @@ export const inboxData = (
 ): InboxData => {
   const base: InboxBase = {
     tasks: publishedTasks(snapshot),
-    freezes: [],
+    freezes: blockerFreezes(snapshot),
     questions: openQuestions(snapshot, answers),
     statuses: statusesOf(snapshot),
   }

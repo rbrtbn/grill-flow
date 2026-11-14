@@ -24,6 +24,15 @@ const FREEZES: ReadonlyArray<Freeze> = [
     clearsWhen: 'the LAB-1454 fix is released (squad 25.8.1)',
     at: at('2026-11-14T01:58:00Z'),
   },
+  {
+    id: 'hold-sandbox-merge',
+    session: 't2hq',
+    title: 'Don’t merge the sandbox-tools PR yet',
+    body: 'It waits on squad#160’s CI, which hasn’t reported since 03:10.',
+    clearsWhen: 'squad#160 is no longer failed',
+    at: at('2026-11-14T03:12:00Z'),
+    isUnknown: true,
+  },
 ]
 
 const ENRICH: Readonly<Record<string, Partial<Task>>> = {

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Snapshot } from './domain'
 import {
+  blockerFreezes,
   dueCount,
   entriesOf,
   filtersFrom,
@@ -106,7 +107,7 @@ describe('Inbox entries', () => {
   it('merges the preview fixture only when asked', () => {
     expect(inboxData(snapshot, {}, 0, false).freezes).toEqual([])
     const fixture = inboxData(snapshot, {}, 0, true)
-    expect(fixture.freezes.length).toBe(1)
+    expect(fixture.freezes.length).toBe(2)
     expect(fixture.tasks.some(task => task.state._tag === 'Promised')).toBe(
       true,
     )
@@ -131,4 +132,50 @@ describe('Where a task is done', () => {
           }),
     ).toBe('host:rob-mbp')
   })
+})
+
+it('shows blocked and unknown blockers as freezes and drops clear ones', () => {
+  const blocker = (id: string, state: 'blocked' | 'clear' | 'unknown') => ({
+    source: 'alpha',
+    event: 1,
+    at: 1000,
+    state,
+    checkedAt: null,
+    detail: 'Checked by the lead.',
+    item: {
+      version: 1,
+      id,
+      previous: 0,
+      revision: 1,
+      session: 't-lead',
+      body: `Hold ${id}.`,
+      title: `Hold ${id}`,
+      kind: 'blocker',
+      condition: {
+        kind: 'question',
+        source: 'alpha',
+        question: 'Q1',
+        oneOf: ['a'],
+      },
+    },
+  })
+  const snapshot = Schema.decodeUnknownSync(Snapshot)({
+    grill,
+    answers: {},
+    notes: {},
+    own: {},
+    asks: [],
+    revisions: [],
+    sends: [],
+    blockers: [
+      blocker('held', 'blocked'),
+      blocker('unsure', 'unknown'),
+      blocker('done', 'clear'),
+    ],
+  })
+  const freezes = blockerFreezes(snapshot)
+  expect(freezes.map(freeze => freeze.id)).toEqual(['held', 'unsure'])
+  expect(freezes[0]?.clearsWhen).toBe('Q1 is answered a')
+  expect(freezes[1]?.isUnknown).toBe(true)
+  expect(inboxData(snapshot, {}, 0, false).freezes).toHaveLength(2)
 })

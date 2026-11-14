@@ -428,6 +428,9 @@ const freezeBanner = (
       [
         h.b([], [`⏸ ${NAMES.freeze}: ${freeze.title}`]),
         ` until ${freeze.clearsWhen}. `,
+        freeze.isUnknown === true
+          ? h.span([h.Class('f-freeze-unknown')], ['evidence unknown '])
+          : h.empty,
         h.span(
           [h.Class('hint')],
           [`${freeze.session} · ${ago(model.now, freeze.at)}`],
