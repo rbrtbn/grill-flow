@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { OWN, TEXT_LIMIT } from '../src/domain'
 import {
   freezeSubmission,
   questionRevisions,
@@ -579,4 +580,45 @@ it('uses fixed focus argv from the published owner step without sending its comm
   } finally {
     db.close()
   }
+})
+
+describe('text over the limit', () => {
+  const tooLong = 'x'.repeat(TEXT_LIMIT + 1)
+  it.each([
+    ['events', { kind: 'noted', question: 'Q2', text: tooLong }, 'The note'],
+    [
+      'events',
+      { kind: 'answered', question: 'Q2', key: OWN, text: tooLong },
+      'Your own answer',
+    ],
+    ['events', { kind: 'asked', stepId: 'run', text: tooLong }, 'The message'],
+    ['send', { message: tooLong }, 'The message'],
+  ])('refuses %s %j instead of cutting it short', async (path, body, what) => {
+    const db = new Database(database)
+    const before = events(db, 'routing-fixture').length
+    const response = await fetch(`${base}/api/grills/routing-fixture/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    })
+    try {
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toBe(
+        `${what} is 4,001 characters; the limit is 4,000. Shorten it and try again.`,
+      )
+      expect(events(db, 'routing-fixture')).toHaveLength(before)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps text at the limit whole', async () => {
+    const atLimit = 'y'.repeat(TEXT_LIMIT)
+    const state = await request('events', {
+      kind: 'noted',
+      question: 'Q2',
+      text: atLimit,
+    })
+    expect(state.notes.Q2).toBe(atLimit)
+  })
 })

@@ -20,12 +20,14 @@ import {
   OWN,
   type PlanIssue,
   type Question,
+  type QuestionTimes,
   type Snapshot,
   type Step,
   agentAddressOf,
   agentMessagesOf,
   agentTarget,
   answerRoundLabel,
+  isOverTextLimit,
   planPhaseOf,
   questionAgent,
   questionSession,
@@ -50,8 +52,10 @@ import {
   QUOTE_DRAFT,
   QUOTE_POPOVER_CLASS,
   quoteDestination,
+  quotedAsk,
 } from './quote'
 import { rosterView } from './rosterView'
+import { textLimitCount } from './textLimitView'
 import {
   ANSWER_HISTORY,
   CHANGES,
@@ -1335,6 +1339,7 @@ const questionView = (
                               state === 'Draft' ? 'Draft · not sent' : state,
                             ],
                           ),
+                          questionTimesView(snapshot, q.id, h),
                         ],
                       ),
                       h.nav(
@@ -1465,6 +1470,7 @@ const quotePopover = (
     left: `${quoted.left}px`,
   })
   const placement = `is-${quoted.placement.toLowerCase()}`
+  const quoteReply = quotedAsk(quoted.text, model.talkDrafts[QUOTE_DRAFT] ?? '')
   return quote._tag === 'Offered'
     ? h.div(
         [
@@ -1513,6 +1519,7 @@ const quotePopover = (
                 : Option.none(),
             ),
           ]),
+          textLimitCount(quoteReply, h),
           h.div(
             [h.Class('f-quote-foot')],
             [
@@ -1524,12 +1531,44 @@ const quotePopover = (
                 ],
                 ['Cancel'],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(quoteReply)),
+                ],
+                ['Send'],
+              ),
             ],
           ),
         ],
       )
 }
+
+const dayOf = (at: number): string =>
+  new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const clockOf = (at: number): string =>
+  new Date(at).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+export const questionTimesLabel = (times: QuestionTimes): string => {
+  const posted = `Posted ${dayOf(times.posted)} ${clockOf(times.posted)}`
+  if (times.edited === undefined) {
+    return posted
+  }
+  const editedDay =
+    dayOf(times.edited) === dayOf(times.posted) ? '' : `${dayOf(times.edited)} `
+  return `${posted} · edited ${editedDay}${clockOf(times.edited)}`
+}
+
+const questionTimesView = (snapshot: Snapshot, id: string, h: H): Html =>
+  Option.match(Option.fromUndefinedOr(snapshot.questionTimes?.[id]), {
+    onNone: () => h.empty,
+    onSome: times =>
+      h.span([h.Class('f-question-times')], [questionTimesLabel(times)]),
+  })
 
 const issueLink = (
   snapshot: Snapshot,
@@ -1664,6 +1703,7 @@ const answersView = (
             h.OnBlur(Message.BlurredOwnAnswer({ question: q.id })),
           ])
         : h.empty,
+      selected === OWN ? textLimitCount(model.own[q.id] ?? '', h) : h.empty,
       h.div(
         [h.Class('f-answer-actions')],
         [
@@ -1700,6 +1740,7 @@ const answersView = (
             h.OnBlur(Message.BlurredNote({ question: q.id })),
           ])
         : h.empty,
+      textLimitCount(model.notes[q.id] ?? '', h),
     ],
   )
 }
@@ -1990,6 +2031,7 @@ const reviewView = (
             h.Placeholder('Anything else the agent should know…'),
             h.OnInput(value => Message.UpdatedSendMessage({ value })),
           ]),
+          textLimitCount(model.sendMessage, h),
           h.div(
             [h.Class('f-send-foot')],
             [
@@ -2010,6 +2052,7 @@ const reviewView = (
                     model.send === 'Sending' ||
                       model.pendingEvents > 0 ||
                       Option.isSome(model.maybeSaveError) ||
+                      isOverTextLimit(model.sendMessage) ||
                       selected.length === 0,
                   ),
                   h.OnClick(Message.ClickedConfirmSend()),
@@ -2279,6 +2322,7 @@ const discussionView = (
                 : Option.none(),
             ),
           ]),
+          textLimitCount(draft, h),
           h.div(
             [h.Class('f-send-foot')],
             [
@@ -2286,7 +2330,14 @@ const discussionView = (
                 [h.Class('hint')],
                 ['Enter to send · Shift + Enter for a new line'],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Ask']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(draft.trim())),
+                ],
+                ['Ask'],
+              ),
             ],
           ),
         ],

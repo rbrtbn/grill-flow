@@ -57,9 +57,11 @@ import {
   OWN,
   Snapshot,
   type Step,
+  TEXT_LIMIT,
   agentMessagesOf,
   cardOf,
   cardsOf,
+  isOverTextLimit,
   issuesOf,
   replyText,
   roundOf,
@@ -686,7 +688,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
     ]
     if (
       bodies.some(
-        body => typeof body.text === 'string' && body.text.length > 4000,
+        body => typeof body.text === 'string' && isOverTextLimit(body.text),
       )
     ) {
       return {
@@ -694,7 +696,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
           quickSend: () => 'Idle',
           send: () => 'Failed',
           sendDetail: () =>
-            'An answer or note exceeds 4,000 characters. Shorten it and try again; your draft is kept.',
+            `An answer or note exceeds ${TEXT_LIMIT.toLocaleString('en-GB')} characters. Shorten it and try again; your draft is kept.`,
         }),
       }
     }
@@ -1554,7 +1556,8 @@ export const update = (model: Model, message: Message) =>
       Option.match(quotedTextOf(model.workspace.quote), {
         onNone: () => ({ model }),
         onSome: quoted => {
-          if (text.trim() === '') {
+          const ask = quotedAsk(quoted.text, text)
+          if (text.trim() === '' || isOverTextLimit(ask)) {
             return { model }
           }
           const target = quoteTargetOf(model, quoted)
@@ -1569,7 +1572,7 @@ export const update = (model: Model, message: Message) =>
             {
               kind: 'asked',
               stepId: target,
-              text: quotedAsk(quoted.text, text),
+              text: ask,
             },
           )
         },
@@ -1581,7 +1584,7 @@ export const update = (model: Model, message: Message) =>
       commands: [ReadWorkspaceDiscussionBox({ target })],
     }),
     ReadWorkspaceDiscussion: ({ target, text }) => {
-      if (text.trim() === '') {
+      if (text.trim() === '' || isOverTextLimit(text.trim())) {
         return { model }
       }
       const posted = postEvent(
@@ -2526,7 +2529,7 @@ export const update = (model: Model, message: Message) =>
 
     ReadThreadBox: ({ stepId, text: boxText }) => {
       const text = boxText.trim()
-      return text === ''
+      return text === '' || isOverTextLimit(text)
         ? { model }
         : postEvent(
             modifyFields(model, {
@@ -2555,7 +2558,7 @@ export const update = (model: Model, message: Message) =>
             : Option.getOrElse(stepIdOf(snapshot, about), () =>
                 generalTargetOf(partId),
               )
-        if (text === '') {
+        if (text === '' || isOverTextLimit(text)) {
           return { model }
         }
         return postEvent(

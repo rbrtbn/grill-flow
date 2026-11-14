@@ -528,6 +528,21 @@ export const AnswerHistoryEntry = Schema.Struct({
   state: Schema.Literals(['pending', 'delivered', 'failed']),
 })
 
+// The server refuses a note, own answer, ask or send message longer than this.
+export const TEXT_LIMIT = 4000
+
+export const isOverTextLimit = (text: string): boolean =>
+  text.length > TEXT_LIMIT
+
+export const textLimitError = (what: string, text: string): string =>
+  `${what} is ${text.length.toLocaleString('en-GB')} characters; the limit is ${TEXT_LIMIT.toLocaleString('en-GB')}. Shorten it and try again.`
+
+export const QuestionTimes = Schema.Struct({
+  posted: Schema.Number,
+  edited: Schema.optionalKey(Schema.Number),
+})
+export type QuestionTimes = typeof QuestionTimes.Type
+
 /** One discussion's summary; `target` is the ask target that opens it. */
 export const DiscussionRef = Schema.Struct({
   target: Schema.String,
@@ -579,6 +594,10 @@ export const Snapshot = Schema.Struct({
   agents: Schema.optionalKey(Schema.Array(PageAgent)),
   questionRevisions: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String),
+  ),
+  // When each listed question was first loaded and last changed; a server from before it sends none.
+  questionTimes: Schema.optionalKey(
+    Schema.Record(Schema.String, QuestionTimes),
   ),
   // Keyed by question id, or by the target itself for run, part:, card: and grill-flow.
   // Served only; a grill write never carries it (docs/adr/0033).
