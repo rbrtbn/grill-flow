@@ -57,9 +57,11 @@ import {
   OWN,
   Snapshot,
   type Step,
+  TEXT_LIMIT,
   agentMessagesOf,
   cardOf,
   cardsOf,
+  isOverTextLimit,
   issuesOf,
   replyText,
   roundOf,
@@ -302,14 +304,23 @@ export const Message = defineMessageUnion({
     skipped: Schema.Array(Schema.String),
     expanded: Schema.Record(Schema.String, Schema.Boolean),
     currentPart: Schema.String,
+    sendMessage: Schema.String,
   },
   SelectedOption: { question: Schema.String, key: Schema.String },
   SelectedOwnAnswer: { question: Schema.String },
   UpdatedOwnAnswer: { question: Schema.String, value: Schema.String },
   BlurredOwnAnswer: { question: Schema.String },
+  CompletedReadOwnBox: {
+    question: Schema.String,
+    maybeText: Schema.Option(Schema.String),
+  },
   ClickedClearAnswer: { question: Schema.String },
   UpdatedNote: { question: Schema.String, value: Schema.String },
   BlurredNote: { question: Schema.String },
+  CompletedReadNoteBox: {
+    question: Schema.String,
+    maybeText: Schema.Option(Schema.String),
+  },
   CompletedPostEvent: {
     result: Schema.Result(Snapshot, Schema.String),
     body: Schema.optionalKey(Schema.String),
@@ -520,6 +531,9 @@ export const Message = defineMessageUnion({
   ScrolledToAbout: { partId: Schema.String, about: Schema.String },
   ScrolledToQuestion: { question: Schema.String },
   CompletedFillBox: {},
+  CompletedClearSendBox: {},
+  PastedText: { text: Schema.String },
+  CompletedInsertPastedText: {},
   ClickedAskAbout: { partId: Schema.String, question: Schema.String },
   ClickedShowChanges: { question: Schema.String, stepId: Schema.String },
   HoveredMapNode: { question: Schema.String },
@@ -651,7 +665,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
   ) {
     return { model: modifyFields(model, { quickSend: () => 'Idle' }) }
   }
-  // Blur can post stale model text before dictation's DOM value is read.
+  // A blur's save may still be in flight, and the send must not overtake it.
   if (model.pendingEvents > 0) {
     return { model }
   }
@@ -674,7 +688,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
     ]
     if (
       bodies.some(
-        body => typeof body.text === 'string' && body.text.length > 4000,
+        body => typeof body.text === 'string' && isOverTextLimit(body.text),
       )
     ) {
       return {
@@ -682,7 +696,7 @@ const continueQuickSend = (model: Model): UpdateReturn => {
           quickSend: () => 'Idle',
           send: () => 'Failed',
           sendDetail: () =>
-            'An answer or note exceeds 4,000 characters. Shorten it and try again; your draft is kept.',
+            `An answer or note exceeds ${TEXT_LIMIT.toLocaleString('en-GB')} characters. Shorten it and try again; your draft is kept.`,
         }),
       }
     }
@@ -1542,7 +1556,8 @@ export const update = (model: Model, message: Message) =>
       Option.match(quotedTextOf(model.workspace.quote), {
         onNone: () => ({ model }),
         onSome: quoted => {
-          if (text.trim() === '') {
+          const ask = quotedAsk(quoted.text, text)
+          if (text.trim() === '' || isOverTextLimit(ask)) {
             return { model }
           }
           const target = quoteTargetOf(model, quoted)
@@ -1557,7 +1572,7 @@ export const update = (model: Model, message: Message) =>
             {
               kind: 'asked',
               stepId: target,
-              text: quotedAsk(quoted.text, text),
+              text: ask,
             },
           )
         },
@@ -1569,7 +1584,7 @@ export const update = (model: Model, message: Message) =>
       commands: [ReadWorkspaceDiscussionBox({ target })],
     }),
     ReadWorkspaceDiscussion: ({ target, text }) => {
-      if (text.trim() === '') {
+      if (text.trim() === '' || isOverTextLimit(text.trim())) {
         return { model }
       }
       const posted = postEvent(
@@ -1632,14 +1647,13 @@ export const update = (model: Model, message: Message) =>
                     model,
                     commands: [
                       ReloadPage({
-                        drafts: JSON.stringify({
-                          talkDrafts: model.talkDrafts,
-                          notes: model.notes,
-                          own: model.own,
-                          skipped: model.skipped,
-                          expanded: model.expanded,
-                          currentPart: model.currentPart,
-                        }),
+                        talkDrafts: model.talkDrafts,
+                        notes: model.notes,
+                        own: model.own,
+                        skipped: model.skipped,
+                        expanded: model.expanded,
+                        currentPart: model.currentPart,
+                        sendMessage: model.sendMessage,
                       }),
                     ],
                   },
@@ -1655,8 +1669,10 @@ export const update = (model: Model, message: Message) =>
       skipped,
       expanded,
       currentPart,
+      sendMessage,
     }) => ({
       model: modifyFields(model, {
+        sendMessage: current => (current === '' ? sendMessage : current),
         skipped: current => Array.dedupe(Array.appendAll(current, skipped)),
         expanded: current => ({ ...expanded, ...current }),
         talkDrafts: current => ({ ...talkDrafts, ...current }),
@@ -1707,15 +1723,23 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { own: Record.set(question, value) }),
     }),
 
-    BlurredOwnAnswer: ({ question }) =>
-      Option.exists(Record.get(model.answers, question), key => key === OWN)
-        ? postEvent(model, {
-            kind: 'answered',
-            question,
-            key: OWN,
-            text: Option.getOrElse(Record.get(model.own, question), () => ''),
-          })
-        : { model },
+    BlurredOwnAnswer: ({ question }) => ({
+      model,
+      commands: [ReadOwnBox({ question })],
+    }),
+
+    CompletedReadOwnBox: ({ question, maybeText }) => {
+      const text = Option.getOrElse(maybeText, () =>
+        Option.getOrElse(Record.get(model.own, question), () => ''),
+      )
+      const read = modifyFields(model, { own: Record.set(question, text) })
+      return Option.exists(
+        Record.get(model.answers, question),
+        key => key === OWN,
+      )
+        ? postEvent(read, { kind: 'answered', question, key: OWN, text })
+        : { model: read }
+    },
 
     ClickedClearAnswer: ({ question }) => unpicked(model, question),
 
@@ -1723,12 +1747,20 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { notes: Record.set(question, value) }),
     }),
 
-    BlurredNote: ({ question }) =>
-      postEvent(model, {
-        kind: 'noted',
-        question,
-        text: Option.getOrElse(Record.get(model.notes, question), () => ''),
-      }),
+    BlurredNote: ({ question }) => ({
+      model,
+      commands: [ReadNoteBox({ question })],
+    }),
+
+    CompletedReadNoteBox: ({ question, maybeText }) => {
+      const text = Option.getOrElse(maybeText, () =>
+        Option.getOrElse(Record.get(model.notes, question), () => ''),
+      )
+      return postEvent(
+        modifyFields(model, { notes: Record.set(question, text) }),
+        { kind: 'noted', question, text },
+      )
+    },
 
     CompletedPostEvent: ({ result, body }) => {
       const written = Update.combine(model, [
@@ -1797,6 +1829,12 @@ export const update = (model: Model, message: Message) =>
     ReadSendBox: ({ text }) => sendDraftAnswers(model, text),
 
     CompletedFillBox: () => ({ model }),
+    CompletedClearSendBox: () => ({ model }),
+    PastedText: ({ text }) => ({
+      model,
+      commands: [InsertPastedText({ text })],
+    }),
+    CompletedInsertPastedText: () => ({ model }),
 
     ScrolledToAbout: ({ partId, about }) =>
       about === 'concept'
@@ -1817,25 +1855,26 @@ export const update = (model: Model, message: Message) =>
         }),
       ),
 
-    CompletedSendAnswers: ({ result }) =>
-      result._tag === 'Success'
-        ? {
-            model: modifyFields(refreshPage(model, result.success), {
-              send: () => latestSendState(result.success),
-              sendDetail: () => latestSendDetail(result.success),
-              isSendOpen: () =>
-                !isWorkspacePage(model.currentPart) &&
-                latestSendState(result.success) !== 'Sent',
-              sendMessage: message =>
-                latestSendState(result.success) === 'Sent' ? '' : message,
-            }),
-          }
-        : {
-            model: modifyFields(model, {
-              send: () => 'Failed' as const,
-              sendDetail: () => result.failure,
-            }),
-          },
+    CompletedSendAnswers: ({ result }) => {
+      if (result._tag === 'Failure') {
+        return {
+          model: modifyFields(model, {
+            send: () => 'Failed' as const,
+            sendDetail: () => result.failure,
+          }),
+        }
+      }
+      const isSent = latestSendState(result.success) === 'Sent'
+      const settled = modifyFields(refreshPage(model, result.success), {
+        send: () => latestSendState(result.success),
+        sendDetail: () => latestSendDetail(result.success),
+        isSendOpen: () => !isWorkspacePage(model.currentPart) && !isSent,
+        sendMessage: message => (isSent ? '' : message),
+      })
+      return isSent
+        ? { model: settled, commands: [ClearSendBox()] }
+        : { model: settled }
+    },
 
     ClickedDrawing: ({ question }) =>
       withSnapshot(model, snapshot => {
@@ -2490,7 +2529,7 @@ export const update = (model: Model, message: Message) =>
 
     ReadThreadBox: ({ stepId, text: boxText }) => {
       const text = boxText.trim()
-      return text === ''
+      return text === '' || isOverTextLimit(text)
         ? { model }
         : postEvent(
             modifyFields(model, {
@@ -2519,7 +2558,7 @@ export const update = (model: Model, message: Message) =>
             : Option.getOrElse(stepIdOf(snapshot, about), () =>
                 generalTargetOf(partId),
               )
-        if (text === '') {
+        if (text === '' || isOverTextLimit(text)) {
           return { model }
         }
         return postEvent(
@@ -3866,13 +3905,112 @@ export const FocusQuoteBox = Command.define('FocusQuoteBox', {
 })
 
 // Dictation tools can set a box's text without an input event, which a value bound to the
-// Model would undo at once. So these boxes own their text: the Model fills them when they
-// mount and reads them when they send.
+// Model would undo at once. So every draft box owns its text: the Model fills it when it
+// mounts and reads it when it blurs, submits, sends or the page reloads.
 
 const boxText = (id: string): string => {
   const element = document.getElementById(id)
   return element instanceof HTMLTextAreaElement ? element.value : ''
 }
+
+const maybeBoxText = (id: string): Option.Option<string> => {
+  const element = document.getElementById(id)
+  return element instanceof HTMLTextAreaElement
+    ? Option.some(element.value)
+    : Option.none()
+}
+
+/** Names the talk draft a box holds, so a reload can carry the box's text under that key. */
+export const DRAFT_ATTRIBUTE = 'draft'
+
+const boxTexts = (
+  selector: string,
+  keyOf: (box: HTMLTextAreaElement) => string,
+): Record<string, string> =>
+  Record.fromEntries(
+    Array.fromIterable(
+      document.querySelectorAll<HTMLTextAreaElement>(selector),
+    ).map(box => [keyOf(box), box.value] satisfies readonly [string, string]),
+  )
+
+const textsByPrefix = (prefix: string): Record<string, string> =>
+  boxTexts(`textarea[id^="${prefix}"]`, box => box.id.slice(prefix.length))
+
+const talkDraftTexts = (): Record<string, string> =>
+  boxTexts(
+    `textarea[data-${DRAFT_ATTRIBUTE}]`,
+    box => box.dataset[DRAFT_ATTRIBUTE] ?? '',
+  )
+
+export const ReadOwnBox = Command.define('ReadOwnBox', {
+  args: { question: Schema.String },
+  messages: [Message.CompletedReadOwnBox],
+  execute: ({ question }) =>
+    Effect.sync(() =>
+      Message.CompletedReadOwnBox({
+        question,
+        maybeText: maybeBoxText(`own-${question}`),
+      }),
+    ),
+})
+
+export const ReadNoteBox = Command.define('ReadNoteBox', {
+  args: { question: Schema.String },
+  messages: [Message.CompletedReadNoteBox],
+  execute: ({ question }) =>
+    Effect.sync(() =>
+      Message.CompletedReadNoteBox({
+        question,
+        maybeText: maybeBoxText(`note-${question}`),
+      }),
+    ),
+})
+
+const isTextBox = (
+  target: unknown,
+): target is HTMLTextAreaElement | HTMLInputElement =>
+  target instanceof HTMLTextAreaElement ||
+  (target instanceof HTMLInputElement &&
+    ['text', 'search', 'url', 'email', 'tel'].includes(target.type))
+
+// A dictation tool that pastes through a clipboard it takes back at once can leave the
+// browser's own paste with nothing to insert: the paste event fires and no text follows. The
+// text is still readable inside that event, so the page reads it there and inserts it itself.
+// `insertText` keeps undo working and raises the input event the boxes' drafts follow.
+export const InsertPastedText = Command.define('InsertPastedText', {
+  args: { text: Schema.String },
+  messages: [Message.CompletedInsertPastedText],
+  execute: ({ text }) =>
+    Effect.sync(() => {
+      const box = document.activeElement
+      if (isTextBox(box) && !document.execCommand('insertText', false, text)) {
+        const end = box.value.length
+        box.setRangeText(
+          text,
+          box.selectionStart ?? end,
+          box.selectionEnd ?? end,
+          'end',
+        )
+        box.dispatchEvent(
+          new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
+        )
+      }
+      return Message.CompletedInsertPastedText()
+    }).pipe(
+      Effect.catch(() => Effect.succeed(Message.CompletedInsertPastedText())),
+    ),
+})
+
+export const ClearSendBox = Command.define('ClearSendBox', {
+  messages: [Message.CompletedClearSendBox],
+  execute: Effect.sync(() => {
+    const element = document.getElementById('send-message')
+    if (element instanceof HTMLTextAreaElement) {
+      element.value = ''
+    }
+    return Message.CompletedClearSendBox()
+  }),
+})
 
 const editorTexts = (
   prefix: string,
@@ -3942,16 +4080,49 @@ export const ReadQuoteBox = Command.define('ReadQuoteBox', {
   ),
 })
 
+const REFOCUS_KEY = 'grill-flow:refocus'
+const REFOCUS_WINDOW_MS = 15_000
+
+// A reload that lands while someone is dictating must leave the caret where the text is about
+// to arrive, so the box that had focus takes it back when it mounts again.
+const refocusAfterReload = (
+  element: HTMLTextAreaElement,
+  now: number,
+): void => {
+  try {
+    const stored = window.sessionStorage.getItem(REFOCUS_KEY)
+    if (stored === null) {
+      return
+    }
+    const [id, at] = stored.split('\n')
+    if (now - Number(at) > REFOCUS_WINDOW_MS) {
+      window.sessionStorage.removeItem(REFOCUS_KEY)
+    } else if (id === element.id) {
+      window.sessionStorage.removeItem(REFOCUS_KEY)
+      element.focus({ preventScroll: true })
+      element.setSelectionRange(element.value.length, element.value.length)
+    }
+  } catch {
+    // Storage can be off; the box then stays unfocused, as after any reload.
+  }
+}
+
 export const FillBox = Mount.define('FillBox', {
   args: { text: Schema.String },
   messages: [Message.CompletedFillBox],
   execute: ({ element, text }) =>
-    Effect.sync(() => {
-      if (element instanceof HTMLTextAreaElement && element.value === '') {
-        element.value = text
-      }
-      return Message.CompletedFillBox()
-    }),
+    pipe(
+      Clock.currentTimeMillis,
+      Effect.map(now => {
+        if (element instanceof HTMLTextAreaElement) {
+          if (element.value === '') {
+            element.value = text
+          }
+          refocusAfterReload(element, now)
+        }
+        return Message.CompletedFillBox()
+      }),
+    ),
 })
 
 // A pinned diagram follows the first of its paragraphs still readable under it, once it is stuck
@@ -4046,24 +4217,6 @@ export const CheckBuild = Command.define('CheckBuild', {
   ),
 })
 
-// Unsent drafts survive the reload in this tab only; answers and saved notes live on the server.
-export const ReloadPage = Command.define('ReloadPage', {
-  args: { drafts: Schema.String },
-  messages: [Message.CompletedReloadPage],
-  execute: ({ drafts }) =>
-    pipe(
-      Effect.sync(() => {
-        try {
-          window.sessionStorage.setItem(DRAFTS_KEY, drafts)
-        } catch {
-          // Storage can be off; the reload still brings the new build.
-        }
-        window.location.reload()
-      }),
-      Effect.map(() => Message.CompletedReloadPage()),
-    ),
-})
-
 const DraftRecords = Schema.Struct({
   talkDrafts: Schema.Record(Schema.String, Schema.String),
   notes: Schema.Record(Schema.String, Schema.String),
@@ -4071,6 +4224,54 @@ const DraftRecords = Schema.Struct({
   skipped: Schema.Array(Schema.String),
   expanded: Schema.Record(Schema.String, Schema.Boolean),
   currentPart: Schema.String,
+  // Absent in drafts stored by a build that did not carry the send message.
+  sendMessage: Schema.optionalKey(Schema.String),
+})
+
+// Unsent drafts survive the reload in this tab only; answers and saved notes live on the server.
+// What a box holds wins over the Model's copy, which misses text that came with no input event.
+export const ReloadPage = Command.define('ReloadPage', {
+  args: {
+    talkDrafts: Schema.Record(Schema.String, Schema.String),
+    notes: Schema.Record(Schema.String, Schema.String),
+    own: Schema.Record(Schema.String, Schema.String),
+    skipped: Schema.Array(Schema.String),
+    expanded: Schema.Record(Schema.String, Schema.Boolean),
+    currentPart: Schema.String,
+    sendMessage: Schema.String,
+  },
+  messages: [Message.CompletedReloadPage],
+  execute: drafts =>
+    pipe(
+      Clock.currentTimeMillis,
+      Effect.map(now => {
+        try {
+          window.sessionStorage.setItem(
+            DRAFTS_KEY,
+            JSON.stringify({
+              talkDrafts: { ...drafts.talkDrafts, ...talkDraftTexts() },
+              notes: { ...drafts.notes, ...textsByPrefix('note-') },
+              own: { ...drafts.own, ...textsByPrefix('own-') },
+              skipped: drafts.skipped,
+              expanded: drafts.expanded,
+              currentPart: drafts.currentPart,
+              sendMessage: Option.getOrElse(
+                maybeBoxText('send-message'),
+                () => drafts.sendMessage,
+              ),
+            } satisfies typeof DraftRecords.Type),
+          )
+          const focused = document.activeElement
+          if (focused instanceof HTMLTextAreaElement && focused.id !== '') {
+            window.sessionStorage.setItem(REFOCUS_KEY, `${focused.id}\n${now}`)
+          }
+        } catch {
+          // Storage can be off; the reload still brings the new build.
+        }
+        window.location.reload()
+        return Message.CompletedReloadPage()
+      }),
+    ),
 })
 
 export const RestoreDrafts = Command.define('RestoreDrafts', {
@@ -4088,7 +4289,7 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
     Effect.flatMap(raw => Effect.try(() => JSON.parse(raw) as unknown)),
     Effect.flatMap(parsed => Schema.decodeUnknownEffect(DraftRecords)(parsed)),
     Effect.catch(() =>
-      Effect.succeed({
+      Effect.succeed<typeof DraftRecords.Type>({
         talkDrafts: {},
         notes: {},
         own: {},
@@ -4097,7 +4298,17 @@ export const RestoreDrafts = Command.define('RestoreDrafts', {
         currentPart: '',
       }),
     ),
-    Effect.map(drafts => Message.CompletedRestoreDrafts(drafts)),
+    Effect.map(drafts =>
+      Message.CompletedRestoreDrafts({
+        talkDrafts: drafts.talkDrafts,
+        notes: drafts.notes,
+        own: drafts.own,
+        skipped: drafts.skipped,
+        expanded: drafts.expanded,
+        currentPart: drafts.currentPart,
+        sendMessage: drafts.sendMessage ?? '',
+      }),
+    ),
   ),
 })
 
@@ -4502,6 +4713,27 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  // The clipboard must be read while the paste event is being dispatched (InsertPastedText).
+  // An empty read, such as a pasted image, is left to the browser.
+  pastedText: entry(
+    {},
+    {
+      modelToDependencies: () => ({}),
+      dependenciesToStream: () =>
+        Dom.streamFromEventFilterMapPreventDefault({
+          target: document,
+          type: 'paste',
+          filterMapEvent: event => {
+            const text = isTextBox(event.target)
+              ? (event.clipboardData?.getData('text/plain') ?? '')
+              : ''
+            return text === ''
+              ? Option.none()
+              : Option.some(Message.PastedText({ text }))
+          },
+        }),
+    },
+  ),
   browserNoticeEvents: entry(
     {},
     {

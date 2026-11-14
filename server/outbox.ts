@@ -238,6 +238,7 @@ export const runOutbox = async (
     case 'retire':
     case 'restore':
     case 'history':
+    case 'export':
       fail(
         `Run ${command} on the serving machine without GF_OUTBOX; it keeps the record.`,
       )

@@ -8,7 +8,7 @@ import { isWholeTarget } from '../src/domain'
 import type { WriteProvenance } from './history'
 
 // Bump when guide rules change so cached instructions can be replaced (ADR 0026).
-export const SKILL_REVISION = 5
+export const SKILL_REVISION = 6
 export const AuthoringGuide = Schema.Struct({
   version: Schema.Literal(1),
   host: Schema.String.check(Schema.isMinLength(1)),

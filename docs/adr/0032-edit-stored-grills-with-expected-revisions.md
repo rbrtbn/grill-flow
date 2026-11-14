@@ -12,4 +12,4 @@ Writes take `--expect-rev`: a stale one exits 3 with the current rev and a field
 the load's transaction. Edits require it and `--reason`; `gf load` warns without it until
 `GF_REQUIRE_EXPECT_REV=1`. Writers validate strictly: unknown keys are errors (warnings in a grill
 declaring a newer format) and every problem is reported with its pointer; reads and host imports
-stay lenient (0001). Edits are refused under `GF_OUTBOX`. Guide revision 5 teaches this.
+stay lenient (0001). Edits are refused under `GF_OUTBOX`. Guide revision 6 teaches this.

@@ -33,9 +33,10 @@ build on its next poll (4 s) and reloads itself, keeping unsent drafts. `bun run
 last build without watching. It binds 127.0.0.1:4317 and keeps
 everything in `data/grill-flow.sqlite` (gitignored), one row per answer, note, ask, revision and
 send, so how pages get used can be mined later. Every load also keeps the whole grill as a
-numbered revision, read only by `gf history`. The server copies the database to `data/backups/`
-an hour apart with `VACUUM INTO`, keeping the newest 48; `GF_BACKUPS=0` or `GF_PREVIEW=1` skips
-them. Writes need the page's HttpOnly, SameSite=Strict
+numbered revision, read only by `gf history` and `gf export`. Discussions stay in the
+database; served snapshots carry only `discussions` references to them. The server copies the
+database to `data/backups/` an hour apart with `VACUUM INTO`, keeping the newest 48;
+`GF_BACKUPS=0` or `GF_PREVIEW=1` skips them. Writes need the page's HttpOnly, SameSite=Strict
 cookie, a same-origin request and a JSON body. Other local processes can still reach it, as they
 can reach `hc` itself.
 
@@ -52,6 +53,8 @@ Set `GF_MAINTAINER_SESSION` to this app's active builder session (a Herdr addres
 the **Grill-flow** discussion tab. It uses the `grill-flow` ask target and the normal
 `gf revise <grill> grill-flow --ask <id> --kind comment --file <path>` reply path.
 Each question's optional `session` routes answers and discussion to its asker; blank or
-absent falls back to the grill's session. `from` and `sources` are display metadata.
+absent falls back to the grill's session.
+The panel's "To" list also offers each running agent in the page session's Herdr space
+(`agent:<address>` threads, lead first; ADR 0029). `from` and `sources` are display metadata.
 `GF_DIST` can point an isolated test or preview server at a staged frontend build.
 Set `GF_POLL_REMOTES=0` on isolated servers that must not pull or update remote outboxes.

@@ -7,7 +7,8 @@ revisions warn with the full guide on stderr; successful writes keep their norma
 remain published as submitted. Objective validation failures still reject. Loads, items,
 drawings, rewrites and restores also take `--reason <why>` (missing reasons warn;
 `GF_REQUIRE_REASON=1` refuses them), and `bun run gf history <id> [question-id]` reads every
-load back with its time, author and reason.
+load back with its time, author and reason. `bun run gf export <id> [--out <file>]` writes a
+grill's or squad page's whole record, discussion threads included, as one JSON document.
 
 The canonical instructions and examples live in [the authoring
 guide](server/authoring-guide.md). The installed [grill skill](plugin/skills/grill/SKILL.md)

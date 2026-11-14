@@ -7,6 +7,7 @@ import {
   Decision,
   Grill,
   OWN,
+  type QuestionTimes,
   Retirement,
   type Snapshot,
   hasTarget,
@@ -14,6 +15,7 @@ import {
   roundOf,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
+import { withoutDiscussions } from './discussions'
 import { type WriteProvenance, ensureHistory, recordRevision } from './history'
 import { assertPickedOptionsRetained } from './reloadSafety'
 
@@ -101,7 +103,7 @@ export const loadGrill = (
 ): Grill =>
   db
     .transaction(() => {
-      const decoded = decodeGrill(raw)
+      const decoded = decodeGrill(withoutDiscussions(raw))
       if (decoded.squad?.id === decoded.id) {
         throw new Error(
           'A member grill must have its own ID, distinct from its squad page.',
@@ -500,6 +502,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
   const sends: Array<Snapshot['sends'][number]> = []
   const sent: Record<string, string> = {}
   const replies: Array<NonNullable<Snapshot['replies']>[number]> = []
+  const times = questionTimeline()
   for (const event of events(db, grill.id)) {
     const p = JSON.parse(event.payload) as Record<string, unknown>
     switch (event.kind) {
@@ -525,6 +528,7 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         })
         break
       case 'revised': {
+        times.revised(event.at, p)
         const askId = typeof p.askId === 'number' ? p.askId : null
         revisions.push({
           id: event.id,
@@ -583,6 +587,8 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
         outcomes.set(String(p.id), String(p.text))
         break
       case 'loaded':
+        times.loaded(event.at, p)
+        break
       case 'submitted':
       case 'item-published':
       case 'squad-registered':
@@ -608,6 +614,50 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
     sends,
     sent,
     replies,
+    questionTimes: times.of(grill),
+  }
+}
+
+// Loads from before question diffs were recorded carry no `questions`; a question they added is
+// dated by the grill's first load.
+const questionTimeline = () => {
+  const firstAdded = new Map<string, number>()
+  const lastChanged = new Map<string, number>()
+  const lastRewrite = new Map<string, number>()
+  let maybeFirstLoad: number | undefined
+  const ids = (value: unknown): ReadonlyArray<string> =>
+    Array.isArray(value) ? value.map(String) : []
+  return {
+    loaded: (at: number, payload: Record<string, unknown>): void => {
+      maybeFirstLoad ??= at
+      const questions = (payload.questions ?? {}) as Record<string, unknown>
+      ids(questions.added).forEach(id => {
+        if (!firstAdded.has(id)) firstAdded.set(id, at)
+      })
+      ids(questions.changed).forEach(id => lastChanged.set(id, at))
+    },
+    revised: (at: number, payload: Record<string, unknown>): void => {
+      if (payload.kind !== 'comment') {
+        lastRewrite.set(String(payload.stepId), at)
+      }
+    },
+    of: (grill: Grill): Record<string, QuestionTimes> =>
+      Object.fromEntries(
+        grill.steps.flatMap(step => {
+          const posted = firstAdded.get(step.question.id) ?? maybeFirstLoad
+          if (posted === undefined) return []
+          const edited = Math.max(
+            lastChanged.get(step.question.id) ?? 0,
+            lastRewrite.get(step.id) ?? 0,
+          )
+          return [
+            [
+              step.question.id,
+              edited > posted ? { posted, edited } : { posted },
+            ],
+          ]
+        }),
+      ),
   }
 }
 

@@ -12,6 +12,7 @@ import {
   grillRevisions,
   revisionLines,
 } from './history'
+import { withoutDiscussions } from './discussions'
 import { readPage } from './squad'
 import { decodeGrill, getGrill, loadGrill, snapshot } from './store'
 
@@ -99,11 +100,13 @@ export const strictCheck = (
 export const decodeStrict = (
   raw: unknown,
 ): Readonly<{ grill: Grill; unknownKeys: ReadonlyArray<Problem> }> => {
-  const { errors, unknownKeys } = strictCheck(raw)
+  // A served grill copied back carries `discussions`; drop it with a warning (ADR 0033).
+  const grillOnly = withoutDiscussions(raw)
+  const { errors, unknownKeys } = strictCheck(grillOnly)
   if (errors.length > 0) {
     throw new GrillInvalid(errors)
   }
-  return { grill: decodeGrill(raw), unknownKeys }
+  return { grill: decodeGrill(grillOnly), unknownKeys }
 }
 
 export const unknownKeyWarning = (

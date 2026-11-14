@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -23,6 +23,7 @@ import {
 } from './authoring'
 import { publishItem } from './channel'
 import { publishDrawing } from './drawings'
+import { exportGrill } from './export'
 import {
   EDIT_USAGE,
   StaleRev,
@@ -80,6 +81,10 @@ ${EDIT_USAGE}
   gf history <grill-id> [question-id] [--json]
                                        every load with its time, author and reason; for a
                                        question, what changed in each revision that touched it
+  gf export <grill-id | page-id> [--out <file>]
+                                       one JSON document for retros and audits: the grill, its
+                                       revisions, discussions, answers, sends and events; a
+                                       squad page exports each member and the id mapping
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
   gf revise <grill-id> <step-id | part:<part-id> | card:<card> | run> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
@@ -587,6 +592,19 @@ switch (command) {
         : questionLines(changes).join('\n') ||
             `no recorded revision of ${id} touches ${question}`,
     )
+    break
+  }
+  case 'export': {
+    const id = args[0] ?? fail(usage)
+    const document = exportGrill(db, id) ?? fail(`no grill or page ${id}`)
+    const out = flag(args, '--out')
+    const text = `${JSON.stringify(document, null, 2)}\n`
+    if (out === undefined) {
+      process.stdout.write(text)
+    } else {
+      writeFileSync(out, text)
+      console.log(`exported ${id} to ${out}`)
+    }
     break
   }
   case 'events': {

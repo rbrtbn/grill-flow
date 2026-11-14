@@ -14,15 +14,20 @@ import {
   updatesView,
 } from './channelView'
 import {
+  type DiscussionRef,
   FORMAT_VERSION,
   GRILL_FLOW_TARGET,
   OWN,
   type PlanIssue,
   type Question,
+  type QuestionTimes,
   type Snapshot,
   type Step,
+  agentAddressOf,
   agentMessagesOf,
+  agentTarget,
   answerRoundLabel,
+  isOverTextLimit,
   planPhaseOf,
   questionAgent,
   questionSession,
@@ -34,6 +39,7 @@ import {
 import { drawingButton, drawingPanel } from './drawingView'
 import type { QuestionDrawing } from './drawings'
 import {
+  DRAFT_ATTRIBUTE,
   FillBox,
   Message,
   type Model,
@@ -46,8 +52,10 @@ import {
   QUOTE_DRAFT,
   QUOTE_POPOVER_CLASS,
   quoteDestination,
+  quotedAsk,
 } from './quote'
 import { rosterView } from './rosterView'
+import { textLimitCount } from './textLimitView'
 import {
   ANSWER_HISTORY,
   CHANGES,
@@ -516,6 +524,10 @@ export const workspaceView = (
                         }),
                         h,
                       ),
+                      Option.match(question, {
+                        onNone: () => h.empty,
+                        onSome: step => messagesLink(snapshot, step, h),
+                      }),
                     ],
                   )
                 : h.empty,
@@ -1327,6 +1339,7 @@ const questionView = (
                               state === 'Draft' ? 'Draft · not sent' : state,
                             ],
                           ),
+                          questionTimesView(snapshot, q.id, h),
                         ],
                       ),
                       h.nav(
@@ -1457,6 +1470,7 @@ const quotePopover = (
     left: `${quoted.left}px`,
   })
   const placement = `is-${quoted.placement.toLowerCase()}`
+  const quoteReply = quotedAsk(quoted.text, model.talkDrafts[QUOTE_DRAFT] ?? '')
   return quote._tag === 'Offered'
     ? h.div(
         [
@@ -1492,6 +1506,7 @@ const quotePopover = (
           h.label([h.For(QUOTE_BOX)], [`Reply · to ${destination}`]),
           h.keyed('textarea')(`${QUOTE_BOX}-${model.talkGeneration}`, [
             h.Id(QUOTE_BOX),
+            h.DataAttribute(DRAFT_ATTRIBUTE, QUOTE_DRAFT),
             h.Rows(3),
             h.OnMount(FillBox({ text: model.talkDrafts[QUOTE_DRAFT] ?? '' })),
             h.Placeholder('Ask about this, or push back on it…'),
@@ -1504,6 +1519,7 @@ const quotePopover = (
                 : Option.none(),
             ),
           ]),
+          textLimitCount(quoteReply, h),
           h.div(
             [h.Class('f-quote-foot')],
             [
@@ -1515,12 +1531,44 @@ const quotePopover = (
                 ],
                 ['Cancel'],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(quoteReply)),
+                ],
+                ['Send'],
+              ),
             ],
           ),
         ],
       )
 }
+
+const dayOf = (at: number): string =>
+  new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const clockOf = (at: number): string =>
+  new Date(at).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+export const questionTimesLabel = (times: QuestionTimes): string => {
+  const posted = `Posted ${dayOf(times.posted)} ${clockOf(times.posted)}`
+  if (times.edited === undefined) {
+    return posted
+  }
+  const editedDay =
+    dayOf(times.edited) === dayOf(times.posted) ? '' : `${dayOf(times.edited)} `
+  return `${posted} · edited ${editedDay}${clockOf(times.edited)}`
+}
+
+const questionTimesView = (snapshot: Snapshot, id: string, h: H): Html =>
+  Option.match(Option.fromUndefinedOr(snapshot.questionTimes?.[id]), {
+    onNone: () => h.empty,
+    onSome: times =>
+      h.span([h.Class('f-question-times')], [questionTimesLabel(times)]),
+  })
 
 const issueLink = (
   snapshot: Snapshot,
@@ -1541,6 +1589,22 @@ const issueLink = (
         [issue],
       )
 }
+
+const messageCount = (ref: DiscussionRef): string => {
+  const count = ref.asks + ref.replies
+  return `${count} ${count === 1 ? 'message' : 'messages'}`
+}
+
+const messagesLink = (snapshot: Snapshot, step: Step, h: H): Html =>
+  Option.match(Option.fromNullishOr(snapshot.discussions?.[step.question.id]), {
+    onNone: () => h.empty,
+    onSome: ref =>
+      link(
+        messageCount(ref),
+        Message.ClickedDiscussion({ target: ref.target }),
+        h,
+      ),
+  })
 
 const discussLabel = (model: Model): string =>
   model.currentPart.startsWith(QUESTION_PAGE) ||
@@ -1639,6 +1703,7 @@ const answersView = (
             h.OnBlur(Message.BlurredOwnAnswer({ question: q.id })),
           ])
         : h.empty,
+      selected === OWN ? textLimitCount(model.own[q.id] ?? '', h) : h.empty,
       h.div(
         [h.Class('f-answer-actions')],
         [
@@ -1675,6 +1740,7 @@ const answersView = (
             h.OnBlur(Message.BlurredNote({ question: q.id })),
           ])
         : h.empty,
+      textLimitCount(model.notes[q.id] ?? '', h),
     ],
   )
 }
@@ -1960,12 +2026,12 @@ const reviewView = (
           ),
           h.textarea([
             h.Id('send-message'),
-            h.Value(model.sendMessage),
             h.Rows(2),
             h.OnMount(FillBox({ text: model.sendMessage })),
             h.Placeholder('Anything else the agent should know…'),
             h.OnInput(value => Message.UpdatedSendMessage({ value })),
           ]),
+          textLimitCount(model.sendMessage, h),
           h.div(
             [h.Class('f-send-foot')],
             [
@@ -1986,6 +2052,7 @@ const reviewView = (
                     model.send === 'Sending' ||
                       model.pendingEvents > 0 ||
                       Option.isSome(model.maybeSaveError) ||
+                      isOverTextLimit(model.sendMessage) ||
                       selected.length === 0,
                   ),
                   h.OnClick(Message.ClickedConfirmSend()),
@@ -2069,18 +2136,33 @@ const discussionView = (
           [
             h.h3(
               [],
-              [isMaintainer ? 'Improving grill-flow' : snapshot.grill.title],
+              [
+                isMaintainer
+                  ? 'Improving grill-flow'
+                  : agentAddressOf(target) !== undefined
+                    ? `Direct message · ${agentLabel(snapshot, agentAddressOf(target)!)}`
+                    : snapshot.grill.title,
+              ],
             ),
-            ...(isMaintainer
+            ...(agentAddressOf(target) !== undefined
               ? [
                   h.p(
                     [],
                     [
-                      'Ask about the interface, report a problem, or discuss an improvement. This conversation goes directly to the session building grill-flow.',
+                      'This conversation goes straight to this agent in Herdr, outside any question. Replies appear here.',
                     ],
                   ),
                 ]
-              : snapshot.grill.intro.map(text => reading.prose(text, h))),
+              : isMaintainer
+                ? [
+                    h.p(
+                      [],
+                      [
+                        'Ask about the interface, report a problem, or discuss an improvement. This conversation goes directly to the session building grill-flow.',
+                      ],
+                    ),
+                  ]
+                : snapshot.grill.intro.map(text => reading.prose(text, h))),
           ],
         )
       : h.div(
@@ -2120,7 +2202,9 @@ const discussionView = (
             [
               isMaintainer
                 ? `Grill-flow · ${maintainerLabel(snapshot)}`
-                : questionAgent(snapshot.grill, step?.question),
+                : agentAddressOf(target) !== undefined
+                  ? agentLabel(snapshot, agentAddressOf(target)!)
+                  : questionAgent(snapshot.grill, step?.question),
             ],
           ),
           h.div(
@@ -2151,48 +2235,11 @@ const discussionView = (
           ),
         ],
       ),
-      h.div(
-        [
-          h.Class('f-discussion-scope'),
-          h.Role('group'),
-          h.AriaLabel('Conversation scope'),
-        ],
-        [
-          h.button(
-            [
-              h.Class(`quiet-button${step !== undefined ? ' is-active' : ''}`),
-              h.Disabled(step === undefined && Option.isNone(onQuestion)),
-              h.AriaPressed(String(step !== undefined)),
-              h.OnClick(
-                Message.SelectedDiscussionTarget({
-                  target:
-                    step?.id ??
-                    Option.match(onQuestion, {
-                      onSome: question => question.id,
-                      onNone: () => RUN_TARGET,
-                    }),
-                }),
-              ),
-            ],
-            [
-              `This question${step === undefined ? Option.match(onQuestion, { onSome: question => ` · ${question.question.id}`, onNone: () => '' }) : ` · ${step.question.id}`}`,
-            ],
-          ),
-          snapshot.maintainerSession === undefined
-            ? h.empty
-            : h.button(
-                [
-                  h.Class(`quiet-button${isMaintainer ? ' is-active' : ''}`),
-                  h.AriaPressed(String(isMaintainer)),
-                  h.OnClick(
-                    Message.SelectedDiscussionTarget({
-                      target: GRILL_FLOW_TARGET,
-                    }),
-                  ),
-                ],
-                ['Grill-flow'],
-              ),
-        ],
+      recipientPicker(
+        snapshot,
+        target,
+        step === undefined ? onQuestion : Option.some(step),
+        h,
       ),
       h.div(
         [
@@ -2250,13 +2297,16 @@ const discussionView = (
             [
               isMaintainer
                 ? 'Ask about grill-flow'
-                : step === undefined
-                  ? 'Ask about the run'
-                  : `Ask about ${step.question.id}`,
+                : agentAddressOf(target) !== undefined
+                  ? `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
+                  : step === undefined
+                    ? 'Ask about the run'
+                    : `Ask about ${step.question.id}`,
             ],
           ),
           h.keyed('textarea')(`discussion-${target}-${model.talkGeneration}`, [
             h.Id('talk-box'),
+            h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(target)),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
             h.Placeholder('Ask, push back, or ask for a clearer explanation…'),
@@ -2272,6 +2322,7 @@ const discussionView = (
                 : Option.none(),
             ),
           ]),
+          textLimitCount(draft, h),
           h.div(
             [h.Class('f-send-foot')],
             [
@@ -2279,7 +2330,14 @@ const discussionView = (
                 [h.Class('hint')],
                 ['Enter to send · Shift + Enter for a new line'],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Ask']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(draft.trim())),
+                ],
+                ['Ask'],
+              ),
             ],
           ),
         ],
@@ -2287,6 +2345,121 @@ const discussionView = (
     ],
   )
 }
+
+const agentLabel = (snapshot: Snapshot, address: string): string => {
+  const agent = snapshot.agents?.find(item => item.address === address)
+  return agent === undefined
+    ? `${address} · not running`
+    : `${agent.lead ? 'Lead · ' : ''}${agent.name === '' ? agent.program : agent.name} · ${address}`
+}
+
+type Recipient = Readonly<{ target: string; label: string }>
+
+/**
+ * Who a message goes to: this page's question or run, any running agent of the squad's Herdr
+ * space (lead first), or the grill-flow maintainer even while it is down.
+ */
+const recipientGroups = (
+  snapshot: Snapshot,
+  target: string,
+  maybeQuestion: Option.Option<Step>,
+): ReadonlyArray<
+  Readonly<{ label: string; recipients: ReadonlyArray<Recipient> }>
+> => {
+  const session = snapshot.grill.session
+  const agents = (snapshot.agents ?? []).filter(
+    agent =>
+      agent.address !== snapshot.maintainerSession &&
+      (agent.lead || agent.address !== session),
+  )
+  const strayAgent = Option.filter(
+    Option.fromUndefinedOr(agentAddressOf(target)),
+    address => !agents.some(agent => agent.address === address),
+  )
+  const page: ReadonlyArray<Recipient> = [
+    ...Option.match(maybeQuestion, {
+      onNone: () => [],
+      onSome: question => [
+        {
+          target: question.id,
+          label: `This question · ${question.question.id} · ${questionAgent(snapshot.grill, question.question)}`,
+        },
+      ],
+    }),
+    {
+      target: RUN_TARGET,
+      label: `Run · ${session === '' ? 'its agent' : session}`,
+    },
+  ]
+  const squad: ReadonlyArray<Recipient> = [
+    ...agents.map(agent => ({
+      target: agentTarget(agent.address),
+      label: `${agent.lead ? '★ ' : ''}${agentLabel(snapshot, agent.address)}`,
+    })),
+    ...Option.match(strayAgent, {
+      onNone: () => [],
+      onSome: address => [
+        { target: agentTarget(address), label: agentLabel(snapshot, address) },
+      ],
+    }),
+  ]
+  return [
+    { label: 'This page', recipients: page },
+    ...(Array.isReadonlyArrayEmpty(squad)
+      ? []
+      : [{ label: 'Squad agents in Herdr', recipients: squad }]),
+    ...(snapshot.maintainerSession === undefined
+      ? []
+      : [
+          {
+            label: 'Grill-flow',
+            recipients: [
+              {
+                target: GRILL_FLOW_TARGET,
+                label: `Grill-flow · ${maintainerLabel(snapshot)}`,
+              },
+            ],
+          },
+        ]),
+  ]
+}
+
+const recipientPicker = (
+  snapshot: Snapshot,
+  target: string,
+  maybeQuestion: Option.Option<Step>,
+  h: H,
+): Html =>
+  h.label(
+    [h.Class('f-discussion-scope')],
+    [
+      h.span([], ['To']),
+      h.select(
+        [
+          h.Id('discussion-recipient'),
+          h.AriaLabel('To'),
+          h.Value(target),
+          h.OnChange(value =>
+            Message.SelectedDiscussionTarget({ target: value }),
+          ),
+        ],
+        recipientGroups(snapshot, target, maybeQuestion).map(group =>
+          h.optgroup(
+            [h.Attribute('label', group.label)],
+            group.recipients.map(recipient =>
+              h.option(
+                [
+                  h.Value(recipient.target),
+                  h.Selected(recipient.target === target),
+                ],
+                [recipient.label],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  )
 
 const maintainerLabel = (snapshot: Snapshot): string =>
   snapshot.maintainerSession === undefined
@@ -2344,11 +2517,13 @@ const conversationPage = (
               ],
               [
                 step === undefined
-                  ? target.startsWith('part:')
-                    ? (snapshot.grill.parts.find(
-                        part => `part:${part.id}` === target,
-                      )?.title ?? target)
-                    : target
+                  ? agentAddressOf(target) !== undefined
+                    ? agentLabel(snapshot, agentAddressOf(target)!)
+                    : target.startsWith('part:')
+                      ? (snapshot.grill.parts.find(
+                          part => `part:${part.id}` === target,
+                        )?.title ?? target)
+                      : target
                   : `About ${step.question.id}`,
                 step === undefined
                   ? h.empty
