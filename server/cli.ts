@@ -22,6 +22,7 @@ import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
 import {
   ROOT,
+  appendEvent,
   events,
   getGrill,
   loadGrill,
@@ -41,7 +42,11 @@ const usage = `gf: grill-flow's agent-side commands
   Authoring writes accept --skill-revision <revision-read>; missing/stale revisions warn during migration.
 
   gf up                                start the server unless it already answers
-  gf load <grill.json>                 load or replace a grill
+  gf load <grill.json> [--solo]        load or replace a grill; without a squad field it joins
+                                       the GF_SQUAD page, and --solo keeps it a page of its own
+  gf handover <page> --session <address> --reason <text> [--member <grill-id>]
+                                       make <address> the page's lead; deliveries still naming
+                                       the previous lead go to it
   gf retire <grill-id> --reason <text>  hide a source grill, keeping its history
   gf restore <grill-id>                show a retired source grill again
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
@@ -83,6 +88,57 @@ const flag = (
 const fail = (message: string, code = 2): never => {
   console.error(message)
   process.exit(code)
+}
+
+const ADDRESS = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)?$/
+
+// The Herdr space this session runs in; squad spaces are named `squad.<...>`.
+const herdrSpace = (): string => {
+  const address = process.env.HC_TERMINAL_ID
+  if (address === undefined || address === '') {
+    return ''
+  }
+  try {
+    const child = Bun.spawnSync(['hc', 'get', address], { stderr: 'ignore' })
+    const terminal: unknown = JSON.parse(child.stdout.toString())
+    const where =
+      typeof terminal === 'object' &&
+      terminal !== null &&
+      'labels' in terminal &&
+      typeof terminal.labels === 'object' &&
+      terminal.labels !== null &&
+      'where' in terminal.labels &&
+      typeof terminal.labels.where === 'string'
+        ? terminal.labels.where
+        : ''
+    return where.split(' / ')[0]?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** One page per squad: a grill without a squad field joins GF_SQUAD's page unless --solo. */
+const withSquadDefault = (raw: unknown, solo: boolean): unknown => {
+  if (solo || typeof raw !== 'object' || raw === null || 'squad' in raw) {
+    return raw
+  }
+  const id = 'id' in raw && typeof raw.id === 'string' ? raw.id : ''
+  const squad = process.env.GF_SQUAD?.trim() ?? ''
+  if (squad !== '' && squad !== id) {
+    const section =
+      'title' in raw && typeof raw.title === 'string' ? raw.title : id
+    console.log(
+      `joining the squad page ${BASE}/g/${squad} (GF_SQUAD) as "${section}"`,
+    )
+    return { ...raw, squad: { id: squad, section } }
+  }
+  const space = herdrSpace()
+  if (space.startsWith('squad.')) {
+    console.warn(
+      `This session runs in the squad space ${space}, but ${id} joins no squad page, so its questions sit on a page of their own. Add "squad": {"id": "<squad profile>", "section": "<your work>"} or set GF_SQUAD; pass --solo when a separate page is intended.`,
+    )
+  }
+  return raw
 }
 
 const [command, ...args] = process.argv.slice(2)
@@ -253,7 +309,10 @@ switch (command) {
   case 'load': {
     const grill = loadGrill(
       db,
-      JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
+      withSquadDefault(
+        JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
+        args.includes('--solo'),
+      ),
     )
     console.log(
       `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id}`,
@@ -371,6 +430,39 @@ switch (command) {
       fail(result.reason)
     }
     console.log(`${command === 'retire' ? 'retired' : 'restored'} ${id}`)
+    break
+  }
+  case 'handover': {
+    const id = args[0] ?? fail(usage)
+    const session =
+      flag(args, '--session') ?? fail('gf handover needs --session <address>')
+    const reason = (flag(args, '--reason') ?? '').trim()
+    const member = flag(args, '--member')
+    if (!ADDRESS.test(session)) {
+      fail(`${session} is not a Herdr address like t2cr or homelab/t12`)
+    }
+    if (reason === '') {
+      fail('gf handover needs --reason <text>')
+    }
+    const page = readPage(db, id) ?? fail(`no page ${id}`)
+    if (
+      member !== undefined &&
+      !page.members.some(item => item.state.grill.id === member)
+    ) {
+      fail(`${member} is not a member of ${id}`)
+    }
+    const from = page.state.grill.session
+    appendEvent(db, id, 'squad-lead', {
+      session,
+      from,
+      reason,
+      ...(member === undefined ? {} : { member }),
+    })
+    console.log(
+      from === '' || from === session
+        ? `${id}: lead is ${session}`
+        : `${id}: lead is now ${session}; deliveries to ${from} go to ${session}`,
+    )
     break
   }
   case 'events': {

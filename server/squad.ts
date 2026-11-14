@@ -23,9 +23,11 @@ import { selectSend, type SendSelection } from './sendSelection'
 import {
   appendEvent,
   getGrill,
+  leadHandovers,
   listGrills,
   snapshot,
   retirementOf,
+  sessionAlias,
   squadRegistrations,
   type SquadRegistration,
 } from './store'
@@ -92,10 +94,46 @@ const targetFor = (grill: Grill, target: string): string => {
 }
 
 export const readPage = (db: Database, id: string): Page | undefined => {
+  const handovers = leadHandovers(db, id)
+  const page = composePage(db, id, handovers.at(-1)?.member)
+  const latest = handovers.at(-1)
+  if (page === undefined || latest === undefined) return page
+  const alias = sessionAlias(db, id)
+  const grill = page.state.grill
+  return {
+    ...page,
+    state: {
+      ...page.state,
+      grill: {
+        ...grill,
+        session: latest.session,
+        steps: grill.steps.map(step =>
+          step.question.session === undefined
+            ? step
+            : {
+                ...step,
+                question: {
+                  ...step.question,
+                  session: alias(step.question.session),
+                },
+              },
+        ),
+      },
+    },
+  }
+}
+
+const composePage = (
+  db: Database,
+  id: string,
+  leadGrill: string | undefined,
+): Page | undefined => {
   const direct = getGrill(db, id)
   if (direct !== undefined) return { state: snapshot(db, direct), members: [] }
   const members = membersOf(db, id)
-  const leadMember = members.find(member => member.state.grill.squad?.lead)
+  const leadMember =
+    members.find(member => member.state.grill.id === leadGrill) ??
+    members.find(member => member.state.grill.squad?.lead)
   const lead = leadMember?.state.grill
   const leadQuestions = leadMember?.registration.questions ?? {}
   if (members.length === 0) return undefined

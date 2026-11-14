@@ -31,3 +31,4 @@
 | [0027](0027-resolve-questions-with-source-owned-outcomes.md) | Resolve questions with source-owned outcomes | accepted |
 | [0028](0028-show-ask-delivery-and-offer-the-grill-session.md) | Show ask delivery and offer the grill session | accepted |
 | [0029](0029-message-squad-agents-from-their-herdr-space.md) | Message squad agents from their Herdr space | accepted |
+| [0030](0030-one-page-per-squad-with-lead-handover.md) | One page per squad, with lead handover | accepted |

@@ -22,6 +22,10 @@ The `grill` skill in `plugin/skills/grill/SKILL.md` owns how an agent writes a g
 answers asks and reads the reply. `examples/` holds a whole grill; `grills/` (gitignored) holds
 the live ones.
 
+Bump `version` in `plugin/.claude-plugin/plugin.json` with every change under `plugin/`, then
+run `claude plugin update grill-flow@grill-flow` in each account. Installed copies are cached
+by version, so an unbumped change never reaches agents.
+
 ### Running
 
 `bun run dev` serves the page and rebuilds it whenever `src/` changes; an open page sees the new

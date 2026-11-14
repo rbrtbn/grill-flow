@@ -40,7 +40,14 @@ import {
   sourceQuestionUrl,
   sourceText,
 } from './squad'
-import { ROOT, appendEvent, open, remoteOf, snapshot } from './store'
+import {
+  ROOT,
+  appendEvent,
+  open,
+  remoteOf,
+  sessionAlias,
+  snapshot,
+} from './store'
 
 const PORT = Number(process.env.GF_PORT ?? 4317)
 const PREVIEW = process.env.GF_PREVIEW === '1'
@@ -265,11 +272,19 @@ const askRecipient = (
             grill.steps.find(step => step.id === stepId)?.question,
           )
 
+// Every page delivery goes through the page's handover moves (docs/adr/0030).
+const sendFor =
+  (pageId: string) =>
+  (session: string, text: string): Promise<{ ok: boolean; detail: string }> =>
+    sendToSession(sessionFor(sessionAlias(db, pageId)(session)), text)
+
 const deliverAsk = async (
+  pageId: string,
   grillId: string,
   ask: Readonly<{ id: number; stepId: string; text: string }>,
-  recipient: string,
+  asked: string,
 ): Promise<void> => {
+  const recipient = sessionAlias(db, pageId)(asked)
   const result = await sendToSession(
     sessionFor(recipient),
     askMessage(
@@ -346,7 +361,7 @@ const handleEvent = async (
               ok: false,
               detail: 'Preview: no terminal delivery was attempted.',
             })
-          : sendToSession(sessionFor(session), text),
+          : sendFor(pageId)(session, text),
       (source, session) => gfFor(source, session) ?? `bun run --cwd ${ROOT} gf`,
     )
     if (!result.ok) {
@@ -367,7 +382,7 @@ const handleEvent = async (
       page.state.grill,
       String(requestBody.question ?? ''),
       body,
-      (session, text) => sendToSession(sessionFor(session), text),
+      sendFor(pageId),
       session => gfFor(grill.id, session) ?? `bun run --cwd ${ROOT} gf`,
       PREVIEW,
     )
@@ -458,7 +473,7 @@ const handleEvent = async (
         )
       }
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })
-      await deliverAsk(grillId, { id: askId, stepId, text }, recipient)
+      await deliverAsk(pageId, grillId, { id: askId, stepId, text }, recipient)
       break
     }
     case 'redelivered': {
@@ -473,7 +488,7 @@ const handleEvent = async (
       if (recipient === undefined || recipient === '') {
         return json({ error: 'No session to deliver this ask to.' }, 400)
       }
-      await deliverAsk(grillId, ask, recipient)
+      await deliverAsk(pageId, grillId, ask, recipient)
       break
     }
     default:
@@ -522,7 +537,7 @@ const handleSend = async (
       db,
       page,
       selection,
-      (session, text) => sendToSession(sessionFor(session), text),
+      sendFor(grillId),
       (source, session) =>
         gfFor(source.id, session) ?? `bun run --cwd ${ROOT} gf`,
       decoded.success,
