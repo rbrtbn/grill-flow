@@ -1,8 +1,11 @@
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { WORK_FIXTURE } from './workFixture'
 import {
   type WorkItem,
   type WorkLog,
+  WorkLog as WorkLogSchema,
   duration,
   leftLine,
   openIssues,
@@ -189,5 +192,17 @@ describe('openIssues', () => {
       'LAB-1451',
     ])
     expect(openIssues('')).toEqual([])
+  })
+})
+
+describe('the preview fixture', () => {
+  it('decodes as a work log and reads as the prototype did', () => {
+    expect(Schema.decodeUnknownResult(WorkLogSchema)(WORK_FIXTURE)._tag).toBe(
+      'Success',
+    )
+    const model = workModel(WORK_FIXTURE)
+    expect(model.issues).toHaveLength(18)
+    expect(model.stats.inProgress).toBe(model.active.length)
+    expect(model.active[0]?.isBlocked).toBe(true)
   })
 })
