@@ -348,3 +348,23 @@ it('sorts globally by urgency or newest question number while retaining round or
     ).flatMap(group => group.steps.map(step => step.question.id)),
   ).toEqual(['Q4', 'Q2', 'Q8', 'Q9'])
 })
+
+it('narrows Open to the questions waiting on another answer', () => {
+  const waiting: Snapshot = {
+    ...snapshot,
+    grill: {
+      ...grill,
+      steps: grill.steps.map((step, index) =>
+        index === 1
+          ? { ...step, question: { ...step.question, dependsOn: ['Q1'] } }
+          : step,
+      ),
+    },
+  }
+  const ids = (filter: 'Open' | 'Waiting') =>
+    visibleQuestions({ ...initialWorkspace, filter }, waiting, {}, {}, {}).map(
+      step => step.question.id,
+    )
+  expect(ids('Waiting')).toEqual(['Q2'])
+  expect(ids('Open')).toContain('Q2')
+})

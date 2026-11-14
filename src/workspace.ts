@@ -32,7 +32,13 @@ export const SQUAD = 'squad'
 export const GRILLS = 'grills'
 export const RUN_TARGET = 'run'
 
-export const QuestionFilter = Schema.Literals(['All', 'Open', 'Draft', 'Sent'])
+export const QuestionFilter = Schema.Literals([
+  'All',
+  'Open',
+  'Waiting',
+  'Draft',
+  'Sent',
+])
 export type QuestionFilter = typeof QuestionFilter.Type
 export const QuestionUrgencyFilter = Schema.Literals([
   'All',
@@ -278,6 +284,7 @@ export const quickViews: ReadonlyArray<{
   urgencyFilter: QuestionUrgencyFilter
 }> = [
   { label: 'Open', filter: 'Open', urgencyFilter: 'All' },
+  { label: 'Waiting', filter: 'Waiting', urgencyFilter: 'All' },
   { label: 'Drafts', filter: 'Draft', urgencyFilter: 'All' },
   { label: 'All', filter: 'All', urgencyFilter: 'All' },
 ]
@@ -295,12 +302,15 @@ export const visibleQuestions = (
     step =>
       (Array.isReadonlyArrayEmpty(rounds) ||
         rounds.includes(roundOf(snapshot.grill, step.question))) &&
-      (workspace.filter !== 'Open' ||
-        statusOf(snapshot.grill, answers, step.question.id)._tag !==
-          'NotNeeded') &&
-      (workspace.filter === 'All' ||
-        questionState(snapshot, step, answers, notes, own) ===
-          workspace.filter) &&
+      // Waiting narrows Open to the questions held behind another answer.
+      (workspace.filter === 'Waiting'
+        ? statusOf(snapshot.grill, answers, step.question.id)._tag === 'Waiting'
+        : workspace.filter === 'All' ||
+          (questionState(snapshot, step, answers, notes, own) ===
+            workspace.filter &&
+            (workspace.filter !== 'Open' ||
+              statusOf(snapshot.grill, answers, step.question.id)._tag !==
+                'NotNeeded'))) &&
       (workspace.urgencyFilter === 'All' ||
         (workspace.urgencyFilter === 'urgent'
           ? step.question.urgency === 'blocking' ||
