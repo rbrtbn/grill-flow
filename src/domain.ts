@@ -65,7 +65,13 @@ export type Decision = typeof Decision.Type
 
 export const Question = Schema.Struct({
   id: Schema.String,
+  // A stable name the asker uses in chat and on the page, where ids may be renumbered
+  // (docs/adr/0034). Writers check its form; a squad page qualifies colliding keys as
+  // `<member-grill>/<key>`, so reads take any string.
+  key: Schema.optionalKey(Schema.String),
   title: Schema.String,
+  // What is being decided and why now, for a reader who has not followed the run.
+  context: Schema.optionalKey(Schema.String),
   // One line on when or where the decision applies, shown beside the question.
   scope: Schema.String,
   ask: Schema.String,
@@ -166,11 +172,12 @@ export type Plan = typeof Plan.Type
 
 /**
  * The grill format this page reads. A grill without `version` is version 1. Version 2 adds
- * `plan`; version 3 adds `compare` and diagrams; version 4 adds per-question session routing.
+ * `plan`; version 3 adds `compare` and diagrams; version 4 adds per-question session routing;
+ * version 5 adds question `key` and `context`.
  * Newer fields are dropped on decode, so an older page still shows the rest
  * (docs/adr/0001-version-the-grill-format.md).
  */
-export const FORMAT_VERSION = 4
+export const FORMAT_VERSION = 5
 
 export const SquadMembership = Schema.Struct({
   id: Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/)),
@@ -1128,7 +1135,8 @@ export type Segment =
   | Readonly<{ _tag: 'Entity'; text: string; entity: Entity }>
   | Readonly<{ _tag: 'Term'; text: string; term: Term }>
   | Readonly<{ _tag: 'Ref'; text: string; ref: Ref }>
-  | Readonly<{ _tag: 'Question'; text: string }>
+  // `id` is the question a `[[key]]` reference resolved to; a bare id is its own text.
+  | Readonly<{ _tag: 'Question'; text: string; id?: string }>
   | Readonly<{ _tag: 'Link'; text: string; url: string }>
   | Readonly<{
       _tag: 'Strong' | 'Emphasis'
@@ -1359,28 +1367,76 @@ export const withRefs = (
   )
 }
 
-/** Marks every mention of one of the grill's question ids in plain text, so it can jump there. */
-export const withQuestions = (
-  parts: ReadonlyArray<Segment>,
+/** `[[key]]` or `[[grill-id/key]]` in agent text names a question by its key (docs/adr/0034). */
+export const KEY_REFERENCE = /\[\[([^\[\]\n]+)\]\]/g
+
+/** The grill id that owns a step: a squad page scopes member steps as `<member>::<step>`. */
+export const stepOwner = (grill: Grill, step: Step): string => {
+  const at = step.id.indexOf('::')
+  return at < 0 ? grill.id : step.id.slice(0, at)
+}
+
+/** Every spelling that names this question's key: as shown, and qualified by its grill. */
+export const keyAliases = (grill: Grill, step: Step): ReadonlyArray<string> => {
+  const key = step.question.key?.trim() ?? ''
+  if (key === '') {
+    return []
+  }
+  const base = key.slice(key.lastIndexOf('/') + 1)
+  return Array.dedupe([key, `${stepOwner(grill, step)}/${base}`])
+}
+
+export const stepByKey = (
   grill: Grill,
-): ReadonlyArray<Segment> => {
+  reference: string,
+): Option.Option<Step> =>
+  Array.findFirst(grill.steps, step =>
+    Array.contains(keyAliases(grill, step), reference.trim()),
+  )
+
+const splitIds = (text: string, grill: Grill): ReadonlyArray<Segment> => {
   const ids = Array.map(grill.steps, step => step.question.id)
   if (Array.isArrayEmpty(ids)) {
-    return parts
+    return [{ _tag: 'Text', text }]
   }
   const pattern = new RegExp(
     `(?<![\\w-])(${Array.join(Array.map(ids, escapeRegExp), '|')})(?![\\w-])`,
   )
-  return mapTextSegments(parts, text =>
-    pipe(
-      text.split(pattern),
-      Array.map((text, index): Segment =>
-        index % 2 === 1 ? { _tag: 'Question', text } : { _tag: 'Text', text },
-      ),
-      Array.filter(part => part.text !== ''),
-    ),
+  return Array.map(text.split(pattern), (text, index): Segment =>
+    index % 2 === 1 ? { _tag: 'Question', text } : { _tag: 'Text', text },
   )
 }
+
+/**
+ * Marks every `[[key]]` reference and every mention of one of the grill's question ids in
+ * plain text, so it can jump there. A reference to no question stays as typed.
+ */
+export const withQuestions = (
+  parts: ReadonlyArray<Segment>,
+  grill: Grill,
+): ReadonlyArray<Segment> =>
+  Array.isReadonlyArrayEmpty(grill.steps)
+    ? parts
+    : mapTextSegments(parts, text =>
+        pipe(
+          text.split(KEY_REFERENCE),
+          Array.flatMap((part, index): ReadonlyArray<Segment> =>
+            index % 2 === 1
+              ? Option.match(stepByKey(grill, part), {
+                  onNone: () => [{ _tag: 'Text', text: `[[${part}]]` }],
+                  onSome: step => [
+                    {
+                      _tag: 'Question',
+                      text: step.question.key ?? part,
+                      id: step.question.id,
+                    },
+                  ],
+                })
+              : splitIds(part, grill),
+          ),
+          Array.filter(part => part.text !== ''),
+        ),
+      )
 
 /** Entity marks for diff text, where backticks stay as typed. */
 export const entityParts = (

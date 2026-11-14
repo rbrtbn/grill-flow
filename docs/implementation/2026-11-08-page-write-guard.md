@@ -23,8 +23,8 @@ The guard neither authenticates a human nor makes a submission eligible for auth
 
 ## Owner installation
 
-There is intentionally no plugin/hooks/hooks.json. The example configuration does not load
-automatically. Nothing in the build or server startup installs or enables this guard.
+plugin/hooks/hooks.json registers only the advisory grill-file guard (ADR 0034), never this
+guard. The example configuration does not load automatically. Nothing in the build or server startup installs or enables this guard.
 
 From the Claude account to protect, preview the installer, then explicitly apply it:
 

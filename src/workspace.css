@@ -600,6 +600,28 @@
 .f-question-meta a {
   font-weight: 600;
 }
+.f-workspace .f-question-key {
+  padding: 1px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: 400 12px/1.5 var(--code);
+  cursor: copy;
+}
+.f-workspace .f-question-key:hover,
+.f-workspace .f-question-key:focus-visible {
+  border-color: currentColor;
+}
+.f-workspace .f-question-key.is-copied::after {
+  content: ' · copied';
+  font-family: var(--label);
+}
+.f-question-lead {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font: 400 17px/1.55 var(--read);
+}
 .f-question-body {
   padding: 15px var(--reading-inset) 65px;
 }

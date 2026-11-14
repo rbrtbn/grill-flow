@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import type { Grill } from '../src/domain'
 import { SKILL_REVISION } from './authoring'
 import { discussionRefs, discussionThreads } from './discussions'
+import { withoutLint } from './lint.testSupport'
 import { readPage } from './squad'
 import {
   appendEvent,
@@ -182,7 +183,7 @@ const run = async (
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  return { code, out, error }
+  return { code, out, error: withoutLint(error), stderr: error }
 }
 
 it('drops an agent-supplied discussions key on load, with one warning', async () => {
@@ -207,6 +208,8 @@ it('drops an agent-supplied discussions key on load, with one warning', async ()
   const quiet = await run(dir, [
     'load',
     join(dir, 'clean.json'),
+    '--expect-rev',
+    '1',
     '--reason',
     'clean',
     '--expect-rev',

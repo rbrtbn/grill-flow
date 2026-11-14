@@ -233,6 +233,10 @@ export const Model = Schema.Struct({
     Schema.Literals(['Copied', 'Failed']),
   ),
   vetoAttempts: Schema.Record(Schema.String, VetoAttemptState),
+  keyCopies: Schema.Record(
+    Schema.String,
+    Schema.Literals(['Copied', 'Failed']),
+  ),
   maybeSaveError: Schema.Option(Schema.String),
   maybeBuild: Schema.Option(Schema.String),
   currentPart: Schema.String,
@@ -463,6 +467,8 @@ export const Message = defineMessageUnion({
   },
   CompletedCopyOwnerStep: { key: Schema.String, copied: Schema.Boolean },
   ClickedCopy: {},
+  ClickedQuestionKey: { key: Schema.String },
+  CompletedCopyQuestionKey: { key: Schema.String, copied: Schema.Boolean },
   CompletedCopyReply: { copied: Schema.Boolean },
   ClickedToggleDiff: { stepId: Schema.String },
   ClickedDiagramState: { diagram: Schema.String, state: Schema.String },
@@ -2063,6 +2069,17 @@ export const update = (model: Model, message: Message) =>
         ],
       })),
 
+    ClickedQuestionKey: ({ key }) => ({
+      model,
+      commands: [CopyQuestionKey({ key })],
+    }),
+    CompletedCopyQuestionKey: ({ key, copied }) => ({
+      model: modifyFields(model, {
+        keyCopies: copies =>
+          Record.set(copies, key, copied ? 'Copied' : 'Failed'),
+      }),
+    }),
+
     CompletedCopyReply: ({ copied }) => ({
       model: modifyFields(model, {
         copy: () => (copied ? 'Copied' : 'Failed') as CopyState,
@@ -3246,6 +3263,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     }),
     drawingAttempts: {},
     ownerCopies: {},
+    keyCopies: {},
     ownerDestinations: {},
     vetoAttempts: {},
     maybeSaveError: Option.none(),
@@ -3773,6 +3791,20 @@ export const CopyOwnerStep = Command.define('CopyOwnerStep', {
       Effect.map(() => Message.CompletedCopyOwnerStep({ key, copied: true })),
       Effect.catch(() =>
         Effect.succeed(Message.CompletedCopyOwnerStep({ key, copied: false })),
+      ),
+    ),
+})
+
+export const CopyQuestionKey = Command.define('CopyQuestionKey', {
+  args: { key: Schema.String },
+  messages: [Message.CompletedCopyQuestionKey],
+  execute: ({ key }) =>
+    Effect.tryPromise(() => navigator.clipboard.writeText(key)).pipe(
+      Effect.map(() => Message.CompletedCopyQuestionKey({ key, copied: true })),
+      Effect.catch(() =>
+        Effect.succeed(
+          Message.CompletedCopyQuestionKey({ key, copied: false }),
+        ),
       ),
     ),
 })

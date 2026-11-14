@@ -14,6 +14,7 @@ import {
   grillRevisions,
   questionHistory,
 } from './history'
+import { withoutLint } from './lint.testSupport'
 import { readPage } from './squad'
 import { events, getGrill, loadGrill, snapshot } from './store'
 
@@ -360,7 +361,7 @@ const run = async (
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  return { code, out, error }
+  return { code, out, error: withoutLint(error), stderr: error }
 }
 
 it('gf load takes --reason and --session, and gf history reports them', async () => {

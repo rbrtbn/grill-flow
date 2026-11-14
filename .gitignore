@@ -35,3 +35,6 @@ grills/
 .claude/
 
 .vite-focus-cache/
+
+# Python bytecode from running the plugin hook scripts.
+__pycache__/

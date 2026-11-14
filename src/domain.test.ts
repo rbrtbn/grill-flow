@@ -17,6 +17,7 @@ import {
   sentAnswers,
   splitParagraphs,
   statusOf,
+  stepByKey,
   tally,
   urgencyRank,
   usesUrgency,
@@ -219,6 +220,41 @@ describe('withQuestions', () => {
       ['Question', 'Q1'],
       ['Text', ', not Q99, Q123 or Q2-b.'],
     ])
+  })
+  it('resolves [[key]] and [[grill/key]] to the keyed question, as shown on the page', () => {
+    const keyed: Grill = {
+      ...grill,
+      steps: grill.steps.map(step =>
+        step.question.id === 'Q2'
+          ? {
+              ...step,
+              id: 'member::step-q2',
+              question: { ...step.question, key: 'member/deploy-order' },
+            }
+          : step,
+      ),
+    }
+    const parts = withQuestions(
+      [
+        {
+          _tag: 'Text',
+          text: 'After [[member/deploy-order]], not [[deploy-order]] or [[x]].',
+        },
+      ],
+      keyed,
+    )
+    expect(parts).toEqual([
+      { _tag: 'Text', text: 'After ' },
+      { _tag: 'Question', text: 'member/deploy-order', id: 'Q2' },
+      { _tag: 'Text', text: ', not ' },
+      { _tag: 'Text', text: '[[deploy-order]]' },
+      { _tag: 'Text', text: ' or ' },
+      { _tag: 'Text', text: '[[x]]' },
+      { _tag: 'Text', text: '.' },
+    ])
+    expect(
+      Option.map(stepByKey(grill, 'fixture/none'), step => step.id),
+    ).toEqual(Option.none())
   })
 })
 

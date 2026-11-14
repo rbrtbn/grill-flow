@@ -8,7 +8,7 @@ import { isWholeTarget } from '../src/domain'
 import type { WriteProvenance } from './history'
 
 // Bump when guide rules change so cached instructions can be replaced (ADR 0026).
-export const SKILL_REVISION = 6
+export const SKILL_REVISION = 7
 export const AuthoringGuide = Schema.Struct({
   version: Schema.Literal(1),
   host: Schema.String.check(Schema.isMinLength(1)),
@@ -143,6 +143,9 @@ export const expectRevWarning = (): string =>
       ? 'GF_REQUIRE_EXPECT_REV=1 refuses loads without one.'
       : 'Accepted without one for now; it becomes required later.'
   }`
+// The clarity lint warns; GF_REQUIRE_CONTEXT=1 refuses a new or changed question without
+// context (docs/adr/0034).
+export const CONTEXT_REQUIRED = process.env.GF_REQUIRE_CONTEXT === '1'
 export const reasonWarning = (command: string): string =>
   `Write reason missing: pass --reason "<why>" on gf ${command}, so gf history can say why this changed. ${
     REASON_REQUIRED

@@ -40,6 +40,7 @@ import {
   revisionLines,
 } from './history'
 import { newsSince, runOutbox } from './outbox'
+import { lintLines } from './questionLint'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
 import {
@@ -64,6 +65,9 @@ const usage = `gf: grill-flow's agent-side commands
   load, item, draw, restore and revise --kind rewrite take --reason <why>, kept for gf history;
   missing reasons warn (GF_REQUIRE_REASON=1 refuses them). --session <address> names the
   author, default $HC_TERMINAL_ID.
+  Writes lint the questions they add or change and print lint: lines on stderr;
+  GF_REQUIRE_CONTEXT=1 refuses a question without context. A question's key works wherever
+  its id does.
 
   gf up                                start the server unless it already answers
   gf load <grill.json> [--solo] [--expect-rev <rev>]
@@ -78,7 +82,7 @@ ${EDIT_USAGE}
                                        the previous lead go to it
   gf retire <grill-id> --reason <text>  hide a source grill, keeping its history
   gf restore <grill-id>                show a retired source grill again
-  gf history <grill-id> [question-id] [--json]
+  gf history <grill-id> [question-id-or-key] [--json]
                                        every load with its time, author and reason; for a
                                        question, what changed in each revision that touched it
   gf export <grill-id | page-id> [--out <file>]
@@ -384,7 +388,7 @@ switch (command) {
       }
       console.error(expectRevWarning())
     }
-    const { grill, rev, unknownKeys } = guarded(() =>
+    const { grill, rev, unknownKeys, lint } = guarded(() =>
       loadChecked(
         db,
         withSquadDefault(
@@ -397,6 +401,9 @@ switch (command) {
     )
     if (unknownKeys.length > 0) {
       console.warn(unknownKeyWarning(unknownKeys))
+    }
+    if (lint.length > 0) {
+      console.warn(lintLines(lint))
     }
     console.log(
       `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id} (rev ${rev})`,
@@ -571,8 +578,19 @@ switch (command) {
           : `${id} is a composed page; run gf history on one of its member grills`,
       )
     }
-    const question = args[1]?.startsWith('--') ? undefined : args[1]
+    const named = args[1]?.startsWith('--') ? undefined : args[1]
     const revisions = grillRevisions(db, id)
+    // A key names one question for good (questionLint.ts), so any revision maps it.
+    const everyStep = [
+      getGrill(db, id)!,
+      ...revisions.map(revision => revision.grill),
+    ].flatMap(grill => grill.steps)
+    const question =
+      named === undefined ||
+      everyStep.some(step => step.question.id === named || step.id === named)
+        ? named
+        : (everyStep.find(step => step.question.key === named)?.question.id ??
+          named)
     const json = args.includes('--json')
     if (question === undefined) {
       console.log(

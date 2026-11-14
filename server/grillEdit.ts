@@ -1,8 +1,10 @@
 import type { Database } from 'bun:sqlite'
-import { Schema, SchemaIssue } from 'effect'
+import { Option, Schema, SchemaIssue } from 'effect'
 import { readFileSync } from 'node:fs'
 
-import { FORMAT_VERSION, Grill, type Step } from '../src/domain'
+import { FORMAT_VERSION, Grill, type Step, stepByKey } from '../src/domain'
+import { CONTEXT_REQUIRED } from './authoring'
+import { discussionRefs, withoutDiscussions } from './discussions'
 import {
   type FieldChange,
   type WriteProvenance,
@@ -12,7 +14,14 @@ import {
   grillRevisions,
   revisionLines,
 } from './history'
-import { withoutDiscussions } from './discussions'
+import {
+  type Finding,
+  isMissingContext,
+  keyFormProblems,
+  keyHistoryProblems,
+  lintGrill,
+  lintLines,
+} from './questionLint'
 import { readPage } from './squad'
 import { decodeGrill, getGrill, loadGrill, snapshot } from './store'
 
@@ -49,6 +58,7 @@ const decodeAll = Schema.decodeUnknownResult(Grill, {
   errors: 'all',
   onExcessProperty: 'error',
 })
+const decodeLenient = Schema.decodeUnknownResult(Grill)
 
 /** An RFC 6901 pointer for a decode path, the form `gf get` and `gf patch` take. */
 export const toPointer = (path: ReadonlyArray<unknown>): string =>
@@ -81,8 +91,11 @@ export const strictCheck = (
   unknownKeys: ReadonlyArray<Problem>
 }> => {
   const result = decodeAll(raw)
+  const lenient = result._tag === 'Success' ? result : decodeLenient(raw)
+  const keyProblems =
+    lenient._tag === 'Success' ? keyFormProblems(lenient.success) : []
   if (result._tag === 'Success') {
-    return { errors: [], unknownKeys: [] }
+    return { errors: keyProblems, unknownKeys: [] }
   }
   const problems = formatIssues(result.failure.issue).issues.map(issue => ({
     path: toPointer(issue.path ?? []),
@@ -91,7 +104,10 @@ export const strictCheck = (
   const tolerated = (problem: Problem) =>
     problem.message === UNKNOWN_KEY && declaresNewerFormat(raw)
   return {
-    errors: problems.filter(problem => !tolerated(problem)),
+    errors: [
+      ...problems.filter(problem => !tolerated(problem)),
+      ...keyProblems,
+    ],
     unknownKeys: problems.filter(tolerated),
   }
 }
@@ -206,11 +222,13 @@ export type Loaded = Readonly<{
   grill: Grill
   rev: number
   unknownKeys: ReadonlyArray<Problem>
+  lint: ReadonlyArray<Finding>
 }>
 
 /**
  * Validates strictly, then loads through `loadGrill`, refusing a stale `expectRev` inside the
- * same immediate transaction so no other writer lands between the check and the write.
+ * same immediate transaction so no other writer lands between the check and the write. A
+ * `discussions` key is dropped first, with its warning, rather than refused as unknown.
  */
 export const loadChecked = (
   db: Database,
@@ -224,8 +242,32 @@ export const loadChecked = (
       if (expectRev !== undefined) {
         assertRev(db, grill.id, expectRev)
       }
+      const previous = getGrill(db, grill.id)
+      const keyProblems = keyHistoryProblems(grill, [
+        ...grillRevisions(db, grill.id).map(revision => revision.grill),
+        ...(previous === undefined ? [] : [previous]),
+      ])
+      if (keyProblems.length > 0) {
+        throw new GrillInvalid(keyProblems)
+      }
+      const lint = lintGrill(grill, previous)
+      const uncontexted = lint.filter(isMissingContext)
+      if (CONTEXT_REQUIRED && uncontexted.length > 0) {
+        throw new EditError(
+          `GF_REQUIRE_CONTEXT=1 refuses questions without context; set question.context at ${uncontexted
+            .map(finding => finding.path)
+            .join(
+              ', ',
+            )}: what is being decided, why now, and what happens if it waits`,
+        )
+      }
       const loaded = loadGrill(db, grill, provenance)
-      return { grill: loaded, rev: currentRev(db, loaded.id), unknownKeys }
+      return {
+        grill: loaded,
+        rev: currentRev(db, loaded.id),
+        unknownKeys,
+        lint,
+      }
     })
     .immediate()
 }
@@ -480,14 +522,17 @@ export const mergePatch = (target: unknown, patch: unknown): unknown => {
 
 // QUESTION EDITS
 
-/** A step by its question id or, failing that, its step id. */
+/** A step by its question id, its step id or, failing both, its question key. */
 export const findStep = (
   grill: Grill,
   id: string,
 ): Readonly<{ index: number; step: Step }> | undefined => {
   const byQuestion = grill.steps.findIndex(step => step.question.id === id)
-  const index =
+  const byStep =
     byQuestion >= 0 ? byQuestion : grill.steps.findIndex(step => step.id === id)
+  const byKey = Option.getOrUndefined(stepByKey(grill, id))
+  const index =
+    byStep >= 0 || byKey === undefined ? byStep : grill.steps.indexOf(byKey)
   return index < 0 ? undefined : { index, step: grill.steps[index]! }
 }
 
@@ -503,6 +548,7 @@ const idsOf = (raw: unknown) => {
   return {
     step: isObject(raw) && typeof raw.id === 'string' ? raw.id : undefined,
     question: typeof question?.id === 'string' ? question.id : undefined,
+    key: typeof question?.key === 'string' ? question.key : undefined,
   }
 }
 
@@ -524,9 +570,9 @@ export const addStep = (
       'gf question add takes a whole step: {id, part, heading, prose, question: {id, ...}}',
     )
   }
-  if (target !== ids.step && target !== ids.question) {
+  if (target !== ids.step && target !== ids.question && target !== ids.key) {
     throw new EditError(
-      `${target} names neither the new step (${ids.step}) nor its question (${ids.question})`,
+      `${target} names neither the new step (${ids.step}) nor its question (${ids.question}) or key`,
     )
   }
   const taken = [ids.step, ids.question].filter(
@@ -639,16 +685,18 @@ const positionals = (args: ReadonlyArray<string>): ReadonlyArray<string> =>
       !arg.startsWith('--') && !VALUE_FLAGS.has(args[index - 1] ?? ''),
   )
 
-export const EDIT_USAGE = `  gf get <grill-id> [<json-pointer> | <question-or-step-id>] [--question <id>] [--json]
+export const EDIT_USAGE = `  gf get <grill-id> [<json-pointer> | <question-id-or-key>] [--question <id>] [--json]
                                        the stored grill, or one value in it, as JSON on stdout;
-                                       its rev on stderr (--json: {"rev", "pointer", "value"})
+                                       its rev and discussions on stderr (--json:
+                                       {"rev", "pointer", "value", "discussions"})
   gf question add <grill-id> <new-step-or-question-id> --file <step.json> [--after <step-or-question-id>]
-  gf question update <grill-id> <step-or-question-id> --file <fields.json>
-  gf question resolve <grill-id> <step-or-question-id> (--outcome <text> | --file <text-file>)
+  gf question update <grill-id> <question-id-or-key> --file <fields.json>
+  gf question resolve <grill-id> <question-id-or-key> (--outcome <text> | --file <text-file>)
                                        add a whole step, merge fields into one (RFC 7386, null
                                        removes), or take it down with its decided outcome
   gf patch <grill-id> --file <ops.json>  apply RFC 6902 operations to the stored grill
-                                       question and patch need --expect-rev <rev> and --reason`
+                                       question and patch need --expect-rev <rev> and --reason;
+                                       a step id works wherever a question id or key does`
 
 const required = (args: ReadonlyArray<string>, name: string): string => {
   const value = flag(args, name)?.trim()
@@ -679,11 +727,22 @@ const getCommand = (
       : `/steps/${requireStep(grill, question).index}`
   const value = readPointer(grill, pointer)
   const rev = currentRev(db, id)
+  const discussions = discussionRefs(readPage(db, id)!.state)
+  const threads = Object.entries(discussions).map(
+    ([target, ref]) => `${target}${ref.open > 0 ? ` (${ref.open} open)` : ''}`,
+  )
   return args.includes('--json')
-    ? { out: JSON.stringify({ rev, pointer, value }), err: '' }
+    ? { out: JSON.stringify({ rev, pointer, value, discussions }), err: '' }
     : {
         out: JSON.stringify(value, null, 2),
-        err: `rev ${rev}${pointer === '' ? '' : `  ${pointer}`}`,
+        err: [
+          `rev ${rev}${pointer === '' ? '' : `  ${pointer}`}`,
+          ...(threads.length === 0
+            ? []
+            : [
+                `discussions: ${threads.join(', ')} (gf export ${id} for the threads)`,
+              ]),
+        ].join('\n'),
       }
 }
 
@@ -761,6 +820,7 @@ export const runEditCommand = (
       ...(loaded.unknownKeys.length > 0
         ? [unknownKeyWarning(loaded.unknownKeys)]
         : []),
+      ...(loaded.lint.length > 0 ? [lintLines(loaded.lint)] : []),
     ].join('\n'),
   }
 }

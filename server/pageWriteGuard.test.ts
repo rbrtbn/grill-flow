@@ -248,7 +248,9 @@ it('keeps packaging inactive and merges one failure-blocking hook only on explic
     },
   }
   writeFileSync(f.settings, JSON.stringify(previous))
-  expect(existsSync(resolve('plugin/hooks/hooks.json'))).toBe(false)
+  expect(readFileSync('plugin/hooks/hooks.json', 'utf8')).not.toContain(
+    'page-write-guard',
+  )
   const example = JSON.parse(
     readFileSync('plugin/hooks/claude-hooks.example.json', 'utf8'),
   )
