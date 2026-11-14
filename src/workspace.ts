@@ -306,6 +306,7 @@ export const visibleQuestions = (
       (search === '' ||
         [
           step.question.id,
+          step.question.key ?? '',
           step.question.title,
           step.question.ask,
           step.question.issue ?? '',

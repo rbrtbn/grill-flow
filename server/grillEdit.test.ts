@@ -16,6 +16,7 @@ import {
   strictCheck,
 } from './grillEdit'
 import { currentRev, grillRevisions } from './history'
+import { withoutLint } from './lint.testSupport'
 import { events, getGrill } from './store'
 
 const fixture: Grill = JSON.parse(
@@ -65,7 +66,7 @@ const run = async (
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  return { code, out, error }
+  return { code, out, error: withoutLint(error), stderr: error }
 }
 
 const write = (dir: string, name: string, value: unknown) => {
@@ -214,6 +215,7 @@ describe('gf get', () => {
       rev: 1,
       pointer: '/steps/0',
       value: fixture.steps[0],
+      discussions: {},
     })
     expect(json.error).toBe('')
   })

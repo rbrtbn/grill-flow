@@ -42,30 +42,71 @@ export type Page = Readonly<{
 }>
 
 const scope = (source: string, id: string): string => `${source}::${id}`
+
+// A member's `[[key]]` names its own question; on the page it becomes `[[member/key]]`, which
+// resolves however the page shows that key (docs/adr/0034).
+const qualifyReference = (reference: string, member: string): string => {
+  const inner = reference.slice(2, -2).trim()
+  return inner.includes('/') ? reference : `[[${member}/${inner}]]`
+}
+
 const mapText = (
   text: string,
   questions: Readonly<Record<string, string>>,
+  member?: string,
 ): string => {
   const ids = Object.keys(questions).map(id =>
     id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
   )
-  if (ids.length === 0) return text
   const pattern = new RegExp(
-    `https?:\\/\\/\\S+|(?<![\\w-])(?:${ids.join('|')})(?![\\w-])`,
+    [
+      'https?:\\/\\/\\S+',
+      '\\[\\[[^\\[\\]\\n]+\\]\\]',
+      ...(ids.length === 0
+        ? []
+        : [`(?<![\\w-])(?:${ids.join('|')})(?![\\w-])`]),
+    ].join('|'),
     'g',
   )
-  return text.replace(pattern, id => questions[id] ?? id)
+  return text.replace(pattern, match =>
+    match.startsWith('[[')
+      ? member === undefined
+        ? match
+        : qualifyReference(match, member)
+      : (questions[match] ?? match),
+  )
 }
 
 const mapStructured = (
   value: unknown,
   questions: Readonly<Record<string, string>>,
+  member: string,
 ): unknown =>
   JSON.parse(
     JSON.stringify(value, (_key, value) =>
-      typeof value === 'string' ? mapText(value, questions) : value,
+      typeof value === 'string' ? mapText(value, questions, member) : value,
     ),
   )
+
+/** Keys more than one member uses, which the page shows qualified by their member grill. */
+const sharedKeys = (members: ReadonlyArray<Member>): ReadonlySet<string> => {
+  const owners = members
+    .flatMap(({ state }) =>
+      state.grill.steps.flatMap(step =>
+        step.question.key === undefined
+          ? []
+          : [[step.question.key, state.grill.id] as const],
+      ),
+    )
+    .reduce(
+      (seen, [key, grill]) =>
+        seen.set(key, new Set([...(seen.get(key) ?? []), grill])),
+      new Map<string, ReadonlySet<string>>(),
+    )
+  return new Set(
+    [...owners].flatMap(([key, grills]) => (grills.size > 1 ? [key] : [])),
+  )
+}
 
 const membersOf = (db: Database, id: string): ReadonlyArray<Member> => {
   const registrations = squadRegistrations(db, id)
@@ -137,10 +178,11 @@ const composePage = (
   const lead = leadMember?.state.grill
   const leadQuestions = leadMember?.registration.questions ?? {}
   if (members.length === 0) return undefined
+  const collisions = sharedKeys(members)
   const sections = members.flatMap(({ state, registration }) => {
     const grill = state.grill
     const questions = registration.questions
-    const map = (text: string) => mapText(text, questions)
+    const map = (text: string) => mapText(text, questions, grill.id)
     const section = grill.squad!.section
     const sourceKey = scope(grill.id, 'member')
     const steps = grill.steps.map(step => ({
@@ -155,9 +197,19 @@ const composePage = (
           ? {}
           : {
               compare: Schema.decodeUnknownSync(Compare)(
-                mapStructured(step.question.compare, questions),
+                mapStructured(step.question.compare, questions, grill.id),
               ),
             }),
+        ...(step.question.key === undefined
+          ? {}
+          : {
+              key: collisions.has(step.question.key)
+                ? `${grill.id}/${step.question.key}`
+                : step.question.key,
+            }),
+        ...(step.question.context === undefined
+          ? {}
+          : { context: map(step.question.context) }),
         id: questions[step.question.id]!,
         title: map(step.question.title),
         ask: map(step.question.ask),
@@ -306,7 +358,7 @@ const composePage = (
     roundNumbers: merge(sections.map(section => section.roundNumbers)),
     entities: sections.flatMap(section => section.grill.entities),
     terms: sections.flatMap(section => section.grill.terms),
-    intro: lead?.intro.map(text => mapText(text, leadQuestions)) ?? [
+    intro: lead?.intro.map(text => mapText(text, leadQuestions, lead.id)) ?? [
       'Questions and discussions from every squad member, in one place.',
     ],
     parts: sections.flatMap(section => section.parts),
@@ -314,7 +366,7 @@ const composePage = (
     next: sections.flatMap(section =>
       section.grill.next.map(
         text =>
-          `${section.grill.squad!.section}: ${mapText(text, members.find(member => member.state.grill.id === section.grill.id)!.registration.questions)}`,
+          `${section.grill.squad!.section}: ${mapText(text, members.find(member => member.state.grill.id === section.grill.id)!.registration.questions, section.grill.id)}`,
       ),
     ),
     refs: mergeReferences(
@@ -333,6 +385,7 @@ const composePage = (
           decision.text,
           members.find(member => member.state.grill.id === section.grill.id)!
             .registration.questions,
+          section.grill.id,
         ),
       })),
     ),
@@ -340,7 +393,7 @@ const composePage = (
       ? {}
       : {
           plan: Schema.decodeUnknownSync(Plan)(
-            mapStructured(lead.plan, leadQuestions),
+            mapStructured(lead.plan, leadQuestions, lead.id),
           ),
         }),
   }
@@ -551,7 +604,7 @@ export const sourceText = (
   const member = page.members.find(entry => entry.state.grill.id === source)
   return member === undefined
     ? text
-    : mapText(text, member.registration.questions)
+    : mapText(text, member.registration.questions, source)
 }
 
 export const sourceQuestionUrl = (

@@ -15,6 +15,7 @@ import { type Snapshot, type Step, roundSteps } from '../src/domain'
 import { questionRevisions, recordAnswer } from './answerReceipts'
 import { SKILL_REVISION, isAuthoringCommand, needsReason } from './authoring'
 import { publishUpdate } from './channel'
+import { withoutLint } from './lint.testSupport'
 import { grillOnMachine } from './remote'
 import { selectSend } from './sendSelection'
 import { readPage, sendPageAnswers } from './squad'
@@ -117,7 +118,7 @@ const cli = async (...args: ReadonlyArray<string>) => {
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  expect(error).toBe('')
+  expect(withoutLint(error)).toBe('')
   expect(code).toBe(0)
   return text
 }

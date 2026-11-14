@@ -17,6 +17,7 @@ import {
   replyText,
 } from '../src/domain'
 import {
+  CONTEXT_REQUIRED,
   authoringBody,
   guideInState,
   guideText,
@@ -30,8 +31,19 @@ import {
 import { remoteItemError } from './channel'
 import { withoutDiscussions } from './discussions'
 import { DrawingReply, drawingMessage } from './drawings'
-import { decodeStrict, readJsonFile, unknownKeyWarning } from './grillEdit'
+import {
+  GrillInvalid,
+  decodeStrict,
+  readJsonFile,
+  unknownKeyWarning,
+} from './grillEdit'
 import { askMessage, pageMessage } from './messages'
+import {
+  isMissingContext,
+  keyHistoryProblems,
+  lintGrill,
+  lintLines,
+} from './questionLint'
 import { assertPickedOptionsRetained } from './reloadSafety'
 import { ROOT, decodeGrill } from './store'
 
@@ -265,6 +277,19 @@ export const runOutbox = async (
       const previous = stateOf(grill.id)?.snapshot
       if (previous !== undefined) {
         assertPickedOptionsRetained(previous, grill)
+        const keyProblems = keyHistoryProblems(grill, [previous.grill])
+        if (keyProblems.length > 0) {
+          fail(new GrillInvalid(keyProblems).message)
+        }
+      }
+      const lint = lintGrill(grill, previous?.grill)
+      if (CONTEXT_REQUIRED && lint.some(isMissingContext)) {
+        fail(
+          'GF_REQUIRE_CONTEXT=1 refuses questions without context; set question.context: what is being decided, why now, and what happens if it waits',
+        )
+      }
+      if (lint.length > 0) {
+        console.warn(lintLines(lint))
       }
       mkdirSync(join(folder(grill.id), 'revisions'), { recursive: true })
       queue(join(folder(grill.id), 'grill.json'), grill)

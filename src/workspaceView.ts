@@ -108,6 +108,29 @@ const link = (label: string, message: Message, h: H): Html =>
 const pageLink = (label: string, page: string, h: H): Html =>
   link(label, Message.ClickedWorkspacePage({ page }), h)
 
+/** The question's key, copied on click so the reader can name the question in chat. */
+const keyButton = (model: Model, key: string, h: H): Html => {
+  const copied = model.keyCopies[key]
+  const label =
+    copied === 'Copied'
+      ? `Copied ${key}`
+      : copied === 'Failed'
+        ? `Could not copy ${key}`
+        : `Copy key ${key}`
+  return h.button(
+    [
+      h.Type('button'),
+      h.Class(
+        `f-question-key${copied === undefined ? '' : ` is-${copied.toLowerCase()}`}`,
+      ),
+      h.Title(label),
+      h.AriaLabel(label),
+      h.OnClick(Message.ClickedQuestionKey({ key })),
+    ],
+    [key],
+  )
+}
+
 const stateMark = (
   state: 'Open' | 'Draft' | 'Sent',
   question: Question | undefined,
@@ -184,7 +207,7 @@ const questionNodeView = (
                   : 'false',
               ),
               h.Title(
-                `${step.question.id} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question))}${urgency === '' ? '' : ` · ${urgency}`}`,
+                `${step.question.id}${step.question.key === undefined ? '' : ` (${step.question.key})`} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question))}${urgency === '' ? '' : ` · ${urgency}`}`,
               ),
             ],
             [
@@ -197,7 +220,7 @@ const questionNodeView = (
                   h.small(
                     [h.Class('f-question-context')],
                     [
-                      `${questionAgent(snapshot.grill, step.question)} · ${sidebarRoundName(snapshot, roundOf(snapshot.grill, step.question))}`,
+                      `${step.question.key === undefined ? '' : `${step.question.key} · `}${questionAgent(snapshot.grill, step.question)} · ${sidebarRoundName(snapshot, roundOf(snapshot.grill, step.question))}`,
                     ],
                   ),
                 ],
@@ -1310,6 +1333,9 @@ const questionView = (
                         [h.Class('f-question-meta')],
                         [
                           h.span([], [q.id]),
+                          q.key === undefined
+                            ? h.empty
+                            : keyButton(model, q.key, h),
                           issueLink(snapshot, q.issue, h),
                           h.span([], [questionAgent(snapshot.grill, q)]),
                           h.span(
@@ -1346,6 +1372,12 @@ const questionView = (
                       ),
                     ],
                   ),
+                  q.context === undefined || q.context.trim() === ''
+                    ? h.empty
+                    : h.p(
+                        [h.Class('f-question-lead')],
+                        reading.inline(q.context, h),
+                      ),
                   h.h1(
                     [h.Class('f-question-title'), h.Id(`ask-text-${q.id}`)],
                     reading.heading(q.ask, h),

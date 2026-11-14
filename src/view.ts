@@ -236,25 +236,31 @@ const segmentView = (
               ),
             )
           : text,
-      Question: ({ text: id }) =>
+      Question: ({ text, id }) =>
         mode.links
-          ? questionLink(id, grill, mode, h)
-          : h.span([h.Class('ref')], [id]),
+          ? questionLink(id ?? text, grill, mode, h, text)
+          : h.span([h.Class('ref')], [text]),
       Text: ({ text }) => text,
     }),
   )
 
-/** A question id that jumps to its question, with the question in a card on hover. */
-const questionLink = (id: string, grill: Grill, mode: TextMode, h: H): Html => {
+/** A question id or key that jumps to its question, with the question in a card on hover. */
+const questionLink = (
+  id: string,
+  grill: Grill,
+  mode: TextMode,
+  h: H,
+  label = id,
+): Html => {
   const tip = Option.filter(stepOf(grill, id), () => mode.tips)
   return h.button(
     [
       h.Class(`ref${Option.isSome(tip) ? ' has-tip' : ''}`),
-      h.AriaLabel(`Go to ${id}`),
+      h.AriaLabel(`Go to ${label === id ? id : `${id} (${label})`}`),
       h.OnClick(Message.ClickedMapNode({ question: id })),
     ],
     [
-      id,
+      label,
       Option.match(tip, {
         onNone: () => h.empty,
         onSome: step =>
