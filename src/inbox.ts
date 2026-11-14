@@ -156,6 +156,8 @@ export type Task = Readonly<{
   origin?: TaskOrigin
   unblocks?: ReadonlyArray<string>
   routeWhy?: string
+  // Set only when the step's agent accepts a page answer for it (a PAGE grant).
+  pageAnswer?: Readonly<{ question: string; option: string }>
   optional?: boolean
 }>
 

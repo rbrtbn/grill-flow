@@ -658,6 +658,11 @@ export const Message = defineMessageUnion({
   UpdatedThreadDraft: { item: Schema.String, text: Schema.String },
   SubmittedThreadMessage: { item: Schema.String },
   ClickedCopyInboxLine: { key: Schema.String, text: Schema.String },
+  ClickedCopyAndFocus: {
+    source: Schema.String,
+    item: Schema.String,
+    revision: Schema.Number,
+  },
 })
 export type Message = typeof Message.Type
 
@@ -1445,6 +1450,20 @@ export const update = (model: Model, message: Message) =>
                 }),
             }),
           }
+    },
+    ClickedCopyAndFocus: ({ source, item, revision }): UpdateReturn => {
+      const copied: UpdateReturn = update(
+        model,
+        Message.ClickedCopyOwnerStep({ source, item, revision }),
+      )
+      const focused: UpdateReturn = update(
+        copied.model,
+        Message.ClickedOwnerDestination({ source, item, revision }),
+      )
+      return {
+        model: focused.model,
+        commands: [...(copied.commands ?? []), ...(focused.commands ?? [])],
+      }
     },
     ClickedCopyInboxLine: ({ key, text }) => ({
       model,

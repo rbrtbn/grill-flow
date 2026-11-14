@@ -52,6 +52,7 @@ const ENRICH: Readonly<Record<string, Partial<Task>>> = {
       label: 'LAB-1449 gate',
       questions: ['Q379', 'Q380', 'Q381'],
     },
+    pageAnswer: { question: 'Q380', option: 'a' },
   },
   'merge-157': {
     routeWhy:

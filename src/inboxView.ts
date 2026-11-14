@@ -277,6 +277,62 @@ const doneLine = (model: Model, task: Task, h: H): Html =>
     ],
   )
 
+/** The one move a task leads with: a page answer when its agent accepts one, else typing it. */
+const leadAction = (model: Model, task: Task, h: H): Html => {
+  const source = Option.getOrUndefined(task.maybeSource)
+  const destination = task.destination
+  if (task.pageAnswer !== undefined) {
+    return h.button(
+      [
+        h.Type('button'),
+        h.Class('send-button'),
+        h.Disabled(true),
+        h.Title(
+          `Sends ${task.pageAnswer.question} = ${task.pageAnswer.option} as a page answer ${task.session} reads with gf grant; wired with the business logic`,
+        ),
+      ],
+      ['Answer on page'],
+    )
+  }
+  if (destination._tag !== 'Terminal') {
+    return h.empty
+  }
+  const copyKey =
+    source === undefined
+      ? `inbox:${task.id}`
+      : channelItemKey(source.source, task.id, source.revision)
+  return h.span(
+    [h.Class('f-type-route')],
+    [
+      h.b([], [`Type it in ${destination.address}.`]),
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('quiet-button'),
+          h.Title(
+            source === undefined
+              ? 'Sample task: copies the line; focusing needs a published step'
+              : `Copies the line and focuses ${destination.address} in Herdr`,
+          ),
+          h.OnClick(
+            source === undefined
+              ? Message.ClickedCopyInboxLine({
+                  key: copyKey,
+                  text: task.copy ?? task.action,
+                })
+              : Message.ClickedCopyAndFocus({
+                  source: source.source,
+                  item: task.id,
+                  revision: source.revision,
+                }),
+          ),
+        ],
+        [copyLabel(model, copyKey, `Copy & focus ${destination.address}`)],
+      ),
+    ],
+  )
+}
+
 const taskButtons = (model: Model, task: Task, h: H): Html => {
   if (task.state._tag !== 'Open') {
     return h.empty
@@ -286,32 +342,9 @@ const taskButtons = (model: Model, task: Task, h: H): Html => {
   return h.div(
     [h.Class('f-actions f-task-buttons')],
     [
-      destination._tag === 'Terminal'
-        ? h.button(
-            [
-              h.Type('button'),
-              h.Class('quiet-button'),
-              h.Disabled(source === undefined),
-              h.Title(
-                source === undefined
-                  ? 'Sample task: focusing works on published steps'
-                  : `Focus ${destination.address} in Herdr`,
-              ),
-              ...(source === undefined
-                ? []
-                : [
-                    h.OnClick(
-                      Message.ClickedOwnerDestination({
-                        source: source.source,
-                        item: task.id,
-                        revision: source.revision,
-                      }),
-                    ),
-                  ]),
-            ],
-            [`Focus ${destination.address}`],
-          )
-        : h.a(
+      leadAction(model, task, h),
+      destination._tag === 'Link'
+        ? h.a(
             [
               h.Class('quiet-button'),
               h.Href(destination.url),
@@ -319,8 +352,9 @@ const taskButtons = (model: Model, task: Task, h: H): Html => {
               h.Rel('noreferrer'),
             ],
             [`Open ${OPEN_LABELS[placeOf(task)] ?? 'link'} ↗`],
-          ),
-      source === undefined
+          )
+        : h.empty,
+      source === undefined || destination._tag === 'Terminal'
         ? h.empty
         : h.button(
             [
@@ -743,7 +777,10 @@ const taskRow = (model: Model, data: InboxData, task: Task, h: H): Html => {
       quick && task.copy !== undefined
         ? h.div(
             [h.Class('f-task-quick')],
-            [copyBox(model, `inbox:${task.id}`, task.copy, 'Copy', h)],
+            [
+              copyBox(model, `inbox:${task.id}`, task.copy, 'Copy', h),
+              leadAction(model, task, h),
+            ],
           )
         : h.empty,
       isOpen

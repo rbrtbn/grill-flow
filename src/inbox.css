@@ -455,6 +455,20 @@
 .f-task-buttons a.quiet-button {
   text-decoration: none;
 }
+.f-type-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.f-task-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.f-task-quick .f-copy-box {
+  flex: 1 1 320px;
+}
 .f-done-line {
   margin: 4px 0;
 }
