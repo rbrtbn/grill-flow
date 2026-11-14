@@ -106,6 +106,8 @@ export const InboxUi = Schema.Struct({
   sessionSearch: Schema.String,
   sessionOrder: SessionOrder,
   pinned: Schema.Array(Schema.String),
+  // Items newer than this get the new dot; 0 until the reader first marks the Inbox seen.
+  seenAt: Schema.Number,
 })
 export type InboxUi = typeof InboxUi.Type
 
@@ -126,6 +128,7 @@ export const initialInboxUi: InboxUi = {
   isSessionDirectory: true,
   sessionSearch: '',
   sessionOrder: 'Recent',
+  seenAt: 0,
   pinned: [],
 }
 

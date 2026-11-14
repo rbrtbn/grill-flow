@@ -18,6 +18,7 @@ import {
   PageData,
   PushPage,
   ReplacePage,
+  SaveInboxSeen,
   ScrollToTop,
   init,
   update,
@@ -172,5 +173,20 @@ it('lists provisional decisions quietly, folds the rest and opens one on its pag
     Command.resolve(ScrollToTop, Message.CompletedScroll()),
     expect(selector('.f-decision-page')).toContainText('Why d1.'),
     expect(role('button', { name: 'Veto' })).toExist(),
+  )
+})
+
+it('dots what arrived since the reader last looked and clears it on Mark seen', () => {
+  scene(
+    { update, view },
+    given(loaded('/g/fixture/inbox')),
+    expect(selector('.f-seen-line')).toContainText(
+      '1 new since you last looked',
+    ),
+    expect(selector('.f-task-title .f-new-dot')).toExist(),
+    click(role('button', { name: 'Mark seen' })),
+    Command.resolve(SaveInboxSeen, Message.CompletedSaveInboxSeen()),
+    expect(selector('.f-seen-line')).not.toExist(),
+    expect(selector('.f-task-title .f-new-dot')).not.toExist(),
   )
 })

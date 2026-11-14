@@ -668,6 +668,9 @@ export const Message = defineMessageUnion({
   SubmittedThreadMessage: { item: Schema.String },
   ClickedCopyInboxLine: { key: Schema.String, text: Schema.String },
   ClickedSessions: {},
+  RestoredInboxSeen: { at: Schema.Number },
+  ClickedMarkInboxSeen: {},
+  CompletedSaveInboxSeen: {},
   ClickedOpenSession: { target: Schema.String },
   ClickedSessionsBack: {},
   UpdatedSessionSearch: { value: Schema.String },
@@ -1498,6 +1501,24 @@ export const update = (model: Model, message: Message) =>
             }),
           }
     },
+    RestoredInboxSeen: ({ at }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { seenAt: () => at }),
+      }),
+    }),
+    ClickedMarkInboxSeen: () => {
+      const at = model.now === 0 ? Date.now() : model.now
+      return {
+        model: modifyFields(model, {
+          inbox: inbox => modifyFields(inbox, { seenAt: () => at }),
+        }),
+        commands: Option.match(grillIdOf(model), {
+          onNone: () => [],
+          onSome: grillId => [SaveInboxSeen({ grillId, at })],
+        }),
+      }
+    },
+    CompletedSaveInboxSeen: () => ({ model }),
     ClickedSessions: () => ({
       model: modifyFields(model, {
         side: side => (side === 'Talk' ? 'None' : 'Talk'),
@@ -4201,6 +4222,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     RestoreWorkspaceSettings(),
     RestoreBrowserNotices(),
     RestoreDiscussionState(),
+    RestoreInboxSeen(),
   ],
 })
 
@@ -4250,6 +4272,35 @@ export const OpenBrowserNotice = Command.define('OpenBrowserNotice', {
 const WORKSPACE_SETTINGS_KEY = 'grill-flow:workspace-settings'
 
 const discussionKey = (grillId: string) => `grill-flow:discussion:${grillId}`
+
+// When the reader last marked the Inbox seen; kept in this browser only.
+const inboxSeenKey = (grillId: string): string =>
+  `grill-flow:inbox-seen:${grillId}`
+
+export const RestoreInboxSeen = Command.define('RestoreInboxSeen', {
+  messages: [Message.RestoredInboxSeen],
+  execute: Effect.sync(() => {
+    const id = decodeURIComponent(window.location.pathname.split('/')[2] ?? '')
+    const at = Number(localStorage.getItem(inboxSeenKey(id)) ?? '0')
+    return Message.RestoredInboxSeen({ at: Number.isFinite(at) ? at : 0 })
+  }).pipe(
+    Effect.catch(() => Effect.succeed(Message.RestoredInboxSeen({ at: 0 }))),
+  ),
+})
+
+export const SaveInboxSeen = Command.define('SaveInboxSeen', {
+  args: { grillId: Schema.String, at: Schema.Number },
+  messages: [Message.CompletedSaveInboxSeen],
+  execute: ({ grillId, at }) =>
+    Effect.sync(() => {
+      try {
+        localStorage.setItem(inboxSeenKey(grillId), String(at))
+      } catch {
+        // Storage can be off; the dots then come back on the next load.
+      }
+      return Message.CompletedSaveInboxSeen()
+    }),
+})
 
 export const RestoreDiscussionState = Command.define('RestoreDiscussionState', {
   messages: [Message.RestoredDiscussionState],

@@ -792,7 +792,15 @@ const taskRow = (model: Model, data: InboxData, task: Task, h: H): Html => {
               h.Class('f-task-title'),
               h.OnClick(go(`${ITEM_PAGE}${task.id}`)),
             ],
-            [task.title],
+            [
+              isNew(model, task)
+                ? h.span([
+                    h.Class('f-new-dot'),
+                    h.Title('New since you last looked'),
+                  ])
+                : h.empty,
+              task.title,
+            ],
           ),
           Array.isReadonlyArrayNonEmpty(held)
             ? h.span(
@@ -1328,6 +1336,31 @@ const lastActiveLine = (model: Model, session: SessionInfo): string =>
       `No status published · last active ${ago(model.now, last.at)} (${last.what})`,
   })
 
+const isNew = (model: Model, task: Task): boolean =>
+  task.state._tag === 'Open' && task.at > model.inbox.seenAt
+
+/** How many open items arrived since the reader last marked the Inbox seen. */
+const seenLine = (model: Model, data: InboxData, h: H): Html => {
+  const fresh = data.tasks.filter(task => isNew(model, task)).length
+  return fresh === 0
+    ? h.empty
+    : h.p(
+        [h.Class('f-seen-line')],
+        [
+          h.span([h.Class('f-new-dot'), h.AriaHidden(true)]),
+          `${fresh} new since you last looked · `,
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('text-button'),
+              h.OnClick(Message.ClickedMarkInboxSeen()),
+            ],
+            ['Mark seen'],
+          ),
+        ],
+      )
+}
+
 const deadlineLabel = (now: number, deadline: number): string => {
   const hours = Math.round((deadline - now) / 3_600_000)
   return now === 0
@@ -1510,6 +1543,7 @@ export const inboxPage = (
         : h.empty,
       requestStrip(model, h),
       ...freezeBanner(model, data, h),
+      seenLine(model, data, h),
       filterBar(model, snapshot, data, filters, h),
       ...Array.match(groups, {
         onEmpty: () => [
