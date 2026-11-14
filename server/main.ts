@@ -1,18 +1,25 @@
 import { Schema } from 'effect'
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 
 import {
   GRILL_FLOW_TARGET,
   type Grill,
   TEXT_LIMIT,
+  agentAddressOf,
   hasTarget,
   questionSession,
   roundOf,
   textLimitError,
 } from '../src/domain'
 import { activityFeed } from './activity'
+import { createAgentLister, listTerminalsCommand } from './agents'
 import {
   SubmissionConflict,
   answerHistory,
@@ -22,8 +29,10 @@ import {
   unconfirmedSends,
 } from './answerReceipts'
 import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
+import { startBackups } from './backup'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
+import { discussionRefs } from './discussions'
 import { pageDrawings, requestDrawing } from './drawings'
 import { InvalidSubmissionSource, askMessage, pageMessage } from './messages'
 import { readProviderCommand } from './providerReads'
@@ -40,7 +49,15 @@ import {
   sourceQuestionUrl,
   sourceText,
 } from './squad'
-import { ROOT, appendEvent, open, remoteOf, snapshot } from './store'
+import {
+  DB_PATH,
+  ROOT,
+  appendEvent,
+  open,
+  remoteOf,
+  sessionAlias,
+  snapshot,
+} from './store'
 
 const PORT = Number(process.env.GF_PORT ?? 4317)
 const PREVIEW = process.env.GF_PREVIEW === '1'
@@ -48,8 +65,11 @@ const HOST = '127.0.0.1'
 // Cookies ignore ports; previews must not replace the live server's write cookie.
 const COOKIE_NAME = PORT === 4317 ? 'gf_token' : `gf_token_${PORT}`
 const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
+// Where a page started with ?debug=input ships its input timeline; unset, the route is absent.
+const INPUT_LOG = process.env.GF_INPUT_LOG
 const db = open()
 if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
+startBackups(DB_PATH, join(dirname(DB_PATH), 'backups'))
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
@@ -171,6 +191,7 @@ const sessionFor = (grillSession: string): string =>
 
 const readRoster = createRosterReader(readRosterCommand)
 const probeSession = createSessionProbe(getSessionCommand)
+const listAgents = createAgentLister(listTerminalsCommand)
 const readReferences = createReferenceReader(db, readProviderCommand)
 
 const clientSnapshot = (grill: Grill) => {
@@ -194,6 +215,7 @@ const clientSnapshot = (grill: Grill) => {
       : { roster: readRoster(state.grill.squad.id) }),
     drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
+    discussions: discussionRefs(state),
     ...attentionSnapshot(db, sources, Date.now(), references?.readings),
     updates: publishedUpdates(db, sources).map(entry => ({
       ...entry,
@@ -225,7 +247,14 @@ const clientSnapshot = (grill: Grill) => {
         : [grill.id],
     ),
     ...maintainerFields(),
+    ...agentFields(state.grill),
   }
+}
+
+const agentFields = (grill: Grill) => {
+  const session = questionSession(grill)
+  const agents = PREVIEW || session === '' ? undefined : listAgents(session)
+  return agents === undefined ? {} : { agents }
 }
 
 const maintainerFields = () => {
@@ -248,18 +277,28 @@ const askRecipient = (
 ): string | undefined =>
   route === 'fallback'
     ? questionSession(grill)
-    : stepId === GRILL_FLOW_TARGET
-      ? process.env.GF_MAINTAINER_SESSION?.trim() || undefined
-      : questionSession(
-          grill,
-          grill.steps.find(step => step.id === stepId)?.question,
-        )
+    : agentAddressOf(stepId) !== undefined
+      ? agentAddressOf(stepId)
+      : stepId === GRILL_FLOW_TARGET
+        ? process.env.GF_MAINTAINER_SESSION?.trim() || undefined
+        : questionSession(
+            grill,
+            grill.steps.find(step => step.id === stepId)?.question,
+          )
+
+// Every page delivery goes through the page's handover moves (docs/adr/0030).
+const sendFor =
+  (pageId: string) =>
+  (session: string, text: string): Promise<{ ok: boolean; detail: string }> =>
+    sendToSession(sessionFor(sessionAlias(db, pageId)(session)), text)
 
 const deliverAsk = async (
+  pageId: string,
   grillId: string,
   ask: Readonly<{ id: number; stepId: string; text: string }>,
-  recipient: string,
+  asked: string,
 ): Promise<void> => {
+  const recipient = sessionAlias(db, pageId)(asked)
   const result = await sendToSession(
     sessionFor(recipient),
     askMessage(
@@ -336,7 +375,7 @@ const handleEvent = async (
               ok: false,
               detail: 'Preview: no terminal delivery was attempted.',
             })
-          : sendToSession(sessionFor(session), text),
+          : sendFor(pageId)(session, text),
       (source, session) => gfFor(source, session) ?? `bun run --cwd ${ROOT} gf`,
     )
     if (!result.ok) {
@@ -357,7 +396,7 @@ const handleEvent = async (
       page.state.grill,
       String(requestBody.question ?? ''),
       body,
-      (session, text) => sendToSession(sessionFor(session), text),
+      sendFor(pageId),
       session => gfFor(grill.id, session) ?? `bun run --cwd ${ROOT} gf`,
       PREVIEW,
     )
@@ -431,6 +470,18 @@ const handleEvent = async (
       if (text.length > TEXT_LIMIT) {
         return json({ error: textLimitError('The message', text) }, 400)
       }
+      const address = agentAddressOf(stepId)
+      if (
+        address !== undefined &&
+        !(agentFields(page.state.grill).agents ?? []).some(
+          agent => agent.address === address,
+        )
+      ) {
+        return json(
+          { error: `${address} is not a running agent of this page's squad.` },
+          400,
+        )
+      }
       const recipient = askRecipient(grill, stepId, 'own')
       if (recipient === undefined) {
         return json(
@@ -439,7 +490,7 @@ const handleEvent = async (
         )
       }
       const askId = appendEvent(db, grillId, 'asked', { stepId, text })
-      await deliverAsk(grillId, { id: askId, stepId, text }, recipient)
+      await deliverAsk(pageId, grillId, { id: askId, stepId, text }, recipient)
       break
     }
     case 'redelivered': {
@@ -454,7 +505,7 @@ const handleEvent = async (
       if (recipient === undefined || recipient === '') {
         return json({ error: 'No session to deliver this ask to.' }, 400)
       }
-      await deliverAsk(grillId, ask, recipient)
+      await deliverAsk(pageId, grillId, ask, recipient)
       break
     }
     default:
@@ -503,7 +554,7 @@ const handleSend = async (
       db,
       page,
       selection,
-      (session, text) => sendToSession(sessionFor(session), text),
+      sendFor(grillId),
       (source, session) =>
         gfFor(source.id, session) ?? `bun run --cwd ${ROOT} gf`,
       decoded.success,
@@ -519,6 +570,15 @@ const handleSend = async (
   }
   return json(clientSnapshot(grill))
 }
+
+const InputLogRequest = Schema.Struct({
+  entries: Schema.Array(
+    Schema.Record(
+      Schema.String,
+      Schema.Union([Schema.String, Schema.Number, Schema.Boolean]),
+    ),
+  ),
+})
 
 Bun.serve({
   hostname: HOST,
@@ -562,6 +622,28 @@ Bun.serve({
           : json({ error: 'no such grill' }, 404)
       }
       return asset(url.pathname)
+    }
+    if (
+      request.method === 'POST' &&
+      url.pathname === '/api/debug/input-log' &&
+      INPUT_LOG !== undefined
+    ) {
+      if (!writeAllowed(request)) {
+        return json({ error: 'This tab has no valid session.' }, 403)
+      }
+      const decoded = Schema.decodeUnknownResult(InputLogRequest)(
+        await request.json().catch(() => null),
+      )
+      if (decoded._tag === 'Failure') {
+        return json({ error: 'Invalid input log' }, 400)
+      }
+      appendFileSync(
+        INPUT_LOG,
+        decoded.success.entries
+          .map(entry => `${JSON.stringify(entry)}\n`)
+          .join(''),
+      )
+      return json({ ok: true })
     }
     if (
       request.method === 'POST' &&

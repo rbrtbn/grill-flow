@@ -12,3 +12,4 @@ Keep picked-key protection for questions that remain, including partly resolved 
 An outcome records author-reported resolution; it does not grant additional approval.
 Apply the same guard to local loads, outbox queues and accepting-host imports.
 Guide revision 2 teaches taking down resolved questions and retaining open work.
+Amended by 0031: loads record outcomes as events, so a later load cannot erase them.

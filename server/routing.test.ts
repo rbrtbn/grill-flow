@@ -71,6 +71,15 @@ beforeAll(async () => {
     `#!${process.execPath}
 import { appendFileSync } from 'node:fs'
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n')
+if (process.argv[2] === 'ls' && !process.argv.includes('--label')) {
+  const where = 'squad.routing / lead tab'
+  console.log(JSON.stringify({ machines: [], terminals: [
+    { address: 'lead', name: 'routing-lead', agent: 'claude-code', parent: null, state: 'live', where },
+    { address: 'helper', name: 'routing-helper', agent: 'codex', parent: 'lead', state: 'live', where },
+    { address: 'outsider', name: 'other', agent: 'codex', parent: null, state: 'live', where: 'elsewhere / 1' },
+  ] }))
+  process.exit(0)
+}
 if (process.argv[2] === 'get') {
   if (process.argv[3] === 'maintainer') { console.log('{"state":"live"}'); process.exit(0) }
   console.error('{"error":{"kind":"not_found"}}'); process.exit(3)
@@ -259,6 +268,48 @@ describe('HTTP delivery routing', () => {
       redelivered.asks.find((item: { id: number }) => item.id === ask.id)
         .delivery,
     ).toEqual({ state: 'delivered', to: 'lead', detail: 'sent to lead' })
+  })
+
+  it('messages a running agent of the squad space and refuses others', async () => {
+    const read = async () =>
+      (await (await fetch(`${base}/api/grills/routing-fixture`)).json()).agents
+    await read()
+    await Bun.sleep(300)
+    expect(await read()).toEqual([
+      {
+        address: 'lead',
+        name: 'routing-lead',
+        program: 'claude-code',
+        lead: true,
+      },
+      {
+        address: 'helper',
+        name: 'routing-helper',
+        program: 'codex',
+        lead: false,
+      },
+    ])
+    const state = await request('events', {
+      kind: 'asked',
+      stepId: 'agent:helper',
+      text: 'Status on the build?',
+    })
+    expect(received().at(-1)?.[1]).toBe('helper')
+    expect(received().at(-1)?.[2]).toContain('addressed to you directly')
+    expect(received().at(-1)?.[2]).toContain(
+      'revise routing-fixture agent:helper --ask',
+    )
+    expect(state.asks.at(-1).delivery.to).toBe('helper')
+    const refused = await fetch(`${base}/api/grills/routing-fixture/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        kind: 'asked',
+        stepId: 'agent:outsider',
+        text: 'Hi',
+      }),
+    })
+    expect(refused.status).toBe(400)
   })
 
   it('reports whether the grill-flow session is running', async () => {

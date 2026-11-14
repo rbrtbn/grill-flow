@@ -197,6 +197,7 @@ export const publishDrawing = (
   db: Database,
   source: Grill,
   raw: unknown,
+  reason = '',
 ): DrawResult => {
   const decoded = Schema.decodeUnknownResult(DrawingReply)(raw)
   if (decoded._tag === 'Failure') {
@@ -294,7 +295,12 @@ export const publishDrawing = (
       }
       return {
         ok: true,
-        event: appendEvent(db, source.id, 'drawing-published', reply),
+        event: appendEvent(
+          db,
+          source.id,
+          'drawing-published',
+          reason === '' ? reply : { ...reply, writeReason: reason },
+        ),
       }
     })
     .immediate()

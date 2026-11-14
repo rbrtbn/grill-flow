@@ -75,6 +75,7 @@ import type {
 import {
   CARD_PAGE,
   DECIDED,
+  DRAFT_ATTRIBUTE,
   FillBox,
   ISSUE_PAGE,
   Message,
@@ -2809,7 +2810,7 @@ const noteBox = (id: string, note: string, inactive: boolean, h: H): Html =>
     h.Id(`note-${id}`),
     h.Class('note-box'),
     h.Rows(2),
-    h.Value(note),
+    h.OnMount(FillBox({ text: note })),
     h.Disabled(inactive),
     h.AriaLabel(`Note for the agent on ${id}`),
     h.Placeholder('Note for the agent: a condition or a doubt (optional)'),
@@ -2859,7 +2860,7 @@ const ownOptionView = (
             h.Id(`own-${id}`),
             h.Class('own-text'),
             h.Rows(3),
-            h.Value(text),
+            h.OnMount(FillBox({ text })),
             h.AriaLabel(`Your own answer to ${id}`),
             h.Placeholder('Your answer, in your words'),
             h.OnInput(value =>
@@ -3547,6 +3548,7 @@ const threadBox = (model: Model, step: Step, h: H): Html =>
     [
       h.keyed('textarea')(`thread-${step.id}-${model.talkGeneration}`, [
         h.Id(`thread-box-${step.id}`),
+        h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(step.id)),
         h.Rows(1),
         h.OnMount(
           FillBox({
@@ -3724,6 +3726,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
           ),
           h.keyed('textarea')(`talk-${key}-${model.talkGeneration}`, [
             h.Id('talk-box'),
+            h.DataAttribute(DRAFT_ATTRIBUTE, key),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
             h.AriaLabel('Message to the agent'),

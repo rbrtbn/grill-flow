@@ -69,6 +69,7 @@ export const publishItem = (
   grill: Grill,
   raw: unknown,
   now = Date.now(),
+  reason = '',
 ): PublishResult => {
   const decoded = Schema.decodeUnknownResult(ChannelItem)(raw)
   if (decoded._tag === 'Failure') {
@@ -242,7 +243,13 @@ export const publishItem = (
       }
       return {
         ok: true,
-        event: appendEvent(db, grill.id, 'item-published', item),
+        // The payload is the item body, so the write reason takes a key no item field uses.
+        event: appendEvent(
+          db,
+          grill.id,
+          'item-published',
+          reason === '' ? item : { ...item, writeReason: reason },
+        ),
       }
     })
     .immediate()

@@ -1,4 +1,8 @@
-import { GRILL_FLOW_TARGET, isWholeTarget } from '../src/domain'
+import {
+  AGENT_TARGET_PREFIX,
+  GRILL_FLOW_TARGET,
+  isWholeTarget,
+} from '../src/domain'
 import { ROOT } from './store'
 
 export const pageMessage = (text: string): string =>
@@ -27,6 +31,13 @@ export const submissionMessage = (
   return `<gf grill="${grill}" send="${send}">\n${text}\n</gf>`
 }
 
+const wholeTargetLabel = (stepId: string): string =>
+  stepId === GRILL_FLOW_TARGET
+    ? 'about grill-flow'
+    : stepId.startsWith(AGENT_TARGET_PREFIX)
+      ? 'addressed to you directly'
+      : `the whole ${stepId === 'run' ? 'run' : `${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)}`}`
+
 /**
  * The text an ask arrives as in the agent's terminal, or from `gf wait`. `gf` is how the agent
  * runs the CLI where it is: this checkout here, or its own checkout with its outbox elsewhere.
@@ -40,7 +51,7 @@ export const askMessage = (
 ): string =>
   isWholeTarget(stepId)
     ? [
-        `[grill-flow] Ask on ${grillId}, ${stepId === GRILL_FLOW_TARGET ? 'about grill-flow' : `the whole ${stepId === 'run' ? 'run' : `${stepId.startsWith('card:') ? 'card' : 'concept'} ${stepId.slice(5)}`}`} (ask ${askId}): ${text}`,
+        `[grill-flow] Ask on ${grillId}, ${wholeTargetLabel(stepId)} (ask ${askId}): ${text}`,
         `Answer it on the page: write your reply to a file, then run`,
         `${gf} revise ${grillId} ${stepId} --ask ${askId} --kind comment --file <path>`,
         `To rewrite a step as well: ${gf} revise ${grillId} <step-id> --kind rewrite --file <path> (omit --ask).`,

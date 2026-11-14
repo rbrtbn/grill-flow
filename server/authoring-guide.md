@@ -7,6 +7,23 @@ Declare `--skill-revision <revision-read>` on load, item, revise, reply and draw
 The guide revision is independent of grill format and item revisions; copying a revision
 number does not prove understanding.
 
+Give every write its reason: `--reason "<why>"` on `gf load`, `gf item`, `gf draw`,
+`gf restore` and `gf revise --kind rewrite`, in a short line a later reader can act on, such
+as `--reason "round 3: Q7-Q9 after the reply"`. A missing reason warns now and will be refused
+later. The author is `$HC_TERMINAL_ID`; pass `--session <address>` when you write for another
+session. Every load is kept as a numbered revision with its time, author and reason:
+`gf history <id>` lists them, and `gf history <id> <question-id>` shows what changed in that
+question at each revision (`--json` for machine-readable output). History is for retros and
+audits; read the page or `gf state` to work.
+
+Discussions (the user's asks and your replies) stay in the server's record, never in grill
+files. The served snapshot (`/api/grills/<id>`) carries `discussions`, keyed by question id
+(or by `run`, `part:…`, `card:…` or `grill-flow` for those threads): each entry gives the
+`target` to reply on, ask and reply counts, `open` asks, `lastAt` and `firstAskId`.
+`gf export <id> [--out <file>]` writes the whole record as one JSON document for retros and
+audits: the grill, every revision, full threads, answers, sends and events; for a squad page,
+each member with its id mapping. Never write a `discussions` key: a load drops it and warns.
+
 Missing/stale revisions warn during migration and include this guide on stderr. A successful
 write remains published as submitted; do not retry it as though rejected. Apply the new guide
 to your next write or deliberately correct the content using its normal revision rules.
@@ -94,9 +111,7 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
       }
     }
   ],
-  "next": [
-    "Send your choice or discuss the evidence."
-  ],
+  "next": ["Send your choice or discuss the evidence."],
   "refs": {
     "squad#107": {
       "text": "Illustrative PR reference; verify before publishing",
@@ -177,9 +192,7 @@ The following array groups four examples for reading. Write each object to its o
     "id": "proposed-direction",
     "title": "Use the proposed direction",
     "deadline": 4102444800000,
-    "affected": [
-      "Example implementation"
-    ],
+    "affected": ["Example implementation"],
     "resolution": {
       "state": "provisional"
     }
@@ -225,7 +238,8 @@ resolution, veto responses or provider/question blockers. The existing contracts
 `docs/implementation/2026-11-07-channel-attention-contract.md` explain their semantics.
 
 The remaining reference explains the complete interview, delivery, routing and item workflow.
-All `gf` authoring commands shown below also take `--skill-revision <revision-read>`.
+All `gf` authoring commands shown below also take `--skill-revision <revision-read>` and,
+where the top of this guide says so, `--reason "<why>"`.
 
 # Grill on grill-flow
 
@@ -284,8 +298,10 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
    includes every unsent answer across rounds, labelled by round; only the current round can
    use the `all recommended` shorthand. `<id>` is unique across every agent's grills, e.g.
    `<repo>-<topic>`.
-3. `gf load grills/<id>.json`. Answers, notes and asks already given stay,
-   keyed by question id.
+   In a squad, every session's grill joins the squad's one page (Shared squad page, below);
+   never open a separate page for your questions or copy them onto another page.
+3. `gf load grills/<id>.json --reason "<why>"`. Answers, notes and asks already given
+   stay, keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
    the round and how many questions are open. The questions live on the page.
 5. Wait for the reply, with `gf wait` running when there's no `session`. The
@@ -329,7 +345,7 @@ Answer each one while the user is still on the page:
 
 1. Look the facts up, by subagent when it takes more than a read or two.
 2. Reply: write the answer to a file and run `gf revise <id> <step-id> --ask N
-   --kind comment --file <path>`. It shows as your message in the concept's
+--kind comment --file <path>`. It shows as your message in the concept's
    conversation. An ask on a whole concept names `part:<part-id>`, and one on
    a whole card `card:<card>`; both take only comments.
 3. When the ask shows the reasoning was unclear or wrong, also rewrite the
@@ -353,7 +369,7 @@ well:
 - `steps` run in the order a person thinks the problem through. Each `prose`
   says what is decided, why, and why now, in short paragraphs. Every list is
   bullets, one `- ` line per item after an optional lead line. Backticks mark
-  code. A fenced ```` ``` ```` block shows in monospace with its spacing and
+  code. A fenced ` ``` ` block shows in monospace with its spacing and
   blank lines kept, for a timeline or anything no diagram kind fits.
   Rewrites and Talk replies take the same blocks.
 - A `### Title` first line titles its paragraph; the reader sees it on hover,
@@ -381,11 +397,11 @@ prose: who owns what, where a boundary moves, what path work takes. Set
   breaks and what each answer changes. `now` names today's column; each row is
   one part of the problem, with `cells` keyed by `now` and every option key. A
   cell is a short holder (`"Squad wiki + cos-rob"` for two) or `{value, note,
-  flag}`. `flag` marks the problems: `twice` (two places hold it), `gap`
+flag}`. `flag` marks the problems: `twice` (two places hold it), `gap`
   (nothing covers it), `risk` (works, with a known failure), `open` (a later
   round decides). Rows alike in every column fold into one line, so keep the
   rows to the parts that differ.
-- In prose, rewrites and Talk replies, a ```` ```diagram ```` block holding
+- In prose, rewrites and Talk replies, a ` ```diagram ` block holding
   JSON draws a diagram; one that doesn't parse shows as plain text. Kinds:
   `zones` (regions and what each holds), `flow` (lanes across steps) and
   `compare` (a table like the above). `states` keyed by `now` and option keys
@@ -401,7 +417,7 @@ When questions are about Linear issues or PRs, any grill can add:
 - `issue` on each question: the `refs` key of the issue it is about. Parts
   stay concepts; the question retains its issue association and link.
 - `refs`: every Linear id, PR or ADR the text names, as `{text, url, state,
-  type}`, where `type` is Linear's state type or `pr`. `text` is the full
+type}`, where `type` is Linear's state type or `pr`. `text` is the full
   issue, PR or ADR title; the map key supplies its ID. Each mention links to
   `url` and shows its title and state on hover. Look titles and states up at
   every load and set `refsAt` to that time.
@@ -410,8 +426,12 @@ When questions are about Linear issues or PRs, any grill can add:
 
 ### Shared squad page
 
-Each member keeps its own grill ID, file and event history. Add this optional
-version 4 field to that grill, then use the same `gf load <file>` command:
+A squad has one page, `/g/<squad profile>` (e.g. `/g/squad-eff`); every lead,
+orchestrator, helper and builder session of that squad joins it. Each member
+keeps its own grill ID, file and event history. Add this version 4 field to
+that grill, then use the same `gf load <file>` command. When `GF_SQUAD` is set,
+`gf load` adds the field for a grill that lacks it; `--solo` keeps a page of
+its own, only for work outside the squad:
 
 ```json
 {
@@ -438,6 +458,11 @@ New questions get fresh shared numbers; existing questions keep theirs.
 Remote members add the same field in their `GF_OUTBOX/<grill-id>/grill.json`
 using `GF_OUTBOX=... gf load <file>`. The registered remote pull joins that
 member to the same squad page and returns its normal `state.json`.
+A new lead takes the page over in one step, with no renaming or copying:
+`gf handover <squad profile> --session $HC_TERMINAL_ID --reason "<why>"`
+(add `--member <its grill id>` when the successor keeps its own member grill).
+The page's run and lead then route to the new session, and deliveries to
+questions that still name the previous lead's address go to it too.
 Membership persists only when you keep the field in subsequent loads. Existing
 URLs and saved drafts, asks, replies and send receipts remain valid; joining
 neither copies nor resends them. Agents on older checkouts must update first
@@ -480,7 +505,7 @@ A squad lead's grill, gathering questions from several agents, also sets
   on the user. Rewrite the plan at every load, from the run's own state:
   - `plan.issues`: every issue in the run, and the user's own ones that
     follow it, as `{id, title, phase, follows, start, review, optional, card,
-    agent, note}`. `phase` is `building`, `review`, `merged`, `gated` (its
+agent, note}`. `phase` is `building`, `review`, `merged`, `gated` (its
     gate passed, its builder waits on answers), `stuck` (an agent is blocked),
     `later` (not started) or `outside` (not the run's to build). `follows`
     lists the issues it waits to merge; `start`, `review` and `optional` list
@@ -502,7 +527,9 @@ have acted, or the question was withdrawn, remove its step from your own source.
 outcome in `decided` as `{id, text}`: id is the exact local/source question id (for example Q6),
 not its shared display number or step id, and text is the nonblank outcome. Then `gf load`
 the source with the guide revision you read. Answer events and frozen submissions stay in
-history; a decided entry is an author-reported outcome and creates no new approval.
+history; a decided entry is an author-reported outcome and creates no new approval. The load
+records each new outcome, so it stays under Decided even when a later load leaves it out of
+`decided`; reword one by loading the same id with new text.
 
 If only part is resolved, keep its step and question id. Rewrite the prose/options to the
 remaining open work. Keep picked option keys stable; a decided entry does not bypass that
