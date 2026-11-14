@@ -294,6 +294,14 @@ it('routes scoped discussions and revisions to canonical ask IDs and source step
   expect(merged.asks.find(item => item.id === ask.id)?.answered).toBe(true)
   expect(merged.revisions.at(-1)?.text).toBe('A clearer explanation of Q3.')
   expect(merged.revisions.at(-1)?.stepId).toBe('worker-run::step-q1')
+  expect(merged.discussions?.Q3).toMatchObject({
+    target: 'worker-run::step-q1',
+    asks: 1,
+    replies: 1,
+    open: 0,
+    firstAskId: ask.id,
+  })
+  expect((await state('worker-run')).discussions?.Q1?.target).toBe('step-q1')
   await post('squad', 'events', {
     kind: 'asked',
     stepId: 'run',
@@ -312,9 +320,32 @@ it('routes scoped discussions and revisions to canonical ask IDs and source step
     '--file',
     file,
   )
+  const answered = await state()
+  expect(answered.asks.find(item => item.id === whole.id)?.answered).toBe(true)
+  expect(answered.discussions?.run).toMatchObject({ target: 'run', open: 0 })
+
+  const out = join(dir, 'squad-export.json')
+  await cli('export', 'squad', '--out', out)
+  const exported = JSON.parse(readFileSync(out, 'utf8'))
+  expect(exported.kind).toBe('squad')
   expect(
-    (await state()).asks.find(item => item.id === whole.id)?.answered,
-  ).toBe(true)
+    exported.page.mapping.find(
+      (entry: { grill: string }) => entry.grill === 'worker-run',
+    ).questions,
+  ).toMatchObject({ Q1: 'Q3' })
+  expect(exported.page.discussions.run.asks[0]).toMatchObject({
+    id: whole.id,
+    answered: true,
+  })
+  const worker = exported.members.find(
+    (member: { id: string }) => member.id === 'worker-run',
+  )
+  expect(worker.discussions.Q1.asks[0]).toMatchObject({
+    id: ask.id,
+    text: 'Explain this.',
+    replies: [{ kind: 'comment', text: 'A clearer explanation of Q1.' }],
+  })
+  expect(worker.revisions.length).toBeGreaterThan(0)
 })
 
 it('retains shared mappings and source history when a member reloads, disappears or adds questions', async () => {

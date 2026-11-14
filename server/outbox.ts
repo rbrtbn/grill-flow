@@ -28,6 +28,7 @@ import {
   writeProvenance,
 } from './authoring'
 import { remoteItemError } from './channel'
+import { withoutDiscussions } from './discussions'
 import { DrawingReply, drawingMessage } from './drawings'
 import { askMessage, pageMessage } from './messages'
 import { assertPickedOptionsRetained } from './reloadSafety'
@@ -234,13 +235,16 @@ export const runOutbox = async (
     case 'retire':
     case 'restore':
     case 'history':
+    case 'export':
       fail(
         `Run ${command} on the serving machine without GF_OUTBOX; it keeps the record.`,
       )
       break
     case 'load': {
       const grill = decodeGrill(
-        JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
+        withoutDiscussions(
+          JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
+        ),
       )
       const previous = stateOf(grill.id)?.snapshot
       if (previous !== undefined) {

@@ -32,3 +32,4 @@
 | [0028](0028-show-ask-delivery-and-offer-the-grill-session.md) | Show ask delivery and offer the grill session | accepted |
 | [0030](0030-one-page-per-squad-with-lead-handover.md) | One page per squad, with lead handover | accepted |
 | [0031](0031-keep-grill-revisions-for-history-and-audits.md) | Keep grill revisions for history and audits | accepted |
+| [0033](0033-reference-discussions-from-served-grills.md) | Reference discussions from served grills | accepted |
