@@ -11,7 +11,12 @@ import {
   proseView,
   stateLabelFor,
 } from './diagramView'
-import { isOverTextLimit, roundLabel, roundOf } from './domain'
+import {
+  AGENT_TARGET_PREFIX,
+  isOverTextLimit,
+  roundLabel,
+  roundOf,
+} from './domain'
 import {
   type AgentMessage,
   type Ask,
@@ -106,8 +111,9 @@ import {
 } from './main'
 import { splitQuote } from './quote'
 import { refView as withRefCard } from './refCard'
+import { replySession } from './replies'
 import { textLimitCount } from './textLimitView'
-import { isWorkspacePage } from './workspace'
+import { RUN_TARGET, isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
 
 type H = HtmlBuilder<MessageType>
@@ -3548,7 +3554,32 @@ const saidOn = (
       })),
     ]
   })
-  return Array.sort(said, bySaidTime)
+  // A session's thread also holds its replies to your sends; the lead's holds the rest.
+  const address =
+    target === RUN_TARGET
+      ? grill.session
+      : target.startsWith(AGENT_TARGET_PREFIX)
+        ? target.slice(AGENT_TARGET_PREFIX.length)
+        : undefined
+  const replies =
+    address === undefined
+      ? []
+      : (snapshot.replies ?? [])
+          .filter(reply => replySession(snapshot, reply) === address)
+          .map((reply): Said => ({
+            at: reply.at,
+            who: 'agent',
+            id: `reply-${reply.id}`,
+            body: richProse(
+              model,
+              grill,
+              splitParagraphs(reply.text),
+              `reply:${reply.id}`,
+              Option.none(),
+              h,
+            ),
+          }))
+  return Array.sort([...said, ...replies], bySaidTime)
 }
 
 const waitingView = (grill: Grill, ask: Ask, h: H): Html => {

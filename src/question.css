@@ -540,3 +540,26 @@
   font-weight: 400;
   font-size: 11px;
 }
+
+/* What came back on an answered question. */
+.f-answer-follow-up {
+  display: grid;
+  gap: 6px;
+  margin: 12px var(--reading-inset) 0;
+  font: 400 14px/1.5 var(--label);
+}
+.f-answer-follow-up p {
+  margin: 0;
+}
+.f-reply-line .text-button {
+  min-height: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.f-decided-line b {
+  color: var(--olive);
+}
+.f-question-decided {
+  grid-column: 3 / -1;
+  color: var(--olive);
+}

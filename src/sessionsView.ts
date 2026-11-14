@@ -19,6 +19,7 @@ import { SESSION_PROFILES } from './inboxFixture'
 import { Message, type Model, unreadMessagesOf } from './main'
 import { refView } from './refCard'
 import { linkCard } from './refCards'
+import { replySession } from './replies'
 import { QUESTION_PAGE, RUN_TARGET } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -167,12 +168,20 @@ const everySessionRow = (
           snapshot.grill,
           snapshot.grill.steps.find(step => step.id === stepId)?.question,
         )
+  const replyAuthor = (id: string): string => {
+    const reply = (snapshot.replies ?? []).find(
+      item => `reply-${item.id}` === id,
+    )
+    return reply === undefined
+      ? snapshot.grill.session
+      : replySession(snapshot, reply)
+  }
   return rows.map(row => {
     const fresh =
       (row.work.newOn?.count ?? 0) +
       unread.filter(message =>
         message.kind === 'reply'
-          ? row.address === snapshot.grill.session
+          ? replyAuthor(message.id) === row.address
           : askerOf(message.stepId) === row.address,
       ).length
     const gone =

@@ -82,6 +82,7 @@ import {
 } from './quote'
 import { refView } from './refCard'
 import { linkCard, roundCard, sessionCard } from './refCards'
+import { decidedLine, replyOnQuestion, replySession } from './replies'
 import { retirementView } from './retirementView'
 import {
   heldSendBarView,
@@ -915,6 +916,7 @@ const questionView = (
                       reading.status(step, h),
                       answersView(model, snapshot, step, reading, h),
                       questionMetaView(model, snapshot, step, inbox, h),
+                      answerFollowUpView(snapshot, step, h),
                       backgroundView(model, snapshot, step, reading, inbox, h),
                       questionConversationView(
                         model,
@@ -1159,6 +1161,53 @@ const questionMetaView = (
   )
 }
 
+/** What came back on an answered question: the agent's reply naming it, and the decided line. */
+const answerFollowUpView = (snapshot: Snapshot, step: Step, h: H): Html => {
+  const decided = decidedLine(snapshot, step)
+  const reply = replyOnQuestion(snapshot, step)
+  return decided === undefined && reply === undefined
+    ? h.empty
+    : h.div(
+        [h.Class('f-answer-follow-up')],
+        [
+          reply === undefined
+            ? h.empty
+            : h.p(
+                [h.Class('f-reply-line')],
+                [
+                  h.b([], [`Reply · ${replySession(snapshot, reply)}`]),
+                  ` ${reply.text
+                    .split('\n')
+                    .filter(line => line.trim() !== '')
+                    .slice(1, 2)
+                    .join(' ')
+                    .replace(/[*_`]/g, '')
+                    .slice(0, 220)}… `,
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-button'),
+                      h.OnClick(
+                        Message.ClickedAgentMessage({
+                          id: `reply-${reply.id}`,
+                          inReplies: false,
+                        }),
+                      ),
+                    ],
+                    ['Open in thread ›'],
+                  ),
+                ],
+              ),
+          decided === undefined
+            ? h.empty
+            : h.p(
+                [h.Class('f-decided-line')],
+                [h.b([], ['Decided ']), decided],
+              ),
+        ],
+      )
+}
+
 /** F's side list: every question the filters keep, beside the one in view. */
 const questionSideList = (
   model: Model,
@@ -1226,6 +1275,12 @@ const questionSideList = (
                           ].join(' · '),
                         ],
                       ),
+                      decidedLine(snapshot, item) === undefined
+                        ? h.empty
+                        : h.small(
+                            [h.Class('f-question-decided')],
+                            [`Decided: ${decidedLine(snapshot, item)}`],
+                          ),
                       unreadBadge(questionUnread(model, snapshot, item), h),
                       messagesCount(snapshot, item, h),
                     ],

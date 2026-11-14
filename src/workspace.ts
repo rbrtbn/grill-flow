@@ -19,6 +19,7 @@ import {
 } from './domain'
 import { DECISION_PAGE, INBOX, ITEM_PAGE, RUNS, RUN_PAGE } from './inbox'
 import { QuoteSelection } from './quote'
+import { decidedLine } from './replies'
 
 export const QUESTION_PAGE = 'question:'
 export const REVIEW = 'review'
@@ -329,6 +330,7 @@ export const visibleQuestions = (
           questionAgent(snapshot.grill, step.question),
           roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question)),
           step.heading,
+          decidedLine(snapshot, step) ?? '',
         ]
           .join(' ')
           .toLocaleLowerCase()

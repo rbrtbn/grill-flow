@@ -105,6 +105,7 @@ import {
   readQuoteSelection,
   withQuote,
 } from './quote'
+import { replySession } from './replies'
 import {
   HOLD_SECONDS,
   IDLE_NUDGE_SECONDS,
@@ -3342,13 +3343,32 @@ export const update = (model: Model, message: Message) =>
           maybeMessage.value.kind === 'reply'
         ) {
           if (isWorkspacePage(model.currentPart)) {
-            const moved = workspaceNavigate(read.model, REPLIES)
+            // A reply opens in its session's thread in the sessions panel.
+            const reply = (snapshot.replies ?? []).find(
+              item => `reply-${item.id}` === id,
+            )
+            const address =
+              reply === undefined
+                ? snapshot.grill.session
+                : replySession(snapshot, reply)
             return {
-              model: modifyFields(moved.model, { side: () => 'None' }),
+              model: modifyFields(read.model, {
+                side: () => 'Talk',
+                workspace: value =>
+                  modifyFields(value, {
+                    maybeDiscussionTarget: () =>
+                      Option.some(
+                        address === snapshot.grill.session
+                          ? RUN_TARGET
+                          : `${AGENT_TARGET_PREFIX}${address}`,
+                      ),
+                  }),
+                inbox: inbox =>
+                  modifyFields(inbox, { isSessionDirectory: () => false }),
+              }),
               commands: [
                 ...(read.commands ?? []),
-                ...(moved.commands ?? []),
-                ScrollToAgent({ selector: `#agent-${id}` }),
+                ScrollToAgent({ selector: `#${id}` }),
               ],
             }
           }
