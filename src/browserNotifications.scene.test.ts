@@ -2,6 +2,7 @@ import { Effect, Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
+  Mount,
   click,
   expect,
   given,
@@ -17,6 +18,7 @@ import { Snapshot } from './domain'
 import {
   DisableBrowserNotices,
   EnableBrowserNotices,
+  FillBox,
   Message,
   OpenBrowserNotice,
   PageData,
@@ -50,10 +52,13 @@ const loaded = {
   },
 }
 
+const fillOne = Mount.resolveAll([FillBox, Message.CompletedFillBox()])
+
 it('offers explicit opt-in, permission progress, on state and a local turn-off control', () => {
   scene(
     { update, view },
     given(loaded),
+    fillOne,
     expect(selector('.f-notification-status')).toHaveText(
       'Off in this browser.',
     ),
@@ -95,6 +100,7 @@ it('keeps denied and unsupported capability states readable', () => {
       ...loaded,
       browserNotices: { ...loaded.browserNotices, status: 'Denied' },
     }),
+    fillOne,
     expect(selector('.f-notification-status')).toContainText(
       'Blocked in browser settings',
     ),
@@ -108,6 +114,7 @@ it('keeps denied and unsupported capability states readable', () => {
       ...loaded,
       browserNotices: { ...loaded.browserNotices, status: 'Unsupported' },
     }),
+    fillOne,
     expect(selector('.f-notification-status')).toContainText('cannot provide'),
     expect(
       role('button', { name: 'Enable browser notifications' }),

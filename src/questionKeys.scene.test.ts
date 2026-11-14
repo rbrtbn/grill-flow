@@ -2,6 +2,7 @@ import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
+  Mount,
   all,
   click,
   expect,
@@ -19,6 +20,7 @@ import { it } from 'vitest'
 import { Grill, type Snapshot } from './domain'
 import {
   CopyQuestionKey,
+  FillBox,
   Message,
   PageData,
   PushPage,
@@ -73,10 +75,13 @@ const loaded = {
   page: PageData.Success({ data: snapshot }),
 }
 
+const fillOne = Mount.resolveAll([FillBox, Message.CompletedFillBox()])
+
 it('shows the key beside the question number and copies it on click', () => {
   scene(
     { update, view },
     given(loaded),
+    fillOne,
     expect(
       within(
         selector('.f-question-meta'),
@@ -93,15 +98,19 @@ it('shows the key beside the question number and copies it on click', () => {
   )
 })
 
-it('opens the question with its context, above the ask', () => {
+it('opens the question with its title, then the ask, then its context', () => {
   scene(
     { update, view },
     given(loaded),
+    fillOne,
+    expect(selector('.f-question-reference .f-question-title')).toHaveText(
+      grill.steps[0]!.question.title,
+    ),
+    expect(selector('.f-question-reference #ask-text-Q1')).toHaveText(
+      grill.steps[0]!.question.ask,
+    ),
     expect(selector('.f-question-reference .f-question-lead')).toHaveText(
       'Two services ship this week; their order decides who waits.',
-    ),
-    expect(selector('.f-question-reference h1')).toHaveText(
-      grill.steps[0]!.question.ask,
     ),
   )
 })
@@ -123,7 +132,7 @@ it('shows no context line or key button for a question without them', () => {
 it('names the key in sidebar rows and finds a question by its key', () => {
   scene(
     { update, view },
-    given(loaded),
+    given({ ...loaded, currentPart: 'overview' }),
     expect(selector('#question-node-Q1 .f-question-context')).toContainText(
       'deploy-order · ',
     ),
@@ -136,10 +145,26 @@ it('names the key in sidebar rows and finds a question by its key', () => {
   )
 })
 
+it('finds a question by its key from the question filter strip', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    fillOne,
+    type(
+      role('searchbox', { name: 'Find a question or issue' }),
+      'rollout-window',
+    ),
+    click(selector('.f-question-list-toggle')),
+    expectAll(all.selector('.f-question-list-row')).toHaveCount(1),
+    expect(selector('.f-question-list-row')).toContainText('Q2'),
+  )
+})
+
 it('links a [[key]] reference to its question and leaves an unknown one as typed', () => {
   scene(
     { update, view },
     given(loaded),
+    fillOne,
     expect(selector('#workspace-reasoning')).toContainText('[[nowhere]]'),
     click(
       within(

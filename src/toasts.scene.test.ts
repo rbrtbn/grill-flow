@@ -49,6 +49,9 @@ const start = init(
     Url.fromString('http://127.0.0.1:4317/g/fixture/question/Q1'),
   ),
 ).model
+const filled = Message.CompletedFillBox()
+const fillOne = Mount.resolveAll([FillBox, filled])
+const noMounts = Mount.resolveAll()
 const loaded = {
   ...start,
   readSince: Option.some(0),
@@ -60,8 +63,10 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given(loaded),
-      expect(selector('.f-question-pane .toasts')).toExist(),
+      fillOne,
+      expect(selector('.f-frame .toasts')).toExist(),
       expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
+      expectAll(all.selector('.f-question-pane .toasts')).toHaveCount(0),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
       expect(role('button', { name: 'Hide 5 unread notifications' })).toExist(),
@@ -76,18 +81,28 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given(expired),
+      fillOne,
       expectAll(all.selector('.toast')).toHaveCount(0),
-      expect(selector('.notification-count')).toHaveText('5 unread'),
+      expect(selector('.notification-count')).toHaveText('5'),
       click(role('button', { name: 'Show 5 unread notifications' })),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expectAll(all.selector('.toast-progress')).toHaveCount(3),
+      expect(selector('.notification-count')).toHaveText('5'),
+    )
+    scene(
+      { update, view },
+      given({ ...expired, currentPart: 'overview' }),
+      expect(selector('.f-question-pane .toasts')).toExist(),
       expect(selector('.notification-count')).toHaveText('5 unread'),
     )
   })
 
-  it.each(['question:Q1', 'part-1'])(
+  it.each([
+    ['question:Q1', '5', fillOne],
+    ['part-1', '5', noMounts],
+  ])(
     'collapses and reopens without navigating or reading on %s',
-    currentPart => {
+    (currentPart, badge, resolveMounts) => {
       const collapsed = update(
         { ...loaded, currentPart },
         Message.ClickedNotificationTray(),
@@ -106,11 +121,10 @@ describe('agent toast notifications', () => {
       scene(
         { update, view },
         given({ ...loaded, currentPart }),
+        resolveMounts,
         click(role('button', { name: 'Hide 5 unread notifications' })),
         expectAll(all.selector('.toast')).toHaveCount(0),
-        expect(selector('.notification-count')).toHaveText(
-          currentPart === 'part-1' ? '5' : '5 unread',
-        ),
+        expect(selector('.notification-count')).toHaveText(badge),
         click(role('button', { name: 'Show 5 unread notifications' })),
         expectAll(all.selector('.toast')).toHaveCount(3),
       )
@@ -136,9 +150,10 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given(incoming.model),
+      fillOne,
       expectAll(all.selector('.toast')).toHaveCount(0),
       expect(role('button', { name: 'Show 6 unread notifications' })).toExist(),
-      expect(selector('.notification-count')).toHaveText('6 unread'),
+      expect(selector('.notification-count')).toHaveText('6'),
       click(role('button', { name: 'Show 6 unread notifications' })),
       expectAll(all.selector('.toast')).toHaveCount(3),
       expect(selector('.toast')).toContainText('New while collapsed'),
@@ -159,6 +174,7 @@ describe('agent toast notifications', () => {
     scene(
       { update, view },
       given({ ...loaded, readSince: Option.some(5) }),
+      fillOne,
       expectAll(all.selector('.notification-tray-toggle')).toHaveCount(0),
       expectAll(all.selector('.toast')).toHaveCount(0),
     )
@@ -172,21 +188,24 @@ describe('agent toast notifications', () => {
         given({
           ...loaded,
           side: 'Talk',
+          inbox: { ...loaded.inbox, isSessionDirectory: false },
           workspace: { ...loaded.workspace, isDiscussionExpanded },
         }),
         Mount.resolveAll(
-          [FillBox, Message.CompletedFillBox()],
+          [FillBox, filled],
+          [FillBox, filled],
           [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
         ),
         expect(selector('.f-discussion-compose')).toExist(),
-        expect(selector('.f-question-pane .toasts')).toExist(),
+        expect(selector('.f-frame .toasts')).toExist(),
         expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
+        expectAll(all.selector('.f-sessions .toasts')).toHaveCount(0),
         expectAll(all.selector('.f-discussion .toasts')).toHaveCount(0),
       )
     },
   )
 
-  it('keeps notifications in the sidebar on the full Conversations page', () => {
+  it('floats notifications over the full Conversations page, which has no sidebar', () => {
     scene(
       { update, view },
       given({ ...loaded, currentPart: CONVERSATIONS }),
@@ -195,7 +214,8 @@ describe('agent toast notifications', () => {
         [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
       ),
       expect(selector('.f-discussion-compose')).toExist(),
-      expect(selector('.f-question-pane .toasts')).toExist(),
+      expect(selector('.f-frame .toasts')).toExist(),
+      expectAll(all.selector('.f-question-pane .toasts')).toHaveCount(0),
       expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
     )
   })

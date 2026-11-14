@@ -79,6 +79,7 @@ const loaded = {
       Url.fromString('http://127.0.0.1:4317/g/fixture/question/Q1'),
     ),
   ).model,
+  currentPart: 'overview',
   page: PageData.Success({ data: snapshot }),
   answers: snapshot.answers,
 }

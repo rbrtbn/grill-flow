@@ -44,7 +44,7 @@ it('fills the Review message box on mount and never binds its value to the Model
   )
 })
 
-it('fills the own answer and note boxes on mount and never binds their values to the Model', () => {
+it('fills the own answer box on mount and never binds its value to the Model', () => {
   scene(
     { update, view },
     given({
@@ -52,17 +52,30 @@ it('fills the own answer and note boxes on mount and never binds their values to
       currentPart: `${QUESTION_PAGE}Q1`,
       answers: { Q1: OWN },
       own: { Q1: 'my answer' },
-      notes: { Q1: 'my note' },
     }),
-    Mount.expectHas(
-      FillBox({ text: 'my answer' }),
-      FillBox({ text: 'my note' }),
-    ),
+    Mount.expectHas(FillBox({ text: 'my answer' })),
     Mount.resolveAll(
       [FillBox, Message.CompletedFillBox()],
       [FillBox, Message.CompletedFillBox()],
     ),
     expect(selector('#own-Q1')).not.toHaveValue('my answer'),
+  )
+})
+
+it('fills the note box of a picked answer on mount and never binds its value to the Model', () => {
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      currentPart: `${QUESTION_PAGE}Q1`,
+      answers: { Q1: 'a' },
+      notes: { Q1: 'my note' },
+    }),
+    Mount.expectHas(FillBox({ text: 'my note' })),
+    Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
+      [FillBox, Message.CompletedFillBox()],
+    ),
     expect(selector('#note-Q1')).not.toHaveValue('my note'),
   )
 })

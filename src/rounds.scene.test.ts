@@ -1,6 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Mount,
   all,
   click,
   expect,
@@ -14,7 +15,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
 
 import { Grill } from './domain'
-import { PageData, init, update } from './main'
+import { FillBox, Message, PageData, init, update } from './main'
 import { view } from './view'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
@@ -67,7 +68,11 @@ describe('named rounds and nested blockers', () => {
     }
     scene(
       { update, view },
-      given({ ...loaded, page: PageData.Success({ data: named }) }),
+      given({
+        ...loaded,
+        currentPart: 'overview',
+        page: PageData.Success({ data: named }),
+      }),
       expect(selector('.f-round-name')).toContainText('Stage definitions'),
       expect(selector('.f-round-filter')).toContainText('Stage definitions'),
       expect(selector('.f-question-context')).toContainText(
@@ -81,7 +86,7 @@ describe('named rounds and nested blockers', () => {
   it('nests dependents and folds the branch in the round question list', () => {
     scene(
       { update, view },
-      given(loaded),
+      given({ ...loaded, currentPart: 'overview' }),
       expectAll(
         all.selector('.f-question-children .f-question-item'),
       ).toHaveCount(2),
@@ -102,6 +107,7 @@ describe('named rounds and nested blockers', () => {
       { update, view },
       given({
         ...loaded,
+        currentPart: 'overview',
         answers: { Q1: 'a' },
         workspace: { ...loaded.workspace, filter: 'All' },
       }),
@@ -114,6 +120,7 @@ describe('named rounds and nested blockers', () => {
       { update, view },
       given({
         ...loaded,
+        currentPart: 'overview',
         answers: { Q1: 'a' },
         workspace: { ...loaded.workspace, filter: 'All' },
         page: PageData.Success({ data: { ...snapshot, sent: { Q1: 'Q1 a' } } }),
@@ -150,7 +157,11 @@ describe('named rounds and nested blockers', () => {
     }
     scene(
       { update, view },
-      given({ ...loaded, page: PageData.Success({ data: state }) }),
+      given({
+        ...loaded,
+        currentPart: 'overview',
+        page: PageData.Success({ data: state }),
+      }),
       expect(selector('.f-question-list .urgency-blocking')).toExist(),
       expect(selector('.f-question-list .urgency-soon')).toExist(),
       expect(selector('.f-question-list .urgency-wait')).toExist(),
@@ -158,6 +169,35 @@ describe('named rounds and nested blockers', () => {
       expect(
         selector('.f-question-item[title^="Q5"] .f-state-open'),
       ).toHaveAttr('class', 'f-state f-state-open'),
+    )
+  })
+
+  it('names the round and state of each row in the question page list', () => {
+    const named = {
+      ...snapshot,
+      grill: { ...grill, roundNames: { '1': 'Stage definitions' } },
+    }
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        answers: { Q1: 'a' },
+        workspace: { ...loaded.workspace, filter: 'All' },
+        page: PageData.Success({ data: named }),
+      }),
+      Mount.resolveAll(
+        [FillBox, Message.CompletedFillBox()],
+        [FillBox, Message.CompletedFillBox()],
+      ),
+      click(selector('.f-question-list-toggle')),
+      expectAll(all.selector('.f-question-list-row')).toHaveCount(3),
+      expect(selector('.f-question-list-row')).toContainText(
+        'Stage definitions',
+      ),
+      expect(selector('.f-question-list .f-state-draft path')).toHaveAttr(
+        'd',
+        'm4 8 3 3 5-6',
+      ),
     )
   })
 })

@@ -2,6 +2,7 @@ import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
+  Mount,
   all,
   click,
   expect,
@@ -15,7 +16,14 @@ import { readFileSync } from 'node:fs'
 import { expect as assert, it } from 'vitest'
 
 import { Snapshot } from './domain'
-import { Message, PageData, RequestDrawing, init, update } from './main'
+import {
+  FillBox,
+  Message,
+  PageData,
+  RequestDrawing,
+  init,
+  update,
+} from './main'
 import { view } from './view'
 
 const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
@@ -32,7 +40,14 @@ const snapshot = Schema.decodeUnknownSync(Snapshot)({
 const start = init(
   Option.getOrThrow(Url.fromString('http://localhost/g/fixture/question/Q1')),
 ).model
-const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
+const loaded = {
+  ...start,
+  page: PageData.Success({ data: snapshot }),
+  whyOpen: { 'step-q1': true },
+}
+const filled = Message.CompletedFillBox()
+const fillOne = Mount.resolveAll([FillBox, filled])
+const fillTwo = Mount.resolveAll([FillBox, filled], [FillBox, filled])
 const drawing = {
   source: 'canonical-owner',
   question: 'Q71',
@@ -79,6 +94,7 @@ it('requests the published revision without answering and keeps network failure 
   scene(
     { update, view },
     given(loaded),
+    fillOne,
     click(role('button', { name: 'Draw this' })),
     Command.expectExact(
       RequestDrawing({
@@ -116,7 +132,7 @@ it('requests the published revision without answering and keeps network failure 
       'delivery is unconfirmed',
     ),
     expect(role('button', { name: 'Drawing requested' })).toBeDisabled(),
-    expectAll(all.selector('.f-option')).toHaveCount(3),
+    expectAll(all.selector('.f-answer-pill')).toHaveCount(3),
   )
   assert(
     update(loaded, Message.ClickedDrawing({ question: 'Q1' })).model.answers,
@@ -129,6 +145,7 @@ it('redraws failed delivery or stale pending wording using the saved request ide
     scene(
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: incoming }) }),
+      fillOne,
       click(
         role('button', {
           name:
@@ -176,13 +193,12 @@ it('renders a stale table with its original options and keeps current answer con
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: incoming }) }),
+    fillOne,
     expect(selector('.f-drawing-stale')).toContainText('earlier wording'),
     expect(selector('.f-drawing-response')).toContainText('Original choice'),
     expect(selector('.f-drawing-response')).toContainText('Named owner'),
-    expect(selector('.f-question-title')).toHaveText(
-      fixture.steps[0].question.ask,
-    ),
-    expectAll(all.selector('.f-option')).toHaveCount(3),
+    expect(selector('#ask-text-Q1')).toHaveText(fixture.steps[0].question.ask),
+    expectAll(all.selector('.f-answer-pill')).toHaveCount(3),
     expect(role('button', { name: 'Redraw' })).toBeEnabled(),
   )
   const current = withDrawing({
@@ -196,6 +212,7 @@ it('renders a stale table with its original options and keeps current answer con
       answers: { Q1: '?' },
       page: PageData.Success({ data: current }),
     }),
+    fillTwo,
     expectAll(all.selector('.f-drawing-response .has-pick')).toHaveCount(0),
   )
 })
@@ -215,6 +232,7 @@ it('renders a typed flow and keeps legacy snapshots safe', () => {
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: incoming }) }),
+    fillOne,
     expect(selector('.f-drawing-response .is-flow')).toContainText(
       'Read frozen wording',
     ),
@@ -228,6 +246,7 @@ it('renders a typed flow and keeps legacy snapshots safe', () => {
       ...loaded,
       page: PageData.Success({ data: legacy }),
     }),
+    fillOne,
     expect(role('button', { name: 'Draw this' })).toBeDisabled(),
     expectAll(all.selector('.f-question-drawing')).toHaveCount(0),
   )
@@ -257,6 +276,7 @@ it('ignores an old page request completion after navigation to another grill', (
   scene(
     { update, view },
     given(next),
+    fillOne,
     expect(role('button', { name: 'Draw this' })).toBeEnabled(),
   )
 })

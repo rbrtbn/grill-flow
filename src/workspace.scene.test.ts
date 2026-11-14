@@ -27,11 +27,13 @@ import {
   Message,
   OpenWorkspaceSettings,
   PageData,
+  PostEvent,
   PushPage,
   RestoreBrowserNotices,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
   SaveWorkspaceSettings,
+  ScrollToQuestion,
   ScrollToTop,
   init,
   update,
@@ -57,6 +59,9 @@ const start = init(
   ),
 ).model
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
+const filled = Message.CompletedFillBox()
+const fillOne = Mount.resolveAll([FillBox, filled])
+const fillTwo = Mount.resolveAll([FillBox, filled], [FillBox, filled])
 
 describe('the question workspace', () => {
   it('puts Updates under More and retains the named home destination', () => {
@@ -72,12 +77,14 @@ describe('the question workspace', () => {
           },
         }),
       }),
+      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
       expect(role('button', { name: 'Squad Board home' })).toExist(),
       expect(selector('.f-run-name')).toHaveText('My run'),
       expect(selector('.f-primary-nav')).not.toContainText('Updates'),
       click(role('button', { name: 'Updates (old)' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      Mount.expectEnded(FillBox),
       expect(selector('.f-updates h1')).toHaveText('Updates'),
       click(role('button', { name: 'Squad Board home' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
@@ -95,14 +102,8 @@ describe('the question workspace', () => {
       ),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
-      click(selector('.f-discuss-action button')),
-      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
       Mount.expectHas(FillBox({ text: 'Keep this unsent discussion draft' })),
       Mount.resolve(FillBox, Message.CompletedFillBox()),
-      Mount.resolve(
-        RestoreDiscussionScroll,
-        Message.CompletedRestoreDiscussionScroll(),
-      ),
     )
   })
 
@@ -125,13 +126,13 @@ describe('the question workspace', () => {
           },
         }),
       }),
-      expect(selector('.f-question-context-bar')).toContainText('Can wait'),
-      expect(selector('.f-question-context-bar')).toContainText(
-        'Draft · not sent',
-      ),
+      fillTwo,
+      expect(selector('.f-question-meta')).toContainText('Can wait'),
+      expect(selector('.f-question-meta')).toContainText('Draft · not sent'),
       click(role('button', { name: 'Next question' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      Mount.expectEnded(FillBox),
       expect(selector('.f-question-meta')).toContainText('Q2'),
     )
   })
@@ -148,32 +149,36 @@ describe('the question workspace', () => {
           },
         }),
       }),
+      fillOne,
       expect(role('alert')).toContainText('Delivery is unconfirmed'),
       expect(role('alert')).toContainText('member-grill #72'),
       click(role('button', { name: 'Review drafts before sending again' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
-      Mount.resolve(FillBox, Message.CompletedFillBox()),
       expect(selector('.f-review')).toExist(),
     )
   })
-  it('shows the full question, consequences and inline reasoning with accessible arrow controls', () => {
+  it('shows the title, ask, answer pills and summary with accessible arrow controls', () => {
     scene(
       { update, view },
       given(loaded),
+      fillOne,
       expect(selector('.f-question-title')).toHaveText(
-        grill.steps[0]!.question.ask,
+        grill.steps[0]!.question.title,
       ),
-      expectAll(all.selector('.f-reading .f-option-effect')).toHaveCount(3),
+      expect(selector('#ask-text-Q1')).toHaveText(grill.steps[0]!.question.ask),
+      expectAll(all.selector('.f-answer-row .f-answer-pill')).toHaveCount(3),
+      expect(role('radio', { name: /Write my own/ })).toExist(),
+      expect(selector('#workspace-reasoning')).toContainText('Summary'),
       expect(selector('#workspace-reasoning')).toContainText(
-        'Why this question',
+        'The reasoning behind',
       ),
+      expect(role('button', { name: /^Trade-offs and details/ })).toExist(),
       expect(role('button', { name: 'Previous question' })).toBeDisabled(),
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
       expect(selector('.f-question-meta')).toContainText('Q1'),
-      expect(
-        selector('.f-question-context-bar .f-question-navigation'),
-      ).toExist(),
+      expect(selector('.f-questions-bar .f-question-position')).toExist(),
+      expect(selector('.f-question-list-toggle')).toContainText('1 of 21'),
     )
   })
 
@@ -195,7 +200,8 @@ describe('the question workspace', () => {
       click(role('checkbox', { name: 'Send Q2' })),
       expect(role('button', { name: 'Send 1 answer' })).toBeEnabled(),
       expect(selector('#send-message')).toExist(),
-      expect(role('button', { name: 'Discuss' })).toExist(),
+      expect(role('button', { name: 'Discuss' })).not.toExist(),
+      expect(role('button', { name: /^Sessions/ })).toExist(),
     )
   })
 
@@ -312,10 +318,13 @@ describe('the question workspace', () => {
     scene(
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: titled }) }),
-      expect(selector('.f-reasoning .has-visible-title h3')).toHaveText(
+      fillOne,
+      click(role('button', { name: /^Trade-offs and details/ })),
+      Command.resolve(ScrollToQuestion, Message.CompletedScroll()),
+      expect(selector('#workspace-reasoning .has-visible-title h3')).toHaveText(
         'The choice',
       ),
-      expect(selector('.f-reasoning .has-visible-title p')).toHaveText(
+      expect(selector('#workspace-reasoning .has-visible-title p')).toHaveText(
         'Only this run is included.',
       ),
     )
@@ -415,9 +424,20 @@ describe('the question workspace', () => {
     scene(
       { update, view },
       given({ ...loaded, page: PageData.Success({ data: many }) }),
+      fillOne,
+      click(selector('.f-question-list-toggle')),
+      expectAll(all.selector('.f-question-list-row')).toHaveCount(size),
+      expect(role('button', { name: 'Next question' })).toBeEnabled(),
+    )
+    scene(
+      { update, view },
+      given({
+        ...loaded,
+        currentPart: 'overview',
+        page: PageData.Success({ data: many }),
+      }),
       expectAll(all.selector('.f-question-item')).toHaveCount(size),
       expectAll(all.selector('.f-round')).toHaveCount(size / 10),
-      expect(role('button', { name: 'Next question' })).toBeEnabled(),
     )
   })
 
@@ -425,6 +445,7 @@ describe('the question workspace', () => {
     scene(
       { update, view },
       given(loaded),
+      fillOne,
       click(role('button', { name: 'Settings' })),
       Command.resolve(OpenWorkspaceSettings, Message.CompletedFocus()),
       Command.resolve(
@@ -440,26 +461,31 @@ describe('the question workspace', () => {
   })
 })
 
-it('opens this question discussion from between the note and skip actions', () => {
+it('opens the sessions panel from the header without a Discuss link on the question', () => {
   scene(
     { update, view },
     given(loaded),
-    expect(selector('.f-answer-actions')).toContainText(
-      'Add a noteDiscussDraw thisSkip for now',
+    fillOne,
+    expect(role('button', { name: 'Discuss' })).not.toExist(),
+    expectAll(all.selector('aside.f-sessions')).toHaveCount(0),
+    click(role('button', { name: /^Sessions/ })),
+    expect(selector('aside.f-sessions')).toExist(),
+    expect(role('complementary', { name: 'Sessions' })).toExist(),
+    expect(selector('aside.f-sessions h2')).toHaveText('Sessions'),
+  )
+})
+
+it('sends a conversation starter on click without filling a draft', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    fillOne,
+    expect(role('region', { name: 'Conversation' })).toExist(),
+    click(selector('.f-starters .f-starter')),
+    Command.resolve(
+      PostEvent,
+      Message.CompletedPostEvent({ result: Result.fail('offline') }),
     ),
-    click(
-      within(
-        selector('.f-answer-actions'),
-        role('button', { name: 'Discuss' }),
-      ),
-    ),
-    Mount.resolveAll(
-      [FillBox, Message.CompletedFillBox()],
-      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
-    ),
-    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
-    expect(selector('.f-discussion')).toExist(),
-    expect(role('textbox', { name: 'Ask about Q1' })).toExist(),
   )
 })
 
@@ -469,6 +495,7 @@ it('returns to the composer and restores thread position when opening an existin
     given({
       ...loaded,
       side: 'Talk',
+      inbox: { ...loaded.inbox, isSessionDirectory: false },
       workspace: {
         ...loaded.workspace,
         maybeDiscussionTarget: Option.some('step-q1'),
@@ -476,6 +503,7 @@ it('returns to the composer and restores thread position when opening an existin
       },
     }),
     Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
       [FillBox, Message.CompletedFillBox()],
       [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
     ),
@@ -503,6 +531,7 @@ it('shows the effective send count while Command is held and restores the review
       workspace: { ...loaded.workspace, excluded: ['Q2'] },
       isCommandHeld: true,
     }),
+    fillTwo,
     expect(role('button', { name: 'Send · 1', exact: true })).toExist(),
     expect(selector('.f-header-send-reserve')).toHaveAttr(
       'aria-hidden',
@@ -517,6 +546,7 @@ it('shows a failed quick-send on the question page with a path to the remaining 
   scene(
     { update, view },
     given({ ...loaded, send: 'Failed', sendDetail: 'Agent unavailable' }),
+    fillOne,
     expect(role('alert')).toContainText('Not sent: Agent unavailable'),
     expect(role('button', { name: 'Review drafts' })).toExist(),
   )
@@ -538,7 +568,11 @@ it('filters sidebar questions by urgency and preserves an explicit unspecified c
   }
   scene(
     { update, view },
-    given({ ...loaded, page: PageData.Success({ data: state }) }),
+    given({
+      ...loaded,
+      currentPart: 'overview',
+      page: PageData.Success({ data: state }),
+    }),
     expect(role('button', { name: 'Filters' })).toHaveAttr(
       'popovertarget',
       'workspace-filters',
@@ -560,7 +594,7 @@ it('filters sidebar questions by urgency and preserves an explicit unspecified c
   )
 })
 
-it('links a question with a discussion to it, counting asks and replies', () => {
+it('counts asks and replies beside a question with a discussion in the question list', () => {
   scene(
     { update, view },
     given({
@@ -581,18 +615,13 @@ it('links a question with a discussion to it, counting asks and replies', () => 
         },
       }),
     }),
-    click(
-      within(
-        selector('.f-discuss-action'),
-        role('button', { name: '3 messages' }),
-      ),
+    fillOne,
+    click(selector('.f-question-list-toggle')),
+    expect(selector('.f-question-list .f-message-count')).toHaveText('3'),
+    expect(selector('.f-question-list .f-message-count')).toHaveAttr(
+      'title',
+      '3 messages',
     ),
-    Mount.resolveAll(
-      [FillBox, Message.CompletedFillBox()],
-      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
-    ),
-    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
-    expect(role('textbox', { name: 'Ask about Q1' })).toExist(),
   )
 })
 
@@ -600,6 +629,30 @@ it('shows no message count on a question without a discussion', () => {
   scene(
     { update, view },
     given(loaded),
-    expect(selector('.f-discuss-action')).not.toContainText('message'),
+    fillOne,
+    click(selector('.f-question-list-toggle')),
+    expectAll(all.selector('.f-question-list-row')).toHaveCount(21),
+    expectAll(all.selector('.f-message-count')).toHaveCount(0),
+  )
+})
+
+it('walks the filtered list with the arrows and shows the filter strip', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    fillOne,
+    expect(selector('.f-questions-bar')).toExist(),
+    expect(role('searchbox', { name: 'Find a question or issue' })).toExist(),
+    expect(role('group', { name: 'Show' })).toExist(),
+    expect(selector('.f-question-filters')).toContainText('Session'),
+    expect(selector('.f-question-filters')).toContainText('Urgency'),
+    expect(selector('.f-question-filters')).toContainText('Round'),
+    expectAll(all.selector('.f-question-list')).toHaveCount(0),
+    click(selector('.f-question-list-toggle')),
+    expect(selector('.f-question-list')).toExist(),
+    click(role('button', { name: 'Next question' })),
+    Command.resolve(PushPage, Message.CompletedNavigate()),
+    Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    expect(selector('.f-question-meta')).toContainText('Q2'),
   )
 })

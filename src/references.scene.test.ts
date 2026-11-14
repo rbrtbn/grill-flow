@@ -1,11 +1,19 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
-import { all, expect, expectAll, given, scene, selector } from 'foldkit/scene'
+import {
+  Mount,
+  all,
+  expect,
+  expectAll,
+  given,
+  scene,
+  selector,
+} from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
 import { Snapshot } from './domain'
-import { PageData, init, update } from './main'
+import { FillBox, Message, PageData, init, update } from './main'
 import { view } from './view'
 
 const fixture = JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8'))
@@ -42,6 +50,7 @@ const base = Schema.decodeUnknownSync(Snapshot)({
   revisions: [],
   sends: [],
 })
+const fillOne = Mount.resolveAll([FillBox, Message.CompletedFillBox()])
 const start = init(
   Option.getOrThrow(Url.fromString('http://localhost/g/fixture/question/Q1')),
 ).model
@@ -50,6 +59,7 @@ it('shows primary status and checked context while keeping stale and ambiguous r
   scene(
     { update, view },
     given({ ...start, page: PageData.Success({ data: base }) }),
+    fillOne,
     expect(selector('a.ref-link')).toContainText('merged · checks failed'),
     expect(selector('a.ref-link')).toHaveAttr(
       'href',
@@ -88,6 +98,7 @@ it('keeps legacy references without readings or status readable', () => {
   scene(
     { update, view },
     given({ ...start, page: PageData.Success({ data: legacy }) }),
+    fillOne,
     expect(selector('a.ref-link')).toHaveText('PR100'),
     expect(selector('a.ref-link')).toHaveAttr(
       'title',

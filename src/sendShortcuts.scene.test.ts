@@ -2,6 +2,7 @@ import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
   Command,
+  Mount,
   click,
   expect,
   given,
@@ -13,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import { Message, PageData, SaveKeptBack, init, update } from './main'
+import { FillBox, Message, PageData, SaveKeptBack, init, update } from './main'
 import { view } from './view'
 
 const fixture = Schema.decodeUnknownSync(Grill)(
@@ -51,10 +52,15 @@ const loaded = {
   answers,
 }
 
+const filled = Message.CompletedFillBox()
+const fillOne = Mount.resolveAll([FillBox, filled])
+const fillTwo = Mount.resolveAll([FillBox, filled], [FillBox, filled])
+
 it('offers sending the answer and its round under the question, naming who gets them', () => {
   scene(
     { update, view },
     given(loaded),
+    fillTwo,
     expect(role('button', { name: '3 unsent', exact: true })).toExist(),
     expect(selector('.f-send-strip')).toContainText('Goes to grants'),
     expect(selector('.f-send-strip')).toContainText(
@@ -76,6 +82,7 @@ it('offers the round on an open question the reader is not ready to answer', () 
   scene(
     { update, view },
     given({ ...loaded, currentPart: 'question:Q3' }),
+    fillOne,
     expect(selector('.f-send-strip.is-quiet')).toContainText(
       'Not ready to answer this one?',
     ),
@@ -87,6 +94,7 @@ it('lists unsent drafts by round with recipients in the tray', () => {
   scene(
     { update, view },
     given(loaded),
+    fillTwo,
     click(role('button', { name: '3 unsent', exact: true })),
     expect(role('dialog', { name: 'Unsent answers' })).toExist(),
     expect(selector('.f-unsent-tray')).toContainText('To homelab'),
@@ -109,6 +117,7 @@ it('asks before leaving with ready drafts unsent', () => {
         isSending: false,
       }),
     }),
+    fillTwo,
     expect(role('alertdialog', { name: 'Unsent answers' })).toContainText(
       "3 answers aren't sent yet",
     ),

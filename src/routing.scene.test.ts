@@ -69,7 +69,7 @@ describe('asking agents in the workspace', () => {
   it('selects a round without changing its asking-session routing', () => {
     scene(
       { update, view },
-      given(loaded),
+      given({ ...loaded, currentPart: 'overview' }),
       expectAll(all.selector('.f-round')).toHaveCount(3),
       expectAll(
         all.role('combobox', { name: 'Group questions by' }),
@@ -88,7 +88,6 @@ describe('asking agents in the workspace', () => {
         Message.CompletedSaveWorkspaceSettings(),
       ),
       expectAll(all.selector('.f-question-item')).toHaveCount(3),
-      expect(selector('.f-question-meta')).toContainText('worker'),
     )
   })
 
@@ -96,6 +95,7 @@ describe('asking agents in the workspace', () => {
     scene(
       { update, view },
       given(loaded),
+      Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
       expect(selector('.f-question-meta')).toContainText('worker'),
     )
     scene(
@@ -139,7 +139,7 @@ describe('asking agents in the workspace', () => {
       expect(selector('.f-discussion-head')).toContainText(
         'Squad Board · builder',
       ),
-      expect(role('textbox', { name: 'Ask about grill-flow' })).toExist(),
+      expect(role('textbox', { name: 'Ask about the board' })).toExist(),
       expect(role('combobox', { name: 'To' })).toHaveValue('grill-flow'),
       change(role('combobox', { name: 'To' }), 'step-q1'),
       Command.resolve(

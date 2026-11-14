@@ -1,6 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Mount,
   all,
   expect,
   expectAll,
@@ -13,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
-import { PageData, init, update } from './main'
+import { FillBox, Message, PageData, init, update } from './main'
 import { view } from './view'
 import { ANSWER_HISTORY, UPDATES } from './workspace'
 
@@ -196,6 +197,7 @@ it('exposes the canonical source-qualified question link in scope details', () =
     given({
       ...loaded,
       currentPart: 'question:Q1',
+      whyOpen: { 'step-q1': true },
       page: PageData.Success({
         data: {
           ...snapshot,
@@ -205,6 +207,7 @@ it('exposes the canonical source-qualified question link in scope details', () =
         },
       }),
     }),
+    Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
     expect(role('link', { name: 'Source question link' })).toHaveAttr(
       'href',
       '/g/fixture/question/local-choice?source=member',

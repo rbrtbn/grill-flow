@@ -53,6 +53,7 @@ const start = init(
 const onGrillFlow = (data: Snapshot) => ({
   ...start,
   side: 'Talk' as const,
+  inbox: { ...start.inbox, isSessionDirectory: false },
   page: PageData.Success({ data }),
   workspace: {
     ...start.workspace,
@@ -60,6 +61,7 @@ const onGrillFlow = (data: Snapshot) => ({
   },
 })
 const mounted = Mount.resolveAll(
+  [FillBox, Message.CompletedFillBox()],
   [FillBox, Message.CompletedFillBox()],
   [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
 )
