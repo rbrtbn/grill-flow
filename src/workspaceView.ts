@@ -874,7 +874,16 @@ const workspaceHeaderView = (
               h.Popovertarget('workspace-parked'),
               h.Title('What this design leaves out for now'),
             ],
-            [`Not in this design yet · ${PARKED.length}`],
+            [
+              h.span(
+                [h.Class('is-long')],
+                [`Not in this design yet · ${PARKED.length}`],
+              ),
+              h.span(
+                [h.Class('is-short'), h.AriaHidden(true)],
+                [`Not yet · ${PARKED.length}`],
+              ),
+            ],
           ),
           h.div(
             [

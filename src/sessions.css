@@ -1,7 +1,7 @@
 /* The sessions panel: a full-height right sidebar beside the whole page, header included. */
 
 .f-workspace.has-sessions {
-  --sessions-w: min(400px, 36vw);
+  --sessions-w: min(380px, 34vw);
   padding-right: var(--sessions-w);
 }
 .f-sessions {
@@ -251,4 +251,42 @@
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+/* With the panel open the header is narrower: keep one line, drop what the panel repeats. */
+.f-topbar-a .f-primary-nav .text-button,
+.f-topbar-a .f-header-actions > * {
+  white-space: nowrap;
+}
+.has-sessions .f-run-name,
+.has-sessions .f-sessions-toggle {
+  display: none;
+}
+.has-sessions .f-topbar-a {
+  gap: 16px;
+}
+.has-sessions .f-topbar-a .f-header-actions {
+  gap: 8px;
+}
+.f-parked-toggle .is-short {
+  display: none;
+}
+@media (max-width: 1420px) {
+  .has-sessions .f-parked-toggle .is-long {
+    display: none;
+  }
+  .has-sessions .f-parked-toggle .is-short {
+    display: inline;
+  }
+  .has-sessions .f-topbar-a .f-primary-nav {
+    gap: 0;
+  }
+}
+@media (max-width: 1100px) {
+  .f-parked-toggle .is-long {
+    display: none;
+  }
+  .f-parked-toggle .is-short {
+    display: inline;
+  }
 }
