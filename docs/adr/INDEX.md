@@ -30,3 +30,4 @@
 | [0026](0026-version-the-authoring-guide-with-warning-first-publication.md) | Version the authoring guide with warning-first publication | accepted |
 | [0027](0027-resolve-questions-with-source-owned-outcomes.md) | Resolve questions with source-owned outcomes | accepted |
 | [0028](0028-show-ask-delivery-and-offer-the-grill-session.md) | Show ask delivery and offer the grill session | accepted |
+| [0029](0029-message-squad-agents-from-their-herdr-space.md) | Message squad agents from their Herdr space | accepted |

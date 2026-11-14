@@ -4,6 +4,7 @@ import {
   Command,
   Mount,
   all,
+  change,
   click,
   expect,
   expectAll,
@@ -11,7 +12,6 @@ import {
   role,
   scene,
   selector,
-  within,
 } from 'foldkit/scene'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
@@ -130,12 +130,7 @@ describe('asking agents in the workspace', () => {
         [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
       ),
       expect(selector('.f-discussion-head')).toContainText('worker'),
-      click(
-        within(
-          role('group', { name: 'Conversation scope' }),
-          role('button', { name: 'Grill-flow' }),
-        ),
-      ),
+      change(role('combobox', { name: 'To' }), 'grill-flow'),
       Command.resolve(
         RestoreDiscussionPosition,
         Message.CompletedRestoreDiscussionPosition(),
@@ -145,18 +140,8 @@ describe('asking agents in the workspace', () => {
         'Grill-flow · builder',
       ),
       expect(role('textbox', { name: 'Ask about grill-flow' })).toExist(),
-      expect(
-        within(
-          role('group', { name: 'Conversation scope' }),
-          role('button', { name: 'This question · Q1' }),
-        ),
-      ).toHaveAttr('aria-pressed', 'false'),
-      click(
-        within(
-          role('group', { name: 'Conversation scope' }),
-          role('button', { name: 'This question · Q1' }),
-        ),
-      ),
+      expect(role('combobox', { name: 'To' })).toHaveValue('grill-flow'),
+      change(role('combobox', { name: 'To' }), 'step-q1'),
       Command.resolve(
         RestoreDiscussionPosition,
         Message.CompletedRestoreDiscussionPosition(),
