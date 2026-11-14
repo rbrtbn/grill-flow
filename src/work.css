@@ -545,3 +545,96 @@
 .f-track-moves .hint {
   font-size: 13px;
 }
+
+/* Phone width: the timeline scrolls inside its own box with the labels pinned, and an opened
+   track fits the screen with its stages stacked. */
+@media (max-width: 800px) {
+  .f-work {
+    --work-label: 210px;
+  }
+  .f-work-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .f-work-board {
+    min-width: 780px;
+  }
+  .f-work-axis .f-work-label-head {
+    position: sticky;
+    left: 0;
+  }
+  .f-work-fold b {
+    white-space: nowrap;
+  }
+  .f-work-fold .hint,
+  .f-work-label .f-avatar {
+    display: none;
+  }
+  .f-work-label {
+    gap: 6px;
+    padding-left: 6px;
+  }
+  .f-work-toggle {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 2px;
+  }
+  .f-work-title {
+    flex-basis: 100%;
+    -webkit-line-clamp: 1;
+  }
+  .f-work-state {
+    font-size: 11px;
+  }
+  .f-work-track {
+    width: calc(100vw - 40px);
+    padding: 12px 14px;
+  }
+  .f-track-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .f-track-stages {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .f-track-stage {
+    grid-template-columns: 96px 32px minmax(0, 1fr);
+    grid-template-rows: none;
+    align-items: center;
+    justify-items: start;
+    column-gap: 12px;
+    min-height: 40px;
+  }
+  .f-track-stage::before {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: calc(96px + 12px + 14px);
+    width: 4px;
+    height: auto;
+    transform: none;
+  }
+  .f-track-stage.is-here::before {
+    background: linear-gradient(180deg, var(--stage-agent) 50%, transparent 50%);
+  }
+  .f-track-stage.is-future::before {
+    width: 0;
+    border-top: 0;
+    border-left: 2px dashed var(--rule);
+  }
+  .f-track-node {
+    justify-self: center;
+  }
+  .f-track-time {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    margin: 0;
+  }
+  .f-track-nums {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .f-work-legend {
+    font-size: 12px;
+  }
+}
