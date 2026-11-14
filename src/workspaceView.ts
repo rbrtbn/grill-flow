@@ -34,6 +34,7 @@ import {
 import { drawingButton, drawingPanel } from './drawingView'
 import type { QuestionDrawing } from './drawings'
 import {
+  DRAFT_ATTRIBUTE,
   FillBox,
   Message,
   type Model,
@@ -1492,6 +1493,7 @@ const quotePopover = (
           h.label([h.For(QUOTE_BOX)], [`Reply · to ${destination}`]),
           h.keyed('textarea')(`${QUOTE_BOX}-${model.talkGeneration}`, [
             h.Id(QUOTE_BOX),
+            h.DataAttribute(DRAFT_ATTRIBUTE, QUOTE_DRAFT),
             h.Rows(3),
             h.OnMount(FillBox({ text: model.talkDrafts[QUOTE_DRAFT] ?? '' })),
             h.Placeholder('Ask about this, or push back on it…'),
@@ -1960,7 +1962,6 @@ const reviewView = (
           ),
           h.textarea([
             h.Id('send-message'),
-            h.Value(model.sendMessage),
             h.Rows(2),
             h.OnMount(FillBox({ text: model.sendMessage })),
             h.Placeholder('Anything else the agent should know…'),
@@ -2257,6 +2258,7 @@ const discussionView = (
           ),
           h.keyed('textarea')(`discussion-${target}-${model.talkGeneration}`, [
             h.Id('talk-box'),
+            h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(target)),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
             h.Placeholder('Ask, push back, or ask for a clearer explanation…'),
