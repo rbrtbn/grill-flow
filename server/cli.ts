@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -10,13 +10,25 @@ import {
 } from '../src/domain'
 import { ContextUnavailable, readSubmission } from './answerReceipts'
 import {
+  REASON_REQUIRED,
   guideText,
   guideView,
   isAuthoringCommand,
+  needsReason,
   printAuthoringWarning,
+  reasonWarning,
+  writeProvenance,
 } from './authoring'
 import { publishItem } from './channel'
 import { publishDrawing } from './drawings'
+import { exportGrill } from './export'
+import {
+  currentRev,
+  grillRevisions,
+  questionHistory,
+  questionLines,
+  revisionLines,
+} from './history'
 import { newsSince, runOutbox } from './outbox'
 import { readRemotes, writeRemotes } from './remote'
 import { readPage } from './squad'
@@ -40,6 +52,9 @@ const usage = `gf: grill-flow's agent-side commands
 
   gf --skill [--if-newer-than <revision>] current complete authoring guide (read-only)
   Authoring writes accept --skill-revision <revision-read>; missing/stale revisions warn during migration.
+  load, item, draw, restore and revise --kind rewrite take --reason <why>, kept for gf history;
+  missing reasons warn (GF_REQUIRE_REASON=1 refuses them). --session <address> names the
+  author, default $HC_TERMINAL_ID.
 
   gf up                                start the server unless it already answers
   gf load <grill.json> [--solo]        load or replace a grill; without a squad field it joins
@@ -49,6 +64,13 @@ const usage = `gf: grill-flow's agent-side commands
                                        the previous lead go to it
   gf retire <grill-id> --reason <text>  hide a source grill, keeping its history
   gf restore <grill-id>                show a retired source grill again
+  gf history <grill-id> [question-id] [--json]
+                                       every load with its time, author and reason; for a
+                                       question, what changed in each revision that touched it
+  gf export <grill-id | page-id> [--out <file>]
+                                       one JSON document for retros and audits: the grill, its
+                                       revisions, discussions, answers, sends and events; a
+                                       squad page exports each member and the id mapping
   gf state <grill-id>                  the reply as it stands, plus asks waiting for an answer
   gf revise <grill-id> <step-id | part:<part-id> | card:<card> | run> --file <path> [--ask <id>] [--kind rewrite|comment]
                                        rewrite a step's prose (paragraphs split by blank lines),
@@ -166,6 +188,14 @@ if (command === 'grant' && args[0] === '--version') {
   process.exit(0)
 }
 
+const provenance = writeProvenance(args)
+if (needsReason(command, args) && provenance.reason === '') {
+  if (REASON_REQUIRED) {
+    fail(reasonWarning(command ?? ''))
+  }
+  console.error(reasonWarning(command ?? ''))
+}
+
 const outbox = process.env.GF_OUTBOX
 if (outbox !== undefined && outbox !== '') {
   await runOutbox(outbox, command, args, usage)
@@ -188,16 +218,21 @@ switch (command) {
     const grill =
       getGrill(db, args[0] ?? '') ??
       fail('A drawing belongs to a canonical source grill.')
-    const result = publishDrawing(db, grill, {
-      version: 1,
-      question: args[1],
-      request: Number(flag(args, '--request')),
-      previous: Number(flag(args, '--previous') ?? '0'),
-      revision: Number(flag(args, '--revision') ?? '1'),
-      diagram: JSON.parse(
-        readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
-      ),
-    })
+    const result = publishDrawing(
+      db,
+      grill,
+      {
+        version: 1,
+        question: args[1],
+        request: Number(flag(args, '--request')),
+        previous: Number(flag(args, '--previous') ?? '0'),
+        revision: Number(flag(args, '--revision') ?? '1'),
+        diagram: JSON.parse(
+          readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
+        ),
+      },
+      provenance.reason,
+    )
     if (result.ok) {
       console.log(`published drawing on ${grill.id}, event ${result.event}`)
     } else {
@@ -213,6 +248,8 @@ switch (command) {
       db,
       grill,
       JSON.parse(readFileSync(flag(args, '--file') ?? fail(usage), 'utf8')),
+      Date.now(),
+      provenance.reason,
     )
     if (result.ok) {
       console.log(`published item on ${grill.id}, event ${result.event}`)
@@ -286,6 +323,7 @@ switch (command) {
           'GF_POLL_PROVIDERS',
           'GF_SESSION',
           'GF_MAINTAINER_SESSION',
+          'GF_BACKUPS',
         ].flatMap(name =>
           process.env[name] === undefined
             ? []
@@ -313,9 +351,10 @@ switch (command) {
         JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
         args.includes('--solo'),
       ),
+      provenance,
     )
     console.log(
-      `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id}`,
+      `loaded ${grill.id}: ${grill.steps.length} steps, ${BASE}/g/${grill.id} (rev ${currentRev(db, grill.id)})`,
     )
     if ((grill.version ?? 1) > FORMAT_VERSION) {
       console.warn(
@@ -387,6 +426,7 @@ switch (command) {
       askId: askFlag ? Number(askFlag) : null,
       kind: kind === 'rewrite' ? 'rewrite' : 'comment',
       text: readFileSync(flag(args, '--file') ?? fail(usage), 'utf8'),
+      ...(provenance.reason === '' ? {} : { reason: provenance.reason }),
     })
     if (!result.ok) {
       fail(result.reason)
@@ -425,7 +465,7 @@ switch (command) {
     const result =
       command === 'retire'
         ? retireGrill(db, grill, flag(args, '--reason') ?? '')
-        : restoreGrill(db, grill)
+        : restoreGrill(db, grill, provenance.reason)
     if (!result.ok) {
       fail(result.reason)
     }
@@ -463,6 +503,51 @@ switch (command) {
         ? `${id}: lead is ${session}`
         : `${id}: lead is now ${session}; deliveries to ${from} go to ${session}`,
     )
+    break
+  }
+  case 'history': {
+    const id = args[0] ?? fail(usage)
+    if (getGrill(db, id) === undefined) {
+      fail(
+        readPage(db, id) === undefined
+          ? `no source grill ${id}`
+          : `${id} is a composed page; run gf history on one of its member grills`,
+      )
+    }
+    const question = args[1]?.startsWith('--') ? undefined : args[1]
+    const revisions = grillRevisions(db, id)
+    const json = args.includes('--json')
+    if (question === undefined) {
+      console.log(
+        json
+          ? JSON.stringify(
+              revisions.map(({ grill: _grill, ...revision }) => revision),
+            )
+          : revisionLines(revisions).join('\n') ||
+              `${id} has no recorded revisions yet; its next load records them`,
+      )
+      break
+    }
+    const changes = questionHistory(revisions, question)
+    console.log(
+      json
+        ? JSON.stringify({ grillId: id, question, changes })
+        : questionLines(changes).join('\n') ||
+            `no recorded revision of ${id} touches ${question}`,
+    )
+    break
+  }
+  case 'export': {
+    const id = args[0] ?? fail(usage)
+    const document = exportGrill(db, id) ?? fail(`no grill or page ${id}`)
+    const out = flag(args, '--out')
+    const text = `${JSON.stringify(document, null, 2)}\n`
+    if (out === undefined) {
+      process.stdout.write(text)
+    } else {
+      writeFileSync(out, text)
+      console.log(`exported ${id} to ${out}`)
+    }
     break
   }
   case 'events': {

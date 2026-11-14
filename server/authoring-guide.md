@@ -7,6 +7,23 @@ Declare `--skill-revision <revision-read>` on load, item, revise, reply and draw
 The guide revision is independent of grill format and item revisions; copying a revision
 number does not prove understanding.
 
+Give every write its reason: `--reason "<why>"` on `gf load`, `gf item`, `gf draw`,
+`gf restore` and `gf revise --kind rewrite`, in a short line a later reader can act on, such
+as `--reason "round 3: Q7-Q9 after the reply"`. A missing reason warns now and will be refused
+later. The author is `$HC_TERMINAL_ID`; pass `--session <address>` when you write for another
+session. Every load is kept as a numbered revision with its time, author and reason:
+`gf history <id>` lists them, and `gf history <id> <question-id>` shows what changed in that
+question at each revision (`--json` for machine-readable output). History is for retros and
+audits; read the page or `gf state` to work.
+
+Discussions (the user's asks and your replies) stay in the server's record, never in grill
+files. The served snapshot (`/api/grills/<id>`) carries `discussions`, keyed by question id
+(or by `run`, `part:…`, `card:…` or `grill-flow` for those threads): each entry gives the
+`target` to reply on, ask and reply counts, `open` asks, `lastAt` and `firstAskId`.
+`gf export <id> [--out <file>]` writes the whole record as one JSON document for retros and
+audits: the grill, every revision, full threads, answers, sends and events; for a squad page,
+each member with its id mapping. Never write a `discussions` key: a load drops it and warns.
+
 Missing/stale revisions warn during migration and include this guide on stderr. A successful
 write remains published as submitted; do not retry it as though rejected. Apply the new guide
 to your next write or deliberately correct the content using its normal revision rules.
@@ -221,7 +238,8 @@ resolution, veto responses or provider/question blockers. The existing contracts
 `docs/implementation/2026-11-07-channel-attention-contract.md` explain their semantics.
 
 The remaining reference explains the complete interview, delivery, routing and item workflow.
-All `gf` authoring commands shown below also take `--skill-revision <revision-read>`.
+All `gf` authoring commands shown below also take `--skill-revision <revision-read>` and,
+where the top of this guide says so, `--reason "<why>"`.
 
 # Grill on grill-flow
 
@@ -282,8 +300,8 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
    `<repo>-<topic>`.
    In a squad, every session's grill joins the squad's one page (Shared squad page, below);
    never open a separate page for your questions or copy them onto another page.
-3. `gf load grills/<id>.json`. Answers, notes and asks already given stay,
-   keyed by question id.
+3. `gf load grills/<id>.json --reason "<why>"`. Answers, notes and asks already given
+   stay, keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
    the round and how many questions are open. The questions live on the page.
 5. Wait for the reply, with `gf wait` running when there's no `session`. The
@@ -509,7 +527,9 @@ have acted, or the question was withdrawn, remove its step from your own source.
 outcome in `decided` as `{id, text}`: id is the exact local/source question id (for example Q6),
 not its shared display number or step id, and text is the nonblank outcome. Then `gf load`
 the source with the guide revision you read. Answer events and frozen submissions stay in
-history; a decided entry is an author-reported outcome and creates no new approval.
+history; a decided entry is an author-reported outcome and creates no new approval. The load
+records each new outcome, so it stays under Decided even when a later load leaves it out of
+`decided`; reword one by loading the same id with new text.
 
 If only part is resolved, keep its step and question id. Rewrite the prose/options to the
 remaining open work. Keep picked option keys stable; a decided entry does not bypass that

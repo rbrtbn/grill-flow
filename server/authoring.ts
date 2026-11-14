@@ -4,8 +4,11 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 
+import { isWholeTarget } from '../src/domain'
+import type { WriteProvenance } from './history'
+
 // Bump when guide rules change so cached instructions can be replaced (ADR 0026).
-export const SKILL_REVISION = 3
+export const SKILL_REVISION = 5
 export const AuthoringGuide = Schema.Struct({
   version: Schema.Literal(1),
   host: Schema.String.check(Schema.isMinLength(1)),
@@ -68,7 +71,15 @@ export const revisionMetadata = (value: unknown): number | string | null =>
 export const stampAuthoring = <T extends object>(
   record: T,
   revision: unknown,
-) => ({ ...record, skillRevision: revisionMetadata(revision) })
+  provenance: WriteProvenance = { author: '', reason: '' },
+) => ({
+  ...record,
+  skillRevision: revisionMetadata(revision),
+  ...(provenance.reason === '' ? {} : { writeReason: provenance.reason }),
+  ...(provenance.author === '' ? {} : { writeAuthor: provenance.author }),
+})
+// Write metadata rides beside a queued body and stays out of its replay identity.
+const METADATA = new Set(['skillRevision', 'writeReason', 'writeAuthor'])
 export const authoringBody = (
   raw: unknown,
 ): Readonly<Record<string, unknown>> => {
@@ -76,9 +87,57 @@ export const authoringBody = (
     Schema.Record(Schema.String, Schema.Unknown),
   )(raw)
   return Object.fromEntries(
-    Object.entries(parsed).filter(([key]) => key !== 'skillRevision'),
+    Object.entries(parsed).filter(([key]) => !METADATA.has(key)),
   )
 }
+export const queuedProvenance = (raw: unknown): WriteProvenance => {
+  const parsed = Schema.decodeUnknownResult(
+    Schema.Struct({
+      writeReason: Schema.optionalKey(Schema.String),
+      writeAuthor: Schema.optionalKey(Schema.String),
+    }),
+  )(raw)
+  return parsed._tag === 'Success'
+    ? {
+        author: parsed.success.writeAuthor ?? '',
+        reason: parsed.success.writeReason ?? '',
+      }
+    : { author: '', reason: '' }
+}
+
+// Missing reasons warn during migration; GF_REQUIRE_REASON=1 turns the warning into a refusal
+// once writers have caught up (docs/adr/0031).
+export const REASON_REQUIRED = process.env.GF_REQUIRE_REASON === '1'
+export const needsReason = (
+  command: string | undefined,
+  args: ReadonlyArray<string>,
+): boolean => {
+  if (command === 'revise') {
+    const kind = args.includes('--kind')
+      ? args[args.indexOf('--kind') + 1]
+      : isWholeTarget(args[1] ?? '')
+        ? 'comment'
+        : 'rewrite'
+    return kind === 'rewrite'
+  }
+  return ['load', 'item', 'draw', 'restore'].includes(command ?? '')
+}
+export const writeProvenance = (
+  args: ReadonlyArray<string>,
+): WriteProvenance => {
+  const value = (name: string) =>
+    args.includes(name) ? (args[args.indexOf(name) + 1] ?? '').trim() : ''
+  return {
+    author: value('--session') || (process.env.HC_TERMINAL_ID?.trim() ?? ''),
+    reason: value('--reason'),
+  }
+}
+export const reasonWarning = (command: string): string =>
+  `Write reason missing: pass --reason "<why>" on gf ${command}, so gf history can say why this changed. ${
+    REASON_REQUIRED
+      ? 'GF_REQUIRE_REASON=1 refuses writes without one.'
+      : 'Accepted without one for now; reasons become required later.'
+  }`
 
 export const guideInState = (raw: unknown): AuthoringGuide | undefined => {
   const state = Schema.decodeUnknownResult(

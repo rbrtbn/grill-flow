@@ -27,8 +27,10 @@ import {
   unconfirmedSends,
 } from './answerReceipts'
 import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
+import { startBackups } from './backup'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
+import { discussionRefs } from './discussions'
 import { pageDrawings, requestDrawing } from './drawings'
 import { InvalidSubmissionSource, askMessage, pageMessage } from './messages'
 import { readProviderCommand } from './providerReads'
@@ -46,6 +48,7 @@ import {
   sourceText,
 } from './squad'
 import {
+  DB_PATH,
   ROOT,
   appendEvent,
   open,
@@ -64,6 +67,7 @@ const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
 const INPUT_LOG = process.env.GF_INPUT_LOG
 const db = open()
 if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
+startBackups(DB_PATH, join(dirname(DB_PATH), 'backups'))
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
@@ -209,6 +213,7 @@ const clientSnapshot = (grill: Grill) => {
       : { roster: readRoster(state.grill.squad.id) }),
     drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
+    discussions: discussionRefs(state),
     ...attentionSnapshot(db, sources, Date.now(), references?.readings),
     updates: publishedUpdates(db, sources).map(entry => ({
       ...entry,

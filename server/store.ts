@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import {
+  Decision,
   Grill,
   OWN,
   Retirement,
@@ -13,10 +14,13 @@ import {
   roundOf,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
+import { withoutDiscussions } from './discussions'
+import { type WriteProvenance, ensureHistory, recordRevision } from './history'
 import { assertPickedOptionsRetained } from './reloadSafety'
 
 export const ROOT = join(import.meta.dir, '..')
-const DB_PATH = process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
+export const DB_PATH =
+  process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
 
 export type EventKind =
   | 'squad-registered'
@@ -41,6 +45,7 @@ export type EventKind =
   | 'retired'
   | 'restored'
   | 'squad-lead'
+  | 'resolved'
 
 type EventRow = Readonly<{
   id: number
@@ -81,16 +86,22 @@ export const open = (): Database => {
     stamp TEXT NOT NULL,
     PRIMARY KEY (machine, path)
   )`)
+  ensureHistory(db)
   return db
 }
 
 export const decodeGrill = Schema.decodeUnknownSync(Grill)
 
-// Source loads and shared identity allocation commit together (docs/adr/0008).
-export const loadGrill = (db: Database, raw: unknown): Grill =>
+// Source loads, shared identity allocation and the revision row commit together
+// (docs/adr/0008, 0031).
+export const loadGrill = (
+  db: Database,
+  raw: unknown,
+  provenance: WriteProvenance = { author: '', reason: '' },
+): Grill =>
   db
     .transaction(() => {
-      const decoded = decodeGrill(raw)
+      const decoded = decodeGrill(withoutDiscussions(raw))
       if (decoded.squad?.id === decoded.id) {
         throw new Error(
           'A member grill must have its own ID, distinct from its squad page.',
@@ -148,11 +159,22 @@ export const loadGrill = (db: Database, raw: unknown): Grill =>
                 }),
               ),
             }
+      recordOutcomes(db, grill.id, [
+        ...(previous?.decided ?? []),
+        ...(grill.decided ?? []),
+      ])
+      const json = JSON.stringify(grill)
+      const now = Date.now()
+      // Copies the stored row into history before the upsert replaces it.
+      const rev = recordRevision(db, grill.id, json, provenance, now)
       db.run(
         'INSERT INTO grills (id, json, loaded_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, loaded_at = excluded.loaded_at',
-        [grill.id, JSON.stringify(grill), Date.now()],
+        [grill.id, json, now],
       )
       appendEvent(db, grill.id, 'loaded', {
+        rev,
+        reason: provenance.reason,
+        author: provenance.author,
         round: grill.round,
         steps: grill.steps.length,
         pageChanged: JSON.stringify(previous) !== JSON.stringify(grill),
@@ -219,6 +241,7 @@ export type Revision = Readonly<{
   askId: number | null
   kind: 'rewrite' | 'comment'
   text: string
+  reason?: string
 }>
 
 /** Checks a reply against the grill and records it; the reason when it doesn't fit. */
@@ -375,6 +398,7 @@ export const retireGrill = (
 export const restoreGrill = (
   db: Database,
   grill: Grill,
+  reason = '',
 ): { ok: true } | { ok: false; reason: string } =>
   db
     .transaction((): { ok: true } | { ok: false; reason: string } => {
@@ -386,7 +410,7 @@ export const restoreGrill = (
               'Another active source is the squad lead; retire it before restoring this lead.',
           }
         }
-        appendEvent(db, grill.id, 'restored', {})
+        appendEvent(db, grill.id, 'restored', { reason: reason.trim() })
       }
       return { ok: true }
     })
@@ -420,8 +444,54 @@ export const sentLines = (
   )
 }
 
+// A decided outcome, once loaded, outlives later loads that omit it (docs/adr/0027, 0031).
+const resolvedOutcomes = (
+  db: Database,
+  grillId: string,
+): ReadonlyMap<string, string> =>
+  new Map(
+    db
+      .query<{ payload: string }, [string]>(
+        "SELECT payload FROM events WHERE grill_id = ? AND kind = 'resolved' ORDER BY id",
+      )
+      .all(grillId)
+      .map(row => {
+        const outcome = Schema.decodeUnknownSync(Decision)(
+          JSON.parse(row.payload),
+        )
+        return [outcome.id, outcome.text]
+      }),
+  )
+
+const recordOutcomes = (
+  db: Database,
+  grillId: string,
+  outcomes: ReadonlyArray<Decision>,
+): void => {
+  const recorded = new Map(resolvedOutcomes(db, grillId))
+  outcomes.forEach(outcome => {
+    const text = outcome.text.trim()
+    if (text !== '' && recorded.get(outcome.id) !== text) {
+      appendEvent(db, grillId, 'resolved', { id: outcome.id, text })
+      recorded.set(outcome.id, text)
+    }
+  })
+}
+
+/** The grill's own decided list, then recorded outcomes it no longer lists. */
+const withOutcomes = (
+  decided: Grill['decided'],
+  recorded: ReadonlyMap<string, string>,
+): Grill['decided'] => {
+  const retained = [...recorded]
+    .filter(([id]) => !decided?.some(outcome => outcome.id === id))
+    .map(([id, text]) => ({ id, text }))
+  return retained.length === 0 ? decided : [...(decided ?? []), ...retained]
+}
+
 export const snapshot = (db: Database, grill: Grill): Snapshot => {
   const roundNames: Record<string, string> = { ...grill.roundNames }
+  const outcomes = new Map<string, string>()
   const answers: Record<string, string> = {}
   const notes: Record<string, string> = {}
   const own: Record<string, string> = {}
@@ -509,6 +579,9 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
       case 'renamed-round':
         roundNames[String(p.round)] = String(p.name)
         break
+      case 'resolved':
+        outcomes.set(String(p.id), String(p.text))
+        break
       case 'loaded':
       case 'submitted':
       case 'item-published':
@@ -519,8 +592,13 @@ export const snapshot = (db: Database, grill: Grill): Snapshot => {
     }
   }
   const retirement = retirementOf(db, grill.id)
+  const decided = withOutcomes(grill.decided, outcomes)
   return {
-    grill: { ...grill, roundNames },
+    grill: {
+      ...grill,
+      roundNames,
+      ...(decided === undefined ? {} : { decided }),
+    },
     ...(retirement === undefined ? {} : { retirement }),
     answers,
     notes,

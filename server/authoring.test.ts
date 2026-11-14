@@ -22,6 +22,7 @@ import {
   cachedGuide,
   guideText,
   hostGuide,
+  needsReason,
 } from './authoring'
 
 const folders = new Set<string>()
@@ -34,16 +35,21 @@ afterEach(() => {
   folders.forEach(path => rmSync(path, { recursive: true, force: true }))
   folders.clear()
 })
+// Every write carries a reason so these tests see only guide-revision warnings.
 const cli = async (dir: string, args: ReadonlyArray<string>, outbox = '') => {
-  const child = Bun.spawn([process.execPath, 'server/cli.ts', ...args], {
-    env: {
-      ...process.env,
-      GF_DB: join(dir, 'store/database.sqlite'),
-      GF_OUTBOX: outbox,
+  const reason = needsReason(args[0], args) ? ['--reason', 'test write'] : []
+  const child = Bun.spawn(
+    [process.execPath, 'server/cli.ts', ...args, ...reason],
+    {
+      env: {
+        ...process.env,
+        GF_DB: join(dir, 'store/database.sqlite'),
+        GF_OUTBOX: outbox,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
     },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  )
   const [code, out, error] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),
