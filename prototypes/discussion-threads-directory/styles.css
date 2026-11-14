@@ -1,0 +1,40 @@
+.g-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 350px;
+}
+.i-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.i-answer {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: white;
+  padding: 7px 12px;
+  font-size: 14px;
+}
+.i-answer.is-own {
+  border-style: dashed;
+  color: var(--muted);
+}
+.i-answer.is-picked {
+  border-color: var(--link);
+  background: var(--wash);
+  color: var(--ink);
+}
+.i-radio {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid #9aa09a;
+  flex: none;
+}
+.i-answer.is-picked .i-radio {
+  border: 4px solid var(--link);
+}

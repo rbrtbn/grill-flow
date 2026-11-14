@@ -389,3 +389,79 @@ mark.passage sup {
 .state-waiting {
   background: #d08a1c;
 }
+/* Round 3: the scenario player and reference links. */
+a.ref-link {
+  text-decoration-style: dotted;
+}
+.scenario {
+  position: fixed;
+  left: 12px;
+  bottom: 70px;
+  z-index: 19;
+  width: 224px;
+  background: #fffffff2;
+  border: 1px dashed #bdc5b9;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  box-shadow: 0 6px 20px #1a29181a;
+}
+.scenario-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  color: var(--muted);
+}
+.scenario ol {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scenario li {
+  color: #9aa09a;
+}
+.scenario li strong {
+  font-weight: 500;
+}
+.scenario li.is-done {
+  color: var(--muted);
+}
+.scenario li.is-now {
+  color: var(--ink);
+}
+.scenario li.is-now strong {
+  font-weight: 700;
+}
+.scenario li small {
+  display: block;
+  font-size: 11px;
+}
+.scenario-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.scenario-actions button {
+  font-size: 12px;
+  font-weight: 600;
+}
+.scenario-next {
+  background: var(--ink);
+  color: white;
+  border-radius: 5px;
+  padding: 5px 10px;
+}
+.scenario-next:hover {
+  color: white;
+}
+.scenario-next:disabled {
+  opacity: 0.4;
+}
+.shell-answered {
+  color: #2f6a3a;
+  font-weight: 600;
+}

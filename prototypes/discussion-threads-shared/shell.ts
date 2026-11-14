@@ -25,6 +25,7 @@ import {
   threadKey,
   threadWith,
 } from './data'
+import { REF_PATTERN, refUrl, STEP_REPLY, STEPS } from './scenario'
 import './shell.css'
 
 const LineSchema = Schema.Struct({
@@ -47,6 +48,7 @@ export const Model = Schema.Struct({
     Schema.Array(Schema.Struct({ id: Schema.String, text: Schema.String })),
   ),
   nextId: Schema.Number,
+  step: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -63,6 +65,10 @@ export const Message = defineMessageUnion({
   PressedVariantArrow: { direction: Schema.Number },
   SelectedText: { text: Schema.String, x: Schema.Number, y: Schema.Number },
   AddedAnchor: {},
+  ScenarioNext: {},
+  PickedAnswer: { q: Schema.String, key: Schema.String, note: Schema.Boolean },
+  SentAnswer: { q: Schema.String },
+  SentText: { key: Schema.String, text: Schema.String },
   Ignored: {},
 })
 export type Message = typeof Message.Type
@@ -111,6 +117,20 @@ export const VARIANTS = [
     letter: 'G',
     name: 'Question as an issue page',
     round: 2,
+  },
+  {
+    key: 'board',
+    port: 4369,
+    letter: 'H',
+    name: 'G page · split answers · sessions by work',
+    round: 3,
+  },
+  {
+    key: 'directory',
+    port: 4370,
+    letter: 'I',
+    name: 'G page · answer then note · sessions by squad',
+    round: 3,
   },
 ] as const
 
@@ -218,141 +238,220 @@ export const variantUrl = (key: string, questionKey: string) => {
 const makeUpdate =
   (variant: string) =>
   (model: Model, message: Message): Update.Return<Model, Message> =>
-    Message.match<Update.Return<Model, Message>>(message, {
-      SelectedQuestion: ({ key }) => {
-        const switched = { ...model, question: key }
-        return {
-          model: open(switched, model.remembered[key] ?? askerThread(key)),
-          commands: [replaceUrl({ key })],
-        }
+    // oxlint-disable-next-line typescript/no-use-before-define
+    match(variant, model, message)
+
+const match = (
+  variant: string,
+  model: Model,
+  message: Message,
+): Update.Return<Model, Message> =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    SelectedQuestion: ({ key }) => {
+      const switched = { ...model, question: key }
+      return {
+        model: open(switched, model.remembered[key] ?? askerThread(key)),
+        commands: [replaceUrl({ key })],
+      }
+    },
+    OpenedThread: ({ key }) => ({
+      model: open(model, key),
+      commands: [reveal({ key })],
+    }),
+    // A side conversation (the messages panel) never changes what the question reopens.
+    OpenedSide: ({ key }) => ({
+      model: markRead(
+        { ...model, ui: { ...model.ui, side: key, palette: '', menu: '' } },
+        key,
+      ),
+    }),
+    OpenedQuestionThread: ({ key }) => ({
+      model: open({ ...model, question: questionOf(key) }, key),
+      commands: [replaceUrl({ key: questionOf(key) })],
+    }),
+    UpdatedDraft: ({ key, value }) => ({
+      model: { ...model, drafts: { ...model.drafts, [key]: value } },
+    }),
+    SentMessage: ({ key }) => {
+      const text = (model.drafts[key] ?? '').trim()
+      if (text === '') return { model }
+      const line: Line = {
+        id: model.nextId,
+        from: 'rob',
+        text,
+        at: now(),
+        state: 'sending',
+        unread: false,
+      }
+      const sent = {
+        ...model,
+        nextId: model.nextId + 1,
+        drafts: { ...model.drafts, [key]: '' },
+        threads: {
+          ...model.threads,
+          [key]: [...(model.threads[key] ?? []), line],
+        },
+      }
+      return {
+        model: key === model.ui.side ? sent : open(sent, key),
+        commands: [
+          deliver({ key, id: line.id }),
+          reply({ key, text: cannedReply(key) }),
+        ],
+      }
+    },
+    Delivered: ({ key, id }) => ({
+      model: {
+        ...model,
+        threads: {
+          ...model.threads,
+          [key]: (model.threads[key] ?? []).map(line =>
+            line.id === id ? { ...line, state: 'delivered' as const } : line,
+          ),
+        },
       },
-      OpenedThread: ({ key }) => ({
-        model: open(model, key),
-        commands: [reveal({ key })],
-      }),
-      // A side conversation (the messages panel) never changes what the question reopens.
-      OpenedSide: ({ key }) => ({
-        model: markRead(
-          { ...model, ui: { ...model.ui, side: key, palette: '', menu: '' } },
+    }),
+    Replied: ({ key, text }) => ({
+      model: {
+        ...model,
+        nextId: model.nextId + 1,
+        threads: {
+          ...model.threads,
+          [key]: [
+            ...(model.threads[key] ?? []),
+            {
+              id: model.nextId,
+              from: threadWith(key),
+              text,
+              at: now(),
+              state: 'reply' as const,
+              unread: model.active !== key && model.ui.side !== key,
+            },
+          ],
+        },
+      },
+    }),
+    SetUi: ({ name, value }) => ({
+      model: { ...model, ui: { ...model.ui, [name]: value } },
+      commands:
+        name === 'palette' && value === 'open'
+          ? [focus({ selector: '.p-input' })]
+          : [],
+    }),
+    PressedVariantArrow: ({ direction }) => {
+      const set = VARIANTS.filter(item => item.round === roundOf(variant))
+      const index = set.findIndex(item => item.key === variant)
+      const next = set[(index + direction + set.length) % set.length]!
+      return {
+        model,
+        commands: [go({ url: variantUrl(next.key, model.question) })],
+      }
+    },
+    SelectedText: ({ text, x, y }) => ({
+      model: {
+        ...model,
+        ui: { ...model.ui, sel: text, selX: String(x), selY: String(y) },
+      },
+    }),
+    AddedAnchor: () => {
+      const text = (model.ui.sel ?? '').trim()
+      if (text === '') return { model }
+      const anchor = { id: `n${model.nextId}`, text }
+      const key = threadKey(
+        `${model.question}#${anchor.id}`,
+        question(model.question).asker,
+      )
+      return {
+        model: open(
+          {
+            ...model,
+            nextId: model.nextId + 1,
+            ui: { ...model.ui, sel: '' },
+            anchors: {
+              ...model.anchors,
+              [model.question]: [
+                ...(model.anchors[model.question] ?? []),
+                anchor,
+              ],
+            },
+          },
           key,
         ),
-      }),
-      OpenedQuestionThread: ({ key }) => ({
-        model: open({ ...model, question: questionOf(key) }, key),
-        commands: [replaceUrl({ key: questionOf(key) })],
-      }),
-      UpdatedDraft: ({ key, value }) => ({
-        model: { ...model, drafts: { ...model.drafts, [key]: value } },
-      }),
-      SentMessage: ({ key }) => {
-        const text = (model.drafts[key] ?? '').trim()
-        if (text === '') return { model }
-        const line: Line = {
-          id: model.nextId,
-          from: 'rob',
-          text,
-          at: now(),
-          state: 'sending',
-          unread: false,
-        }
-        const sent = {
-          ...model,
-          nextId: model.nextId + 1,
-          drafts: { ...model.drafts, [key]: '' },
+      }
+    },
+    ScenarioNext: () => {
+      const step = Math.min(model.step + 1, STEPS.length - 1)
+      if (step === model.step) return { model }
+      let next: Model = {
+        ...model,
+        step,
+        ui: { ...model.ui, toast: STEPS[step]?.title ?? '' },
+      }
+      if (step === 1) {
+        next = open(
+          { ...next, question: 'pr-order' },
+          model.remembered['pr-order'] ?? askerThread('pr-order'),
+        )
+        next = {
+          ...next,
+          nextId: next.nextId + 1,
           threads: {
-            ...model.threads,
-            [key]: [...(model.threads[key] ?? []), line],
-          },
-        }
-        return {
-          model: key === model.ui.side ? sent : open(sent, key),
-          commands: [
-            deliver({ key, id: line.id }),
-            reply({ key, text: cannedReply(key) }),
-          ],
-        }
-      },
-      Delivered: ({ key, id }) => ({
-        model: {
-          ...model,
-          threads: {
-            ...model.threads,
-            [key]: (model.threads[key] ?? []).map(line =>
-              line.id === id ? { ...line, state: 'delivered' as const } : line,
-            ),
-          },
-        },
-      }),
-      Replied: ({ key, text }) => ({
-        model: {
-          ...model,
-          nextId: model.nextId + 1,
-          threads: {
-            ...model.threads,
-            [key]: [
-              ...(model.threads[key] ?? []),
+            ...next.threads,
+            [STEP_REPLY]: [
+              ...(next.threads[STEP_REPLY] ?? []),
               {
-                id: model.nextId,
-                from: threadWith(key),
-                text,
+                id: next.nextId,
+                from: 't2j6',
+                text: 'Follow-up: the grants run paused 74 minutes and the homelab run 81. Both would have kept their cache under B.',
                 at: now(),
                 state: 'reply' as const,
-                unread: model.active !== key && model.ui.side !== key,
+                unread: true,
               },
             ],
           },
-        },
-      }),
-      SetUi: ({ name, value }) => ({
-        model: { ...model, ui: { ...model.ui, [name]: value } },
-        commands:
-          name === 'palette' && value === 'open'
-            ? [focus({ selector: '.p-input' })]
-            : [],
-      }),
-      PressedVariantArrow: ({ direction }) => {
-        const set = VARIANTS.filter(item => item.round === roundOf(variant))
-        const index = set.findIndex(item => item.key === variant)
-        const next = set[(index + direction + set.length) % set.length]!
-        return {
-          model,
-          commands: [go({ url: variantUrl(next.key, model.question) })],
         }
-      },
-      SelectedText: ({ text, x, y }) => ({
-        model: {
-          ...model,
-          ui: { ...model.ui, sel: text, selX: String(x), selY: String(y) },
-        },
-      }),
-      AddedAnchor: () => {
-        const text = (model.ui.sel ?? '').trim()
-        if (text === '') return { model }
-        const anchor = { id: `n${model.nextId}`, text }
-        const key = threadKey(
-          `${model.question}#${anchor.id}`,
-          question(model.question).asker,
-        )
-        return {
-          model: open(
-            {
-              ...model,
-              nextId: model.nextId + 1,
-              ui: { ...model.ui, sel: '' },
-              anchors: {
-                ...model.anchors,
-                [model.question]: [
-                  ...(model.anchors[model.question] ?? []),
-                  anchor,
-                ],
-              },
-            },
-            key,
-          ),
+      }
+      if (step === 5)
+        next = {
+          ...next,
+          ui: { ...next.ui, 'pick:night-grant': 'B', 'sent:night-grant': 'B' },
         }
+      return {
+        model: next,
+        commands: step === 1 ? [replaceUrl({ key: 'pr-order' })] : [],
+      }
+    },
+    PickedAnswer: ({ q, key, note }) => ({
+      model: {
+        ...model,
+        ui: {
+          ...model.ui,
+          [`pick:${q}`]: key,
+          [`note:${q}`]:
+            note || key === 'own' ? 'open' : (model.ui[`note:${q}`] ?? ''),
+        },
       },
-      Ignored: () => ({ model }),
-    })
+      commands: note || key === 'own' ? [focus({ selector: '.note-box' })] : [],
+    }),
+    SentAnswer: ({ q }) => ({
+      model: {
+        ...model,
+        ui: {
+          ...model.ui,
+          [`sent:${q}`]: model.ui[`pick:${q}`] ?? '',
+          [`sentNote:${q}`]: (model.drafts[`note:${q}`] ?? '').trim(),
+          [`note:${q}`]: '',
+        },
+      },
+    }),
+    SentText: ({ key, text }) =>
+      match(
+        variant,
+        { ...model, drafts: { ...model.drafts, [key]: text } },
+        Message.SentMessage({ key }),
+      ),
+    Ignored: () => ({ model }),
+  })
 
 // ── Shared view pieces a variant may use ───────────────────────────────────
 
@@ -392,8 +491,10 @@ export const proseView = (
   questionKey: string,
   h: H,
   open: (key: string) => Message = key => Message.OpenedThread({ key }),
+  texts?: ReadonlyArray<string>,
 ): ReadonlyArray<Html> => {
-  const paragraphs = longProse[questionKey] ?? [question(questionKey).why]
+  const paragraphs = texts ??
+    longProse[questionKey] ?? [question(questionKey).why]
   const anchors: ReadonlyArray<Anchor> = model.anchors[questionKey] ?? []
   const threads = passageThreads(model, questionKey)
   return paragraphs.map(text => {
@@ -412,7 +513,7 @@ export const proseView = (
           `${questionKey}#${hit.anchor.id}`,
           question(questionKey).asker,
         )
-      pieces.push(rest.slice(0, hit.at))
+      pieces.push(...linkify(rest.slice(0, hit.at), h))
       pieces.push(
         h.mark(
           [
@@ -430,7 +531,7 @@ export const proseView = (
       )
       rest = rest.slice(hit.at + hit.anchor.text.length)
     }
-    pieces.push(rest)
+    pieces.push(...linkify(rest, h))
     return h.p([h.Class('q-prose')], pieces)
   })
 }
@@ -456,6 +557,15 @@ export const selectionPopover = (model: Model, h: H): Html =>
           ),
         ],
       )
+
+/** Text with Linear issues and pull requests turned into links. */
+export const linkify = (text: string, h: H): ReadonlyArray<Html | string> =>
+  text.split(REF_PATTERN).map(part => {
+    const url = refUrl(part)
+    return url === undefined
+      ? part
+      : h.a([h.Href(url), h.Target('_blank'), h.Class('ref-link')], [part])
+  })
 
 export const dot = (color: string, h: H): Html =>
   h.span([h.Class('who-dot'), h.Style({ background: color })], [])
@@ -490,7 +600,7 @@ export const lineView = (line: Line, h: H, showTo?: string): Html => {
               : h.empty,
         ],
       ),
-      h.p([], [line.text]),
+      h.p([], linkify(line.text, h)),
     ],
   )
 }
@@ -550,6 +660,12 @@ export const sidebar = (model: Model, h: H): Html =>
               [`${item.round} · asked by ${session(item.asker).name}`],
             ),
             unread > 0 ? h.span([h.Class('badge')], [String(unread)]) : h.empty,
+            (model.ui[`sent:${item.key}`] ?? '') === ''
+              ? h.empty
+              : h.small(
+                  [h.Class('shell-answered')],
+                  [`Answered ${model.ui[`sent:${item.key}`]}`],
+                ),
           ],
         )
       }),
@@ -601,6 +717,54 @@ const stateReadout = (model: Model, h: H): Html =>
     ],
   )
 
+const scenarioPanel = (model: Model, h: H): Html =>
+  h.div(
+    [h.Class('scenario')],
+    [
+      h.p(
+        [h.Class('scenario-title')],
+        [`Scenario · step ${model.step + 1} of ${STEPS.length}`],
+      ),
+      h.ol(
+        [],
+        STEPS.map((step, index) =>
+          h.li(
+            [
+              h.Class(
+                index === model.step
+                  ? 'is-now'
+                  : index < model.step
+                    ? 'is-done'
+                    : '',
+              ),
+            ],
+            [
+              h.strong([], [step.title]),
+              index === model.step ? h.small([], [step.detail]) : h.empty,
+            ],
+          ),
+        ),
+      ),
+      h.div(
+        [h.Class('scenario-actions')],
+        [
+          h.button(
+            [h.OnClick(Message.PressedVariantArrow({ direction: 0 }))],
+            ['Restart'],
+          ),
+          h.button(
+            [
+              h.Class('scenario-next'),
+              h.Disabled(model.step >= STEPS.length - 1),
+              h.OnClick(Message.ScenarioNext()),
+            ],
+            ['Next step →'],
+          ),
+        ],
+      ),
+    ],
+  )
+
 const switcher = (variant: string, model: Model, h: H): Html =>
   h.footer(
     [h.Class('prototype-switcher'), h.AriaLabel('Choose discussion prototype')],
@@ -638,7 +802,7 @@ export const start = (config: {
   body?: (model: Model, h: H) => Html
   panelClass?: string
 }) => {
-  const round2 = roundOf(config.variant) === 2
+  const round2 = roundOf(config.variant) >= 2
   const initialQuestion = new URLSearchParams(window.location.search).get('q')
   const first = questions.some(item => item.key === initialQuestion)
     ? initialQuestion!
@@ -657,6 +821,7 @@ export const start = (config: {
             drafts: {},
             ui: {},
             anchors: round2 ? seedAnchors : {},
+            step: 0,
             nextId: 100,
           },
           askerThread(first),
@@ -693,7 +858,9 @@ export const start = (config: {
                 )
               : config.body(model, h),
             selectionPopover(model, h),
-            stateReadout(model, h),
+            roundOf(config.variant) === 3
+              ? scenarioPanel(model, h)
+              : stateReadout(model, h),
             switcher(config.variant, model, h),
           ],
         ),

@@ -94,3 +94,41 @@ Recommendation: **G's question page with G's board by work.** It handles long qu
 keeps the whole conversation about a question in one readable order, and lets Rob find a
 session by what it's doing rather than by its terminal name. F's ⌘K palette can be added
 later as a shortcut to the same search.
+
+## Round 3: building on G
+
+Rob picked G's question page and asked for: short answers with no description beside them, a
+"Write my own" answer, one click to answer with or without a note, a one-paragraph summary
+whose fold holds the trade-offs and a comparison table, the quick starters sent on click,
+every reference linked, passage threads that survive a rewrite, pinned sessions with a
+choice of grouping and order, and a look at how the sessions panel behaves while a run moves.
+Guide revision 8 (PR #23, ADR 0037) asks agents for the summary-first shape and a `compare`
+table, which the schema already supports.
+
+| | H · split answers, sessions by issue | I · answer then note, sessions by squad |
+|---|---|---|
+| Answering | Each answer is a split chip: the label picks it, ✎ picks it and opens a note | Clicking an answer picks it and opens an optional note under the answers |
+| Own answer | "✎ Write my own" opens a composer | "Write my own…" opens a composer |
+| Sessions default | Pinned, Waiting on you, then by issue (this question's issue first) | Pinned, Recent conversations, then by squad |
+| Both | Group by issue, squad, status or none; order by recent, waiting first or name; pin any session |
+
+What the scenario shows, the same in both:
+
+- A reply about a question you have left counts on that question in the sidebar and as an
+  "N new on <key> ›" chip on the asker's row, which opens the thread.
+- A merged PR and a resolved issue show on the session's chips; once a session's issue is done
+  or its terminal closes, it moves to a folded "Finished or closed · history only" section,
+  which opens on the step that moves someone in.
+- A closed session's conversation stays readable, without a composer, and offers the lead
+  instead; a question whose asker closed says its replies go to the lead (ADR 0030).
+- A rewritten question keeps a passage thread whose text is gone: the quote is struck through
+  and marked "changed in revision 2".
+- A lead handover moves the lead pin to the new session; the previous lead's history moves to
+  Finished or closed.
+
+Recommendation: **H**. Its split chip is exactly one click for each of "answer" and "answer
+with a note", and grouping by issue lets finished work fold away as issues resolve. The
+grouping control keeps I's squad view one choice away.
+
+Building it for real needs, beyond rounds 1 and 2: per-session issue, PR and terminal state
+(the squad's claimed issues and Herdr's terminal list), and a note field on answers in the send.

@@ -1,0 +1,45 @@
+.g-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 350px;
+}
+.h-chip {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: white;
+  overflow: hidden;
+}
+.h-chip.is-picked {
+  border-color: var(--link);
+  background: var(--wash);
+}
+.h-main {
+  padding: 6px 10px 6px 13px;
+  font-size: 14px;
+}
+.h-note {
+  padding: 6px 10px;
+  border-left: 1px solid var(--rule);
+  color: var(--muted);
+}
+.h-note:hover {
+  background: var(--wash);
+}
+.h-own {
+  border: 1px dashed #a6aea4;
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.h-own.is-picked {
+  border-color: var(--link);
+  color: var(--link);
+}
+.h-picked,
+.h-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
