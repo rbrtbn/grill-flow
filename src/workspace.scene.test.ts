@@ -514,9 +514,7 @@ it('shows the effective send count while Command is held and restores the review
       'true',
     ),
     Subscription.emit(Message.UpdatedCommandHeld({ held: false })),
-    expect(
-      role('button', { name: 'Review & send · 2', exact: true }),
-    ).toExist(),
+    expect(role('button', { name: '2 unsent', exact: true })).toExist(),
   )
 })
 
