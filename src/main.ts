@@ -3821,20 +3821,6 @@ const replaceQuery = (model: Model, query: string): UpdateReturn =>
     }
   })
 
-const startingPart = (snapshot: Snapshot): string =>
-  snapshot.grill.plan !== undefined
-    ? PLAN
-    : Option.getOrElse(
-        pipe(
-          Array.findFirst(
-            snapshot.grill.steps,
-            step => !Record.has(snapshot.answers, step.question.id),
-          ),
-          Option.map(step => `${QUESTION_PAGE}${step.question.id}`),
-        ),
-        () => OVERVIEW,
-      )
-
 // Sample-question answers live only in this browser, so a reload from the server keeps them.
 const fixtureAnswers = (
   local: Readonly<Record<string, string>>,
@@ -3893,7 +3879,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
     own: restored => ({ ...snapshot.own, ...restored }),
     send: () => latestSendState(snapshot),
     sendDetail: () => latestSendDetail(snapshot),
-    currentPart: current => (first ? startingPart(snapshot) : current),
+    currentPart: current => (first ? INBOX : current),
   })
   return scheduleBrowserNotices({
     model: modifyFields(next, {

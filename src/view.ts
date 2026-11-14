@@ -2072,7 +2072,8 @@ const overviewView = (model: Model, snapshot: Snapshot, h: H): Html => {
             ],
           )
         : h.empty,
-      h.h1([h.Class('concept-title')], [grill.title]),
+      h.h1([h.Class('concept-title')], [boardName(grill)]),
+      h.p([h.Class('concept-subtitle')], [grill.title]),
       h.div(
         [h.Class('prose')],
         richProse(model, grill, grill.intro, 'intro', Option.none(), h),

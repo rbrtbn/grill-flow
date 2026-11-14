@@ -94,6 +94,10 @@ describe('the question workspace', () => {
       click(role('button', { name: 'Session Board overview' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
+      expect(selector('.concept-title')).toHaveText('Session Board'),
+      click(role('button', { name: 'Your grills' })),
+      Command.resolve(PushPage, Message.CompletedNavigate()),
+      Command.resolve(ScrollToTop, Message.CompletedScroll()),
       Command.resolve(
         LoadWorkspaceCatalog,
         Message.CompletedLoadCatalog({ result: Result.succeed([]) }),

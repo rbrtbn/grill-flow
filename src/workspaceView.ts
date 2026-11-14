@@ -79,6 +79,7 @@ import {
   quoteDestination,
   quotedAsk,
 } from './quote'
+import { retirementView } from './retirementView'
 import { rosterView } from './rosterView'
 import {
   heldSendBarView,
@@ -606,7 +607,11 @@ const workspaceHeaderView = (
               h.Type('button'),
               h.Class('f-wordmark'),
               h.AriaLabel(`${boardName(grill)} overview`),
-              h.OnClick(Message.ClickedWorkspacePage({ page: GRILLS })),
+              h.OnClick(
+                Message.ClickedWorkspacePage({
+                  page: grill.kind === 'squad' ? SQUAD : 'overview',
+                }),
+              ),
             ],
             [NAMES.brand],
           ),
@@ -3359,11 +3364,11 @@ const squadView = (
   return h.section(
     [h.Class('f-page f-squad-overview')],
     [
-      h.h1([], ['Squad overview']),
+      h.h1([], [boardName(snapshot.grill)]),
       h.p(
         [h.Class('f-lead')],
         [
-          'The portfolio view: active runs, their state, and where your attention is needed.',
+          'Squad overview: active runs, their state, and where your attention is needed.',
         ],
       ),
       h.div(
@@ -3422,6 +3427,7 @@ const squadView = (
           ),
         ],
       ),
+      retirementView(h),
     ],
   )
 }

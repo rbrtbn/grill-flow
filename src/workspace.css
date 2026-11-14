@@ -3063,3 +3063,123 @@ body[data-gf-preview] .f-workspace {
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+/* Retiring: where each part goes (end of Squad overview) */
+.concept-subtitle {
+  margin: 6px 0 18px;
+  color: var(--muted);
+  font: 500 16px/1.4 var(--label);
+}
+.f-retiring {
+  margin-top: 40px;
+  padding-top: 26px;
+  border-top: 1px solid var(--rule);
+}
+.f-page .f-retiring h2 {
+  margin: 0 0 8px;
+  font: 600 22px/1.3 var(--read);
+}
+.f-retiring-key {
+  max-width: 70ch;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font: 400 14px/1.55 var(--label);
+}
+.f-retiring-summary {
+  max-width: 70ch;
+  margin: 0 0 8px;
+  font: 400 15px/1.65 var(--read);
+}
+.f-retiring-page h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 28px 0 8px;
+  font: 600 16px/1.3 var(--label);
+}
+.f-retiring-page h3 small,
+.f-retiring-table th small {
+  color: var(--muted);
+  font: 400 12px/1.4 var(--label);
+}
+.f-retiring-table th small {
+  display: block;
+  margin-top: 2px;
+}
+.f-retiring-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 14px/1.45 var(--label);
+}
+.f-retiring-table thead th {
+  padding: 0 12px 6px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  font: 600 11px/1.3 var(--label);
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.f-retiring-table tbody th,
+.f-retiring-table td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+.f-retiring-table tbody th {
+  width: 30%;
+  font-weight: 600;
+}
+.f-retiring-table td:nth-child(2) {
+  width: 1%;
+  white-space: nowrap;
+}
+.f-retiring-table td:nth-child(3) {
+  width: 26%;
+}
+.f-retiring-why {
+  color: var(--muted);
+}
+.f-verdict {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font: 600 12px/1.5 var(--label);
+}
+.f-verdict.is-done {
+  color: var(--olive);
+}
+.f-verdict.is-move {
+  color: var(--ochre);
+}
+.f-verdict.is-keep {
+  color: var(--ink);
+}
+.f-verdict.is-drop {
+  color: var(--muted);
+  border-style: dashed;
+}
+@media (max-width: 760px) {
+  .f-retiring-table thead {
+    display: none;
+  }
+  .f-retiring-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .f-retiring-table tbody th,
+  .f-retiring-table td {
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+  .f-retiring-table td:nth-child(3),
+  .f-retiring-table td:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+}
