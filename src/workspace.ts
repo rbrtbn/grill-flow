@@ -17,6 +17,7 @@ import {
   sendableLines,
   statusOf,
 } from './domain'
+import { INBOX, ITEM_PAGE, RUNS, RUN_PAGE } from './inbox'
 import { QuoteSelection } from './quote'
 
 export const QUESTION_PAGE = 'question:'
@@ -148,7 +149,11 @@ export const initialWorkspace: Workspace = {
 
 export const isWorkspacePage = (page: string): boolean =>
   page.startsWith(QUESTION_PAGE) ||
+  page.startsWith(RUN_PAGE) ||
+  page.startsWith(ITEM_PAGE) ||
   [
+    INBOX,
+    RUNS,
     REVIEW,
     CONVERSATIONS,
     REPLIES,

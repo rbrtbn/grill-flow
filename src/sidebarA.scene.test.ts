@@ -150,7 +150,7 @@ it('keeps search and round scope while Sent is selected through advanced filters
     expect(quick('Open')).toContainText('0'),
     expect(quick('Drafts')).toContainText('0'),
     expect(quick('All')).toContainText('1'),
-    expect(selector('.f-primary-nav')).toContainText('Updates'),
+    expect(selector('.f-primary-nav')).toContainText('Inbox'),
     expect(selector('.f-app-popdown')).toContainText('Answer history'),
     expect(selector('.f-app-popdown')).toContainText('Your grills'),
     change(role('combobox', { name: 'Question state filter' }), 'Sent'),

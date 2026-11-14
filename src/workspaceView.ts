@@ -39,6 +39,26 @@ import {
 import { drawingButton, drawingPanel } from './drawingView'
 import type { QuestionDrawing } from './drawings'
 import {
+  INBOX,
+  ITEM_PAGE,
+  type InboxData,
+  NAMES,
+  RUNS,
+  RUN_PAGE,
+  inboxData,
+  questionOf,
+} from './inbox'
+import {
+  freezePillView,
+  inboxNavView,
+  inboxPage,
+  itemPage,
+  questionFilterView,
+  questionInQuery,
+  quickLookView,
+  runsPage,
+} from './inboxView'
+import {
   DRAFT_ATTRIBUTE,
   FillBox,
   Message,
@@ -451,35 +471,72 @@ export const workspaceView = (
     '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 320)}px`,
     '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
   }
+  const inbox = inboxData(
+    snapshot,
+    model.answers,
+    model.now === 0 ? (snapshot.channelNow ?? 0) : model.now,
+    model.inbox.isFixture,
+  )
+  const isFullWidth =
+    model.currentPart === INBOX ||
+    model.currentPart === RUNS ||
+    model.currentPart.startsWith(RUN_PAGE) ||
+    model.currentPart.startsWith(ITEM_PAGE)
   const content =
-    model.currentPart === CHANGES
-      ? activityView(model, snapshot, h)
-      : model.currentPart === UPDATES
-        ? updatesView(model, snapshot, reading.prose, h)
-        : model.currentPart === ANSWER_HISTORY
-          ? answerHistoryView(model, snapshot, h)
-          : model.currentPart === SQUAD
-            ? squadView(model, snapshot, reading, h)
-            : model.currentPart === GRILLS
-              ? grillsView(model, snapshot, h)
-              : model.currentPart === REVIEW
-                ? reviewView(model, snapshot, reading, h)
-                : model.currentPart === REPLIES
-                  ? repliesView(model, snapshot, reading, h)
-                  : model.currentPart === NEEDS
-                    ? needsView(model, snapshot, reading, h)
-                    : model.currentPart === 'plan' ||
-                        model.currentPart === 'status'
-                      ? runView(model, snapshot, reading, h)
-                      : model.currentPart === 'decided'
-                        ? reading.decided(h)
-                        : model.currentPart === CONVERSATIONS
-                          ? conversationPage(model, snapshot, reading, h)
-                          : Option.match(question, {
-                              onSome: step =>
-                                questionView(model, snapshot, step, reading, h),
-                              onNone: () => reading.overview(h),
-                            })
+    model.currentPart === INBOX
+      ? inboxPage(model, snapshot, inbox, h)
+      : model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE)
+        ? runsPage(
+            model,
+            snapshot,
+            inbox,
+            model.currentPart.startsWith(RUN_PAGE)
+              ? Option.some(model.currentPart.slice(RUN_PAGE.length))
+              : Option.none(),
+            h,
+          )
+        : model.currentPart.startsWith(ITEM_PAGE)
+          ? itemPage(
+              model,
+              inbox,
+              model.currentPart.slice(ITEM_PAGE.length),
+              reading.prose,
+              h,
+            )
+          : model.currentPart === CHANGES
+            ? activityView(model, snapshot, h)
+            : model.currentPart === UPDATES
+              ? updatesView(model, snapshot, reading.prose, h)
+              : model.currentPart === ANSWER_HISTORY
+                ? answerHistoryView(model, snapshot, h)
+                : model.currentPart === SQUAD
+                  ? squadView(model, snapshot, reading, h)
+                  : model.currentPart === GRILLS
+                    ? grillsView(model, snapshot, h)
+                    : model.currentPart === REVIEW
+                      ? reviewView(model, snapshot, reading, h)
+                      : model.currentPart === REPLIES
+                        ? repliesView(model, snapshot, reading, h)
+                        : model.currentPart === NEEDS
+                          ? needsView(model, snapshot, reading, h)
+                          : model.currentPart === 'plan' ||
+                              model.currentPart === 'status'
+                            ? runView(model, snapshot, reading, h)
+                            : model.currentPart === 'decided'
+                              ? reading.decided(h)
+                              : model.currentPart === CONVERSATIONS
+                                ? conversationPage(model, snapshot, reading, h)
+                                : Option.match(question, {
+                                    onSome: step =>
+                                      questionView(
+                                        model,
+                                        snapshot,
+                                        step,
+                                        reading,
+                                        h,
+                                      ),
+                                    onNone: () => reading.overview(h),
+                                  })
   return h.div(
     [
       h.Class(
@@ -511,7 +568,8 @@ export const workspaceView = (
             ],
           )
         : h.empty,
-      workspaceHeaderView(model, snapshot, reviewLabel, sendLabel, h),
+      workspaceHeaderView(model, snapshot, inbox, reviewLabel, sendLabel, h),
+      quickLookView(model, inbox, h),
       unsentTrayView(model, snapshot, h),
       heldSendBarView(model, snapshot, question, h),
       leaveDialogView(model, snapshot, h),
@@ -531,13 +589,15 @@ export const workspaceView = (
       h.div(
         [
           h.Class(
-            `f-frame${isDiscussion && model.currentPart !== CONVERSATIONS ? ' f-with-discussion' : ''}${expanded && isDiscussion ? ' f-expanded' : ''}`,
+            `f-frame${isFullWidth ? ' f-no-nav' : ''}${isDiscussion && model.currentPart !== CONVERSATIONS ? ' f-with-discussion' : ''}${expanded && isDiscussion ? ' f-expanded' : ''}`,
           ),
           h.Style(styles),
         ],
         [
-          navigationView(model, snapshot, reading.notices, h),
-          reading.resize('Nav', h),
+          isFullWidth
+            ? h.empty
+            : navigationView(model, snapshot, inbox, reading.notices, h),
+          isFullWidth ? h.empty : reading.resize('Nav', h),
           h.main(
             [
               h.Id('workspace-main'),
@@ -629,6 +689,7 @@ const questionQueuePage = (model: Model, snapshot: Snapshot): string => {
 const workspaceHeaderView = (
   model: Model,
   snapshot: Snapshot,
+  inbox: InboxData,
   reviewLabel: string,
   sendLabel: string,
   h: H,
@@ -638,11 +699,6 @@ const workspaceHeaderView = (
     grill.squad?.id === grill.id
       ? grill.steps.find(step => step.id === grill.squad?.openForYou)
       : undefined
-  const open = grill.steps.filter(step => {
-    const state = statusOf(grill, model.answers, step.question.id)
-    return state._tag === 'Open' || state._tag === 'Waiting'
-  }).length
-  const work = ownerWorkCounts(snapshot)
   const changes = activityUnreadCount(
     snapshot.activity,
     model.workspace.activityRead,
@@ -705,25 +761,43 @@ const workspaceHeaderView = (
       h.nav(
         [h.Class('f-primary-nav'), h.AriaLabel('Workspace destinations')],
         [
+          inboxNavView(model, inbox, h),
           h.button(
             [
               h.Type('button'),
               h.Class(
-                `text-button${model.currentPart === NEEDS ? ' is-active' : ''}`,
+                `text-button${model.currentPart.startsWith(QUESTION_PAGE) ? ' is-active' : ''}`,
               ),
-              h.AriaCurrent(model.currentPart === NEEDS ? 'page' : 'false'),
-              h.Title(
-                `${open} open decisions · ${work.actions} owner actions · ${work.provisional} provisional decisions`,
+              h.AriaCurrent(
+                model.currentPart.startsWith(QUESTION_PAGE) ? 'page' : 'false',
               ),
-              h.OnClick(Message.ClickedWorkspacePage({ page: NEEDS })),
+              h.OnClick(
+                Message.ClickedWorkspacePage({
+                  page: questionQueuePage(model, snapshot),
+                }),
+              ),
             ],
             [
-              `Needs you${open + work.actions + work.provisional > 0 ? ` · ${open + work.actions + work.provisional}` : ''}`,
+              `${NAMES.questions}${inbox.questions.length > 0 ? ` · ${inbox.questions.length}` : ''}`,
             ],
           ),
-          destination('Questions', questionQueuePage(model, snapshot)),
-          destination('Conversations', CONVERSATIONS),
-          destination('Updates', UPDATES),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class(
+                `text-button${model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE) ? ' is-active' : ''}`,
+              ),
+              h.AriaCurrent(
+                model.currentPart === RUNS ||
+                  model.currentPart.startsWith(RUN_PAGE)
+                  ? 'page'
+                  : 'false',
+              ),
+              h.OnClick(Message.ClickedWorkspacePage({ page: RUNS })),
+            ],
+            [NAMES.runs],
+          ),
+          destination(NAMES.conversations, CONVERSATIONS),
         ],
       ),
       h.nav(
@@ -747,6 +821,8 @@ const workspaceHeaderView = (
               h.AriaLabel('More destinations'),
             ],
             [
+              destination('Needs you (old)', NEEDS, true),
+              destination('Updates (old)', UPDATES, true),
               destination(
                 `What changed${changes !== '0' ? ` · ${changes} unread` : ''}`,
                 CHANGES,
@@ -782,6 +858,7 @@ const workspaceHeaderView = (
               ),
             ],
           ),
+          freezePillView(inbox, h),
           nudgeView(model, snapshot, h),
           h.button(
             [
@@ -815,12 +892,42 @@ const workspaceHeaderView = (
   )
 }
 
+const queueCache = new WeakMap<
+  Snapshot,
+  Readonly<{ query: string; snapshot: Snapshot }>
+>()
+
+// The address's Questions filters narrow the queue; one narrowed snapshot per query keeps the
+// snapshot-keyed caches below warm.
+const queueSnapshot = (model: Model, snapshot: Snapshot): Snapshot => {
+  if (model.pageQuery === '' || !model.currentPart.startsWith(QUESTION_PAGE)) {
+    return snapshot
+  }
+  const cached = queueCache.get(snapshot)
+  if (cached?.query === model.pageQuery) {
+    return cached.snapshot
+  }
+  const narrowed = modifyFields(snapshot, {
+    grill: grill =>
+      modifyFields(grill, {
+        steps: steps =>
+          steps.filter(step =>
+            questionInQuery(model, questionOf(snapshot, step)),
+          ),
+      }),
+  })
+  queueCache.set(snapshot, { query: model.pageQuery, snapshot: narrowed })
+  return narrowed
+}
+
 const navigationView = (
   model: Model,
-  snapshot: Snapshot,
+  fullSnapshot: Snapshot,
+  inbox: InboxData,
   notices: Reading['notices'],
   h: H,
 ): Html => {
+  const snapshot = queueSnapshot(model, fullSnapshot)
   const grill = snapshot.grill
   const visible = visibleQuestions(
     model.workspace,
@@ -968,6 +1075,14 @@ const navigationView = (
                 h.Value(model.workspace.search),
                 h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
               ]),
+              model.currentPart.startsWith(QUESTION_PAGE)
+                ? questionFilterView(
+                    model,
+                    inbox,
+                    model.currentPart.slice(QUESTION_PAGE.length),
+                    h,
+                  )
+                : h.empty,
               h.div(
                 [
                   h.Class('f-quick-views'),

@@ -72,6 +72,20 @@ import {
 } from './domain'
 import { drawingAttemptKey } from './drawings'
 import {
+  ALL_SCOPES,
+  INBOX,
+  ITEM_PAGE,
+  InboxUi,
+  RUNS,
+  RUN_PAGE,
+  RequestUpdateState,
+  UpdateScope,
+  filtersFrom,
+  initialInboxUi,
+  queryOf,
+  toggleFacet,
+} from './inbox'
+import {
   QUOTE_BOX,
   QUOTE_DRAFT,
   QuoteSelection,
@@ -317,6 +331,9 @@ export const Model = Schema.Struct({
   maybeJustAnswered: Schema.Option(Schema.String),
   // An urgency or issue page mixes concepts; Talk there shows this one, while the page lists it.
   maybeTalkPart: Schema.Option(Schema.String),
+  // The address's query string without its `?`: Inbox filters, Questions filters.
+  pageQuery: Schema.String,
+  inbox: InboxUi,
 })
 export type Model = typeof Model.Type
 
@@ -615,6 +632,32 @@ export const Message = defineMessageUnion({
     maybeBottomAbove: Schema.Option(Schema.Number),
   },
   CompletedFocus: {},
+  CompletedDetectFixture: { isFixture: Schema.Boolean },
+  ClickedInboxFacet: {
+    facet: Schema.Literals(['kind', 'urgency', 'session']),
+    value: Schema.String,
+  },
+  SelectedInboxGroupBy: {
+    groupBy: Schema.Literals(['urgency', 'place', 'kind', 'session']),
+  },
+  ClickedClearInboxFilters: {},
+  ClickedInboxView: { query: Schema.String },
+  ClickedSaveInboxView: { name: Schema.String },
+  ClickedCopyPageLink: {},
+  CompletedCopyPageLink: { copied: Schema.Boolean },
+  ClickedToggleInboxTask: { id: Schema.String },
+  ClickedToggleQuestionLine: { group: Schema.String },
+  ClickedToggleRecentlyDone: {},
+  ClickedQuickLook: {},
+  PressedQuickLookKey: { key: Schema.Literals(['Toggle', 'Close']) },
+  ClickedRequestUpdate: { sessions: Schema.Array(Schema.String) },
+  ClickedUpdateScope: { scope: UpdateScope },
+  ClickedUpdateSession: { session: Schema.String },
+  ClickedSendUpdateRequest: { ended: Schema.Array(Schema.String) },
+  ClickedRequestStatus: { session: Schema.String, isEnded: Schema.Boolean },
+  UpdatedThreadDraft: { item: Schema.String, text: Schema.String },
+  SubmittedThreadMessage: { item: Schema.String },
+  ClickedCopyInboxLine: { key: Schema.String, text: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -1196,8 +1239,217 @@ export const update = (model: Model, message: Message) =>
           }
     },
 
-    ClickedWorkspacePage: ({ page }) =>
-      workspaceNavigate(modifyFields(model, { isTrayOpen: () => false }), page),
+    ClickedWorkspacePage: ({ page }) => {
+      const [part, query] = splitPage(page)
+      const closed = modifyFields(model, {
+        isTrayOpen: () => false,
+        inbox: inbox =>
+          modifyFields(inbox, {
+            isQuickLookOpen: () => false,
+            requestUpdate: () => RequestUpdateState.Closed(),
+          }),
+      })
+      return part === model.currentPart
+        ? withSnapshot(closed, snapshot => {
+            const next = modifyFields(closed, { pageQuery: () => query })
+            return {
+              model: next,
+              commands: pushIfMoved(model, next, snapshot.grill),
+            }
+          })
+        : workspaceNavigate(
+            modifyFields(closed, { pageQuery: () => query }),
+            part,
+          )
+    },
+    CompletedDetectFixture: ({ isFixture }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { isFixture: () => isFixture }),
+      }),
+    }),
+    ClickedInboxFacet: ({ facet, value }) =>
+      replaceQuery(
+        model,
+        queryOf(toggleFacet(filtersFrom(model.pageQuery), facet, value)),
+      ),
+    SelectedInboxGroupBy: ({ groupBy }) =>
+      replaceQuery(
+        model,
+        queryOf({
+          ...filtersFrom(model.pageQuery),
+          groupBy,
+        }),
+      ),
+    ClickedClearInboxFilters: () =>
+      replaceQuery(
+        model,
+        queryOf({
+          ...filtersFrom(model.pageQuery),
+          kind: [],
+          urgency: [],
+          session: [],
+        }),
+      ),
+    ClickedInboxView: ({ query }) => replaceQuery(model, query),
+    ClickedSaveInboxView: ({ name }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            savedViews: views => [
+              ...views.filter(view => view.name !== name),
+              { name, query: model.pageQuery },
+            ],
+          }),
+      }),
+    }),
+    ClickedCopyPageLink: () => ({ model, commands: [CopyPageLink()] }),
+    CompletedCopyPageLink: ({ copied }) => ({
+      model: modifyFields(model, {
+        ownerCopies: copies =>
+          Record.set(copies, PAGE_LINK_COPY, copied ? 'Copied' : 'Failed'),
+      }),
+    }),
+    ClickedToggleInboxTask: ({ id }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, { expanded: ids => toggled(ids, id) }),
+      }),
+    }),
+    ClickedToggleQuestionLine: ({ group }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            openQuestionLines: groups => toggled(groups, group),
+          }),
+      }),
+    }),
+    ClickedToggleRecentlyDone: () => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { isDoneShown: shown => !shown }),
+      }),
+    }),
+    ClickedQuickLook: () => ({
+      model: modifyFields(model, {
+        isTrayOpen: () => false,
+        inbox: inbox => modifyFields(inbox, { isQuickLookOpen: open => !open }),
+      }),
+    }),
+    PressedQuickLookKey: ({ key }) => ({
+      model: modifyFields(model, {
+        isTrayOpen: open => (key === 'Toggle' ? false : open),
+        inbox: inbox =>
+          modifyFields(inbox, {
+            isQuickLookOpen: open => key === 'Toggle' && !open,
+            requestUpdate: state =>
+              key === 'Close' ? RequestUpdateState.Closed() : state,
+          }),
+      }),
+    }),
+    ClickedRequestUpdate: ({ sessions }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            isQuickLookOpen: () => false,
+            requestUpdate: state =>
+              state._tag === 'Open'
+                ? RequestUpdateState.Closed()
+                : RequestUpdateState.Open({ scope: ALL_SCOPES, sessions }),
+          }),
+      }),
+    }),
+    ClickedUpdateScope: ({ scope }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            requestUpdate: state =>
+              state._tag === 'Open'
+                ? RequestUpdateState.Open({
+                    scope: toggled(state.scope, scope),
+                    sessions: state.sessions,
+                  })
+                : state,
+          }),
+      }),
+    }),
+    ClickedUpdateSession: ({ session }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            requestUpdate: state =>
+              state._tag === 'Open'
+                ? RequestUpdateState.Open({
+                    scope: state.scope,
+                    sessions: toggled(state.sessions, session),
+                  })
+                : state,
+          }),
+      }),
+    }),
+    ClickedSendUpdateRequest: ({ ended }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          inbox.requestUpdate._tag === 'Open'
+            ? modifyFields(inbox, {
+                requestUpdate: () => RequestUpdateState.Closed(),
+                requests: requests => [
+                  ...recordRequests(
+                    inbox.requestUpdate._tag === 'Open'
+                      ? inbox.requestUpdate
+                      : { scope: [], sessions: [] },
+                    ended,
+                    model.now,
+                  ),
+                  ...requests,
+                ],
+              })
+            : inbox,
+      }),
+    }),
+    ClickedRequestStatus: ({ session, isEnded }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            requests: requests => [
+              ...recordRequests(
+                { scope: ['status'], sessions: [session] },
+                isEnded ? [session] : [],
+                model.now,
+              ),
+              ...requests,
+            ],
+          }),
+      }),
+    }),
+    UpdatedThreadDraft: ({ item, text }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, {
+            threadDrafts: drafts => Record.set(drafts, item, text),
+          }),
+      }),
+    }),
+    SubmittedThreadMessage: ({ item }) => {
+      const text = (model.inbox.threadDrafts[item] ?? '').trim()
+      return text === ''
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              inbox: inbox =>
+                modifyFields(inbox, {
+                  threadDrafts: drafts => Record.remove(drafts, item),
+                  threads: threads =>
+                    Record.set(threads, item, [
+                      ...(threads[item] ?? []),
+                      { from: 'You' as const, text, at: model.now },
+                    ]),
+                }),
+            }),
+          }
+    },
+    ClickedCopyInboxLine: ({ key, text }) => ({
+      model,
+      commands: [CopyOwnerStep({ key, text })],
+    }),
     ClickedQuestionNote: ({ question }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -2610,10 +2862,12 @@ export const update = (model: Model, message: Message) =>
     ChangedUrl: ({ url }) =>
       withSnapshot(model, snapshot => {
         const page = pageOfPath(url.pathname)
+        const query = queryFromSearch(url.search)
         return page === '' || page === model.currentPart
-          ? { model }
+          ? { model: modifyFields(model, { pageQuery: () => query }) }
           : {
               model: modifyFields(goTo(model, snapshot.grill, page), {
+                pageQuery: () => query,
                 maybeJustAnswered: () => Option.none(),
                 workspace: value =>
                   modifyFields(
@@ -3262,6 +3516,8 @@ const pageForQuestion = (
 // pages read; the server serves the page for every such path.
 const PAGE_PATHS: ReadonlyArray<readonly [string, string]> = [
   [QUESTION_PAGE, 'question/'],
+  [RUN_PAGE, 'runs/'],
+  [ITEM_PAGE, 'item/'],
   [CARD_PAGE, 'card/'],
   [ISSUE_PAGE, 'issue/'],
   [URGENCY_PAGE, 'urgency/'],
@@ -3285,6 +3541,8 @@ export const pathOfPage = (grillId: string, page: string): string => {
       UPDATES,
       ANSWER_HISTORY,
       CHANGES,
+      INBOX,
+      RUNS,
     ].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
@@ -3303,6 +3561,9 @@ export const pathOfPage = (grillId: string, page: string): string => {
 export const pageOfPath = (pathname: string): string => {
   const [, , kind, value] = pathname.split('/').filter(part => part !== '')
   const decoded = value === undefined ? '' : decodeURIComponent(value)
+  if (kind === RUNS) {
+    return decoded === '' ? RUNS : `${RUN_PAGE}${decoded}`
+  }
   return kind === OVERVIEW ||
     kind === PLAN ||
     kind === STATUS ||
@@ -3317,6 +3578,7 @@ export const pageOfPath = (pathname: string): string => {
       UPDATES,
       ANSWER_HISTORY,
       CHANGES,
+      INBOX,
     ].includes(kind ?? '')
     ? (kind ?? '')
     : kind === 'concept'
@@ -3353,15 +3615,66 @@ export const LoadUrl = Command.define('LoadUrl', {
     Navigation.load(href).pipe(Effect.map(() => Message.CompletedNavigate())),
 })
 
+const toggled = <A extends string>(
+  values: ReadonlyArray<A>,
+  value: A,
+): ReadonlyArray<A> =>
+  values.includes(value)
+    ? values.filter(current => current !== value)
+    : [...values, value]
+
+// The Inbox only records a request for now; delivery joins the ask path with the business logic.
+const recordRequests = (
+  request: Readonly<{
+    scope: ReadonlyArray<UpdateScope>
+    sessions: ReadonlyArray<string>
+  }>,
+  ended: ReadonlyArray<string>,
+  at: number,
+) =>
+  request.sessions.map(session => ({
+    session,
+    at,
+    scope: request.scope,
+    delivery: ended.includes(session)
+      ? ('Undeliverable' as const)
+      : ('Pending' as const),
+  }))
+
+export const PAGE_LINK_COPY = 'page-link'
+
 /** The address command for moving from one model's page to the next's. */
 const pushIfMoved = (
   before: Model,
   after: Model,
   grill: Grill,
 ): ReadonlyArray<ReturnType<typeof PushPage>> =>
-  after.currentPart === before.currentPart
+  after.currentPart === before.currentPart &&
+  after.pageQuery === before.pageQuery
     ? []
-    : [PushPage({ url: pathOfPage(grill.id, after.currentPart) })]
+    : [PushPage({ url: addressOf(grill.id, after) })]
+
+const addressOf = (grillId: string, model: Model): string =>
+  `${pathOfPage(grillId, model.currentPart)}${model.pageQuery === '' ? '' : `?${model.pageQuery}`}`
+
+const queryFromSearch = (search: Option.Option<string>): string =>
+  Option.getOrElse(search, () => '').replace(/^\?/, '')
+
+/** A page as links name it: its part, then an optional `?query`. */
+const splitPage = (page: string): readonly [string, string] => {
+  const at = page.indexOf('?')
+  return at === -1 ? [page, ''] : [page.slice(0, at), page.slice(at + 1)]
+}
+
+/** Swaps the address's query in place, without a history entry, as filters change. */
+const replaceQuery = (model: Model, query: string): UpdateReturn =>
+  withSnapshot(model, snapshot => {
+    const next = modifyFields(model, { pageQuery: () => query })
+    return {
+      model: next,
+      commands: [ReplacePage({ url: addressOf(snapshot.grill.id, next) })],
+    }
+  })
 
 const startingPart = (snapshot: Snapshot): string =>
   snapshot.grill.plan !== undefined
@@ -3704,9 +4017,12 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeHover: Option.none(),
     maybeTalkPart: Option.none(),
     maybeJustAnswered: Option.none(),
+    pageQuery: queryFromSearch(url.search),
+    inbox: initialInboxUi,
   },
   commands: [
     LoadGrill(),
+    DetectFixture(),
     CheckBuild(),
     RestoreDrafts(),
     RestoreNavFolded(),
@@ -4219,6 +4535,41 @@ export const CopyOwnerStep = Command.define('CopyOwnerStep', {
         Effect.succeed(Message.CompletedCopyOwnerStep({ key, copied: false })),
       ),
     ),
+})
+
+export const DetectFixture = Command.define('DetectFixture', {
+  messages: [Message.CompletedDetectFixture],
+  execute: Effect.sync(() => {
+    const preview = document.body.dataset.gfPreview === 'true'
+    const asked =
+      new URLSearchParams(window.location.search).get('fixture') ===
+      'owner-actions'
+    if (preview && asked) {
+      sessionStorage.setItem(FIXTURE_KEY, 'owner-actions')
+    }
+    return Message.CompletedDetectFixture({
+      isFixture:
+        preview &&
+        (asked || sessionStorage.getItem(FIXTURE_KEY) === 'owner-actions'),
+    })
+  }).pipe(
+    Effect.catch(() =>
+      Effect.succeed(Message.CompletedDetectFixture({ isFixture: false })),
+    ),
+  ),
+})
+const FIXTURE_KEY = 'grill-flow:fixture'
+
+export const CopyPageLink = Command.define('CopyPageLink', {
+  messages: [Message.CompletedCopyPageLink],
+  execute: Effect.tryPromise(() =>
+    navigator.clipboard.writeText(window.location.href),
+  ).pipe(
+    Effect.map(() => Message.CompletedCopyPageLink({ copied: true })),
+    Effect.catch(() =>
+      Effect.succeed(Message.CompletedCopyPageLink({ copied: false })),
+    ),
+  ),
 })
 
 export const CopyQuestionKey = Command.define('CopyQuestionKey', {
@@ -5507,6 +5858,45 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
           : Stream.empty,
     },
   ),
+  quickLookKeys: entry(
+    { enabled: Schema.Boolean, open: Schema.Boolean },
+    {
+      modelToDependencies: model => ({
+        enabled:
+          isWorkspacePage(model.currentPart) &&
+          !model.isTrayOpen &&
+          !model.workspace.isSettingsOpen &&
+          Option.isNone(model.maybeLeaving),
+        open:
+          model.inbox.isQuickLookOpen ||
+          model.inbox.requestUpdate._tag === 'Open',
+      }),
+      dependenciesToStream: ({ enabled, open }) =>
+        enabled
+          ? Dom.streamFromEventFilterMapPreventDefault({
+              target: document,
+              type: 'keydown',
+              filterMapEvent: event =>
+                event.metaKey ||
+                event.ctrlKey ||
+                event.altKey ||
+                event.repeat ||
+                event.defaultPrevented ||
+                isTypingTarget(event.target)
+                  ? Option.none()
+                  : event.key === '.'
+                    ? Option.some(
+                        Message.PressedQuickLookKey({ key: 'Toggle' }),
+                      )
+                    : event.key === 'Escape' && open
+                      ? Option.some(
+                          Message.PressedQuickLookKey({ key: 'Close' }),
+                        )
+                      : Option.none(),
+            })
+          : Stream.empty,
+    },
+  ),
   openTrayKey: entry(
     { enabled: Schema.Boolean },
     {
@@ -5838,23 +6228,25 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
         ),
     },
   ),
-  // Only a grill with a plan shows a countdown, so only it keeps the clock.
+  // A plan's countdown and a squad page's "… ago" lines keep the clock; other grills show neither.
   clock: entry(
-    { hasPlan: Schema.Boolean },
+    { isTimed: Schema.Boolean },
     {
       modelToDependencies: model => ({
-        hasPlan: Option.exists(
+        isTimed: Option.exists(
           AsyncData.getData(model.page),
-          snapshot => snapshot.grill.plan !== undefined,
+          snapshot =>
+            snapshot.grill.plan !== undefined ||
+            snapshot.grill.kind === 'squad',
         ),
       }),
-      dependenciesToStream: ({ hasPlan }) =>
+      dependenciesToStream: ({ isTimed }) =>
         Stream.when(
           Stream.tick(Duration.minutes(1)).pipe(
             Stream.mapEffect(() => Clock.currentTimeMillis),
             Stream.map(now => Message.TickedClock({ now })),
           ),
-          Effect.sync(() => hasPlan),
+          Effect.sync(() => isTimed),
         ),
     },
   ),

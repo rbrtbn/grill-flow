@@ -59,7 +59,7 @@ const start = init(
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
 describe('the question workspace', () => {
-  it('puts Updates in the header and retains the named home destination', () => {
+  it('puts Updates under More and retains the named home destination', () => {
     scene(
       { update, view },
       given({
@@ -74,13 +74,8 @@ describe('the question workspace', () => {
       }),
       expect(role('button', { name: 'grill-flow home' })).toExist(),
       expect(selector('.f-run-name')).toHaveText('My run'),
-      expect(selector('.f-app-popdown')).not.toContainText('Updates'),
-      click(
-        within(
-          role('navigation', { name: 'Workspace destinations' }),
-          role('button', { name: 'Updates' }),
-        ),
-      ),
+      expect(selector('.f-primary-nav')).not.toContainText('Updates'),
+      click(role('button', { name: 'Updates (old)' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
       expect(selector('.f-updates h1')).toHaveText('Updates'),
@@ -95,7 +90,7 @@ describe('the question workspace', () => {
       click(
         within(
           role('navigation', { name: 'Workspace destinations' }),
-          role('button', { name: 'Questions' }),
+          role('button', { name: /^Questions/ }),
         ),
       ),
       Command.resolve(PushPage, Message.CompletedNavigate()),
