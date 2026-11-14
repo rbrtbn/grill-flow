@@ -7,10 +7,14 @@ import {
   type WorkLog,
   WorkLog as WorkLogSchema,
   duration,
+  isFoldShown,
   leftLine,
   openIssues,
+  revealIssue,
   timelineScale,
   timelineX,
+  toggleFold,
+  toggleOpenIssue,
   trackStages,
   workModel,
 } from './workFlow'
@@ -204,5 +208,29 @@ describe('the preview fixture', () => {
     expect(model.issues).toHaveLength(18)
     expect(model.stats.inProgress).toBe(model.active.length)
     expect(model.active[0]?.isBlocked).toBe(true)
+  })
+})
+
+describe('the page query', () => {
+  it('toggles open rows and keeps the commas readable', () => {
+    expect(toggleOpenIssue('open=LAB-1', 'LAB-2')).toBe('open=LAB-1,LAB-2')
+    expect(toggleOpenIssue('open=LAB-1,LAB-2', 'LAB-1')).toBe('open=LAB-2')
+    expect(toggleOpenIssue('open=LAB-1', 'LAB-1')).toBe('')
+  })
+
+  it('toggles a fold', () => {
+    expect(toggleFold('', 'Done')).toBe('done=1')
+    expect(isFoldShown('done=1', 'Done')).toBe(true)
+    expect(toggleFold('done=1', 'Done')).toBe('')
+  })
+
+  it('reveals a folded issue by opening its row and its fold', () => {
+    expect(revealIssue('open=LAB-1', 'LAB-9', 'Later')).toBe(
+      'open=LAB-1,LAB-9&later=1',
+    )
+    expect(revealIssue('open=LAB-9&later=1', 'LAB-9', 'Later')).toBe(
+      'open=LAB-9&later=1',
+    )
+    expect(revealIssue('', 'LAB-2', 'Active')).toBe('open=LAB-2')
   })
 })

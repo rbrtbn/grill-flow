@@ -1,0 +1,547 @@
+/* Work page: the Timeline with each row opening into its Track (src/workView.ts). Row and fold
+   heights are fixed because dependency arrows are drawn from them (workView.ts ROW, FOLD). */
+.f-work {
+  --work-label: 400px;
+  --work-row: 48px;
+  --work-fold: 40px;
+  max-width: 1400px;
+}
+.f-work .f-lead {
+  margin-top: 10px;
+  max-width: 72ch;
+}
+
+/* State colours: open work ochre, review teal, design gate violet, done olive, blocked rust. */
+.f-work-seg.is-design-gate,
+.f-work-swatch.is-design-gate {
+  background: var(--violet);
+}
+.f-work-seg.is-building,
+.f-work-swatch.is-building {
+  background: var(--ochre);
+}
+.f-work-seg.is-review,
+.f-work-swatch.is-review {
+  background: var(--teal);
+}
+.f-work-seg.is-fixing,
+.f-work-swatch.is-fixing {
+  background: color-mix(in srgb, var(--teal) 55%, var(--paper));
+}
+.f-work-seg.is-merge-ready,
+.f-work-swatch.is-merge-ready {
+  background: var(--olive);
+}
+.f-work-seg.is-merged,
+.f-work-seg.is-released,
+.f-work-swatch.is-merged {
+  background: color-mix(in srgb, var(--olive) 45%, var(--paper));
+}
+.f-work-seg.is-blocked,
+.f-work-swatch.is-blocked {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--rust) 0 3px,
+    transparent 3px 6px
+  );
+  box-shadow: inset 0 0 0 1px var(--rust);
+}
+
+.f-work-state {
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--muted);
+  font: 600 12px/1.5 var(--label);
+  white-space: nowrap;
+}
+.f-work-state.is-building {
+  background: var(--ochre-wash);
+  color: var(--ochre);
+}
+.f-work-state.is-review,
+.f-work-state.is-fixing {
+  background: var(--teal-wash);
+  color: var(--teal);
+}
+.f-work-state.is-design-gate {
+  background: var(--violet-wash);
+  color: var(--violet);
+}
+.f-work-state.is-merge-ready,
+.f-work-state.is-merged,
+.f-work-state.is-released {
+  background: var(--olive-wash);
+  color: var(--olive);
+}
+.f-work-state.is-blocked {
+  background: var(--rust-wash);
+  color: var(--rust);
+}
+.f-work-id {
+  font: 500 13px/1.4 var(--code);
+  color: var(--link);
+  white-space: nowrap;
+}
+
+/* Stats */
+.f-work-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 1px;
+  margin: 0 0 22px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--rule);
+}
+.f-work-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  background: var(--paper);
+}
+.f-work-stat b {
+  font: 600 22px/1.2 var(--label);
+}
+.f-work-stat span {
+  color: var(--muted);
+  font: 400 13px/1.3 var(--label);
+}
+.f-work-stat.is-hot b {
+  color: var(--rust);
+}
+
+/* Timeline */
+.f-work-timeline {
+  border-top: 1px solid var(--rule);
+}
+.f-work-axis,
+.f-work-line,
+.f-work-gridbox {
+  display: grid;
+  grid-template-columns: var(--work-label) minmax(0, 1fr);
+  column-gap: 16px;
+}
+.f-work-axis {
+  height: 30px;
+  align-items: end;
+  color: var(--muted);
+  font: 400 11px/1 var(--label);
+}
+.f-work-label-head {
+  padding-bottom: 6px;
+  font: 600 12px/1 var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.f-work-axis .f-work-plot {
+  height: 100%;
+}
+.f-work-day {
+  position: absolute;
+  bottom: 6px;
+  padding-left: 4px;
+  white-space: nowrap;
+}
+.f-work-day.is-now {
+  color: var(--ink);
+  font-weight: 600;
+}
+.f-work-rows {
+  position: relative;
+}
+.f-work-gridbox {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.f-work-grid {
+  position: relative;
+}
+.f-work-tick,
+.f-work-now {
+  position: absolute;
+  top: -30px;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--rule);
+}
+.f-work-now {
+  z-index: 1;
+  border-left: 1.5px dashed var(--ink);
+}
+.f-work-plot {
+  position: relative;
+  min-width: 0;
+}
+
+.f-work-fold {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  height: var(--work-fold);
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font: 400 15px/var(--work-fold) var(--label);
+  text-align: left;
+  cursor: pointer;
+}
+.f-work-fold .hint {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.f-work-fold:not(.is-open) {
+  color: var(--muted);
+}
+.f-work-fold:hover {
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.f-work-caret {
+  width: 12px;
+  flex: none;
+  color: var(--muted);
+}
+
+.f-work-row {
+  position: relative;
+  z-index: 2;
+}
+.f-work-line {
+  height: var(--work-row);
+  border-top: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+.f-work-row.is-done .f-work-line,
+.f-work-row.is-later .f-work-line {
+  opacity: 0.55;
+}
+.f-work-row.is-done.is-open .f-work-line,
+.f-work-row.is-later.is-open .f-work-line {
+  opacity: 0.85;
+}
+.f-work-row.is-blocked .f-work-label {
+  box-shadow: inset 3px 0 0 var(--rust);
+}
+.f-work-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 8px;
+  background: var(--paper);
+}
+.f-work-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 400 14px/1.3 var(--read);
+  text-align: left;
+  cursor: pointer;
+}
+.f-work-title {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.f-work-toggle:hover .f-work-title {
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+}
+.f-work-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.f-work-seg {
+  position: absolute;
+  top: 8px;
+  height: 20px;
+  min-width: 3px;
+  border-radius: 3px;
+}
+.f-work-seg.is-inferred {
+  opacity: 0.8;
+}
+.f-work-left,
+.f-work-swatch.is-left {
+  border: 1px dashed var(--muted);
+}
+.f-work-left {
+  position: absolute;
+  top: 13px;
+  height: 10px;
+  border-radius: 5px;
+}
+.f-work-pickup {
+  position: absolute;
+  top: 18px;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+}
+.f-work-pickup .f-avatar {
+  box-shadow: 0 0 0 2px var(--paper);
+}
+.f-avatar.is-agent.is-small {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+.f-work-planned,
+.f-work-blocker {
+  position: absolute;
+  max-width: 60%;
+  overflow: hidden;
+  font: 400 11px/1.3 var(--label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.f-work-planned {
+  top: 11px;
+  padding-left: 8px;
+  color: var(--muted);
+}
+.f-work-blocker {
+  bottom: 3px;
+  padding-right: 6px;
+  color: var(--rust);
+  text-align: right;
+}
+.f-work-arrow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: var(--work-row);
+  overflow: visible;
+  pointer-events: none;
+}
+.f-work-arrow path {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.f-work-arrowhead {
+  position: absolute;
+  top: calc(var(--work-row) / 2);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 7px solid var(--muted);
+  transform: translate(-100%, -50%);
+}
+
+.f-work-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 14px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font: 400 13px/1.4 var(--label);
+}
+.f-work-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+/* Track: one issue's stages, opened under its timeline row */
+.f-work-track {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 14px 18px 12px;
+  border-left: 3px solid var(--ink);
+  background: var(--panel);
+}
+.f-work-row.is-blocked .f-work-track {
+  border-left-color: var(--rust);
+}
+.f-track-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 18px;
+  align-items: start;
+}
+.f-track-stages {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.f-track-stage {
+  --stage-agent: var(--muted);
+  position: relative;
+  display: grid;
+  grid-template-rows: 18px 32px auto;
+  justify-items: center;
+  font: 400 12px/1.3 var(--label);
+}
+.f-track-stage::before {
+  content: '';
+  position: absolute;
+  top: 32px;
+  right: 0;
+  left: 0;
+  height: 4px;
+  transform: translateY(-50%);
+}
+.f-track-stage.is-past::before {
+  background: var(--stage-agent);
+}
+.f-track-stage.is-skipped::before {
+  background: var(--rule);
+}
+.f-track-stage.is-here::before {
+  background: linear-gradient(90deg, var(--stage-agent) 50%, transparent 50%);
+}
+.f-track-stage.is-future::before {
+  height: 0;
+  border-top: 2px dashed var(--rule);
+}
+.f-track-name {
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.f-track-stage.is-here .f-track-name {
+  color: var(--ink);
+}
+.f-track-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+.f-track-stage.is-past .f-track-node {
+  width: 10px;
+  height: 10px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--stage-agent);
+}
+.f-track-stage.is-future .f-track-node,
+.f-track-stage.is-skipped .f-track-node {
+  width: 9px;
+  height: 9px;
+  align-self: center;
+  border: 2px solid var(--rule);
+  border-radius: 50%;
+  background: var(--panel);
+}
+.f-track-stage.is-here .f-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+  box-shadow:
+    0 0 0 3px var(--panel),
+    0 0 0 5px var(--av);
+}
+.f-track-stage.is-here.is-blocked .f-avatar {
+  box-shadow:
+    0 0 0 3px var(--panel),
+    0 0 0 5px var(--rust);
+}
+.f-track-time {
+  display: grid;
+  justify-items: center;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.f-track-loops {
+  color: var(--teal);
+  font-weight: 600;
+}
+.f-track-who {
+  font: 400 11px/1.3 var(--code);
+  opacity: 0.8;
+}
+.f-track-nums {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font: 400 13px/1.4 var(--label);
+}
+.f-track-nums b {
+  font-size: 20px;
+}
+.f-track-facts p {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.f-track-blocker {
+  color: var(--rust);
+}
+.f-track-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font: 400 13px/1.5 var(--label);
+}
+.f-track-meta .text-button.f-work-id {
+  padding: 0;
+}
+.f-track-moves summary {
+  color: var(--muted);
+  font: 600 13px/1.5 var(--label);
+  cursor: pointer;
+}
+.f-track-moves ol {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.f-track-moves li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.f-track-moves time {
+  min-width: 112px;
+  color: var(--muted);
+  font: 400 12px/1.4 var(--code);
+}
+.f-track-moves .hint {
+  font-size: 13px;
+}

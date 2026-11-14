@@ -83,6 +83,7 @@ import {
   RequestUpdateState,
   SessionOrder,
   UpdateScope,
+  WORK,
   filtersFrom,
   initialInboxUi,
   narrowedSnapshot,
@@ -143,6 +144,7 @@ import {
   roundScopesFrom,
   workspaceLines,
 } from './workspace'
+import { revealIssue, toggleFold, toggleOpenIssue } from './workFlow'
 
 const POLL_INTERVAL = Duration.seconds(4)
 export const TOAST_LIFETIME_MS = 4_000
@@ -649,6 +651,12 @@ export const Message = defineMessageUnion({
   },
   ClickedClearInboxFilters: {},
   ClickedInboxView: { query: Schema.String },
+  ClickedWorkRow: { id: Schema.String },
+  ClickedWorkFold: { fold: Schema.Literals(['Done', 'Later']) },
+  ClickedWorkDependency: {
+    id: Schema.String,
+    group: Schema.Literals(['Done', 'Active', 'Later']),
+  },
   ClickedSaveInboxView: { name: Schema.String },
   ClickedCopyPageLink: {},
   CompletedCopyPageLink: { copied: Schema.Boolean },
@@ -1344,6 +1352,12 @@ export const update = (model: Model, message: Message) =>
         }),
       ),
     ClickedInboxView: ({ query }) => replaceQuery(model, query),
+    ClickedWorkRow: ({ id }) =>
+      replaceQuery(model, toggleOpenIssue(model.pageQuery, id)),
+    ClickedWorkFold: ({ fold }) =>
+      replaceQuery(model, toggleFold(model.pageQuery, fold)),
+    ClickedWorkDependency: ({ id, group }) =>
+      replaceQuery(model, revealIssue(model.pageQuery, id, group)),
     ClickedSaveInboxView: ({ name }) => ({
       model: modifyFields(model, {
         inbox: inbox =>
@@ -3736,6 +3750,7 @@ export const pathOfPage = (grillId: string, page: string): string => {
       ANSWER_HISTORY,
       INBOX,
       RUNS,
+      WORK,
     ].includes(page)
   ) {
     return page === '' ? base : `${base}/${page}`
@@ -3765,7 +3780,15 @@ export const pageOfPath = (pathname: string): string => {
     kind === PLAN ||
     kind === STATUS ||
     kind === DECIDED ||
-    [REVIEW, CONVERSATIONS, SQUAD, GRILLS, ANSWER_HISTORY, INBOX].includes(
+    [
+      REVIEW,
+      CONVERSATIONS,
+      SQUAD,
+      GRILLS,
+      ANSWER_HISTORY,
+      INBOX,
+      WORK,
+    ].includes(
       kind ?? '',
     )
     ? (kind ?? '')

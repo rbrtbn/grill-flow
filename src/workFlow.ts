@@ -388,3 +388,53 @@ export const openIssues = (query: string): ReadonlyArray<string> =>
     .split(',')
     .map(id => id.trim())
     .filter(id => id !== '')
+
+export type WorkFold = 'Done' | 'Later'
+
+const FOLD_KEYS: Readonly<Record<WorkFold, string>> = {
+  Done: 'done',
+  Later: 'later',
+}
+
+// Commas stay readable in the address (`?open=LAB-1426,LAB-1451`), so a link can be typed.
+const withParam = (query: string, key: string, value: string): string => {
+  const params = new URLSearchParams(query)
+  if (value === '') {
+    params.delete(key)
+  } else {
+    params.set(key, value)
+  }
+  return params.toString().replace(/%2C/g, ',')
+}
+
+export const isFoldShown = (query: string, fold: WorkFold): boolean =>
+  new URLSearchParams(query).get(FOLD_KEYS[fold]) === '1'
+
+export const toggleFold = (query: string, fold: WorkFold): string =>
+  withParam(query, FOLD_KEYS[fold], isFoldShown(query, fold) ? '' : '1')
+
+export const toggleOpenIssue = (query: string, id: string): string => {
+  const open = openIssues(query)
+  return withParam(
+    query,
+    'open',
+    (open.includes(id)
+      ? open.filter(other => other !== id)
+      : [...open, id]
+    ).join(','),
+  )
+}
+
+/** Opens an issue's row, and the fold it sits in, so a link to it always lands on it. */
+export const revealIssue = (
+  query: string,
+  id: string,
+  group: WorkGroup,
+): string => {
+  const opened = openIssues(query).includes(id)
+    ? query
+    : toggleOpenIssue(query, id)
+  return group === 'Active' || isFoldShown(opened, group)
+    ? opened
+    : toggleFold(opened, group)
+}

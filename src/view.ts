@@ -78,6 +78,7 @@ import {
   NAMES,
   RUNS,
   RUN_PAGE,
+  WORK,
   boardName,
 } from './inbox'
 import type {
@@ -136,6 +137,7 @@ const PAGE_TITLES: ReadonlyArray<readonly [string, string]> = [
   [INBOX, NAMES.inbox],
   [RUNS, NAMES.runs],
   [RUN_PAGE, NAMES.runs],
+  [WORK, NAMES.work],
   [ITEM_PAGE, NAMES.task],
   [DECISION_PAGE, 'Decision'],
   ['conversations', NAMES.conversations],

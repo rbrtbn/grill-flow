@@ -17,7 +17,14 @@ import {
   sendableLines,
   statusOf,
 } from './domain'
-import { DECISION_PAGE, INBOX, ITEM_PAGE, RUNS, RUN_PAGE } from './inbox'
+import {
+  DECISION_PAGE,
+  INBOX,
+  ITEM_PAGE,
+  RUNS,
+  RUN_PAGE,
+  WORK,
+} from './inbox'
 import { QuoteSelection } from './quote'
 import { decidedLine } from './replies'
 
@@ -170,6 +177,7 @@ export const isWorkspacePage = (page: string): boolean =>
   [
     INBOX,
     RUNS,
+    WORK,
     REVIEW,
     CONVERSATIONS,
     ANSWER_HISTORY,

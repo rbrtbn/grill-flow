@@ -22,6 +22,7 @@ export const NAMES = {
   inbox: 'Inbox',
   questions: 'Questions',
   runs: 'Runs',
+  work: 'Work',
   conversations: 'Conversations',
   task: 'Task',
   now: 'Now',
@@ -45,6 +46,7 @@ export const boardName = (grill: Snapshot['grill']): string =>
 
 export const INBOX = 'inbox'
 export const RUNS = 'runs'
+export const WORK = 'work'
 export const RUN_PAGE = 'runs:'
 export const ITEM_PAGE = 'item:'
 export const DECISION_PAGE = 'decision:'

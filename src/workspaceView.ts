@@ -41,6 +41,7 @@ import {
   NAMES,
   RUNS,
   RUN_PAGE,
+  WORK,
   boardName,
   inboxData,
   narrowedSnapshot,
@@ -86,10 +87,7 @@ import {
   unsentLabel,
   unsentTrayView,
 } from './sendShortcutsView'
-import {
-  sessionsBadge,
-  sessionsPanelView,
-} from './sessionsView'
+import { sessionsBadge, sessionsPanelView } from './sessionsView'
 import { textLimitCount } from './textLimitView'
 import {
   type NestedThread,
@@ -98,6 +96,7 @@ import {
   fixtureThreads,
   threadTarget,
 } from './threads'
+import { workPage } from './workView'
 import {
   ANSWER_HISTORY,
   CONVERSATIONS,
@@ -365,74 +364,76 @@ export const workspaceView = (
   const content =
     model.currentPart === INBOX
       ? inboxPage(model, snapshot, inbox, h)
-      : model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE)
-        ? runsPage(
-            model,
-            snapshot,
-            inbox,
-            model.currentPart.startsWith(RUN_PAGE)
-              ? Option.some(model.currentPart.slice(RUN_PAGE.length))
-              : Option.none(),
-            h,
-            model.currentPart.startsWith(RUN_PAGE)
-              ? runDetailView(
-                  model,
-                  snapshot,
-                  reading,
-                  model.currentPart.slice(RUN_PAGE.length),
-                  h,
-                )
-              : runsTableSection(model, snapshot, h),
-          )
-        : model.currentPart.startsWith(DECISION_PAGE)
-          ? decisionPage(
+      : model.currentPart === WORK
+        ? workPage(model, h)
+        : model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE)
+          ? runsPage(
               model,
               snapshot,
-              model.currentPart.slice(DECISION_PAGE.length),
+              inbox,
+              model.currentPart.startsWith(RUN_PAGE)
+                ? Option.some(model.currentPart.slice(RUN_PAGE.length))
+                : Option.none(),
               h,
+              model.currentPart.startsWith(RUN_PAGE)
+                ? runDetailView(
+                    model,
+                    snapshot,
+                    reading,
+                    model.currentPart.slice(RUN_PAGE.length),
+                    h,
+                  )
+                : runsTableSection(model, snapshot, h),
             )
-          : model.currentPart.startsWith(ITEM_PAGE)
-            ? itemPage(
+          : model.currentPart.startsWith(DECISION_PAGE)
+            ? decisionPage(
                 model,
-                inbox,
-                model.currentPart.slice(ITEM_PAGE.length),
-                reading.prose,
+                snapshot,
+                model.currentPart.slice(DECISION_PAGE.length),
                 h,
               )
-            : model.currentPart === ANSWER_HISTORY
-              ? answerHistoryView(model, snapshot, h)
-              : model.currentPart === SQUAD
-                ? squadView(snapshot, h)
-                : model.currentPart === GRILLS
-                  ? grillsView(model, snapshot, h)
-                  : model.currentPart === REVIEW
-                    ? reviewView(model, snapshot, reading, h)
-                    : model.currentPart === 'plan' ||
-                        model.currentPart === 'status'
-                      ? runView(model, snapshot, reading, h)
-                      : model.currentPart === 'decided'
-                        ? reading.decided(h)
-                        : model.currentPart === CONVERSATIONS
-                          ? sessionsPanelView(
-                              model,
-                              snapshot,
-                              inbox,
-                              panelConversation,
-                              'Page',
-                              h,
-                            )
-                          : Option.match(question, {
-                              onSome: step =>
-                                questionView(
-                                  model,
-                                  snapshot,
-                                  step,
-                                  reading,
-                                  inbox,
-                                  h,
-                                ),
-                              onNone: () => reading.overview(h),
-                            })
+            : model.currentPart.startsWith(ITEM_PAGE)
+              ? itemPage(
+                  model,
+                  inbox,
+                  model.currentPart.slice(ITEM_PAGE.length),
+                  reading.prose,
+                  h,
+                )
+              : model.currentPart === ANSWER_HISTORY
+                ? answerHistoryView(model, snapshot, h)
+                : model.currentPart === SQUAD
+                  ? squadView(snapshot, h)
+                  : model.currentPart === GRILLS
+                    ? grillsView(model, snapshot, h)
+                    : model.currentPart === REVIEW
+                      ? reviewView(model, snapshot, reading, h)
+                      : model.currentPart === 'plan' ||
+                          model.currentPart === 'status'
+                        ? runView(model, snapshot, reading, h)
+                        : model.currentPart === 'decided'
+                          ? reading.decided(h)
+                          : model.currentPart === CONVERSATIONS
+                            ? sessionsPanelView(
+                                model,
+                                snapshot,
+                                inbox,
+                                panelConversation,
+                                'Page',
+                                h,
+                              )
+                            : Option.match(question, {
+                                onSome: step =>
+                                  questionView(
+                                    model,
+                                    snapshot,
+                                    step,
+                                    reading,
+                                    inbox,
+                                    h,
+                                  ),
+                                onNone: () => reading.overview(h),
+                              })
   return h.div(
     [
       h.Class(
@@ -663,6 +664,21 @@ const workspaceHeaderView = (
                 ],
                 [NAMES.runs],
               ),
+              grill.kind === 'squad'
+                ? h.button(
+                    [
+                      h.Type('button'),
+                      h.Class(
+                        `text-button${model.currentPart === WORK ? ' is-active' : ''}`,
+                      ),
+                      h.AriaCurrent(
+                        model.currentPart === WORK ? 'page' : 'false',
+                      ),
+                      h.OnClick(Message.ClickedWorkspacePage({ page: WORK })),
+                    ],
+                    [NAMES.work],
+                  )
+                : h.empty,
               h.button(
                 [
                   h.Type('button'),
@@ -2525,7 +2541,6 @@ const agentLabel = (snapshot: Snapshot, address: string): string => {
     ? `${address} · not running`
     : `${agent.lead ? 'Lead · ' : ''}${agent.name === '' ? agent.program : agent.name} · ${address}`
 }
-
 
 const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
   snapshot.maintainerState === 'missing' ||
