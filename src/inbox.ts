@@ -76,6 +76,11 @@ export const SavedView = Schema.Struct({
 })
 export type SavedView = typeof SavedView.Type
 
+export const SessionGroup = Schema.Literals(['Squad', 'Issue', 'Status', 'None'])
+export type SessionGroup = typeof SessionGroup.Type
+export const SessionOrder = Schema.Literals(['Recent', 'Waiting', 'Name'])
+export type SessionOrder = typeof SessionOrder.Type
+
 export const InboxUi = Schema.Struct({
   expanded: Schema.Array(Schema.String),
   openQuestionLines: Schema.Array(Schema.String),
@@ -92,6 +97,12 @@ export const InboxUi = Schema.Struct({
   sideThreads: Schema.Array(Schema.String),
   isSidePickerOpen: Schema.Boolean,
   isQuestionListOpen: Schema.Boolean,
+  // The sessions panel shows its directory until a row opens a conversation.
+  isSessionDirectory: Schema.Boolean,
+  sessionSearch: Schema.String,
+  sessionGroup: SessionGroup,
+  sessionOrder: SessionOrder,
+  pinned: Schema.Array(Schema.String),
 })
 export type InboxUi = typeof InboxUi.Type
 
@@ -110,6 +121,11 @@ export const initialInboxUi: InboxUi = {
   sideThreads: [],
   isSidePickerOpen: false,
   isQuestionListOpen: false,
+  isSessionDirectory: true,
+  sessionSearch: '',
+  sessionGroup: 'Squad',
+  sessionOrder: 'Recent',
+  pinned: [],
 }
 
 // DOMAIN: the Inbox's view of a snapshot. Plain types: these are derived every render, never

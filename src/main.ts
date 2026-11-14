@@ -79,6 +79,8 @@ import {
   RUNS,
   RUN_PAGE,
   RequestUpdateState,
+  SessionGroup,
+  SessionOrder,
   UpdateScope,
   filtersFrom,
   initialInboxUi,
@@ -659,6 +661,13 @@ export const Message = defineMessageUnion({
   UpdatedThreadDraft: { item: Schema.String, text: Schema.String },
   SubmittedThreadMessage: { item: Schema.String },
   ClickedCopyInboxLine: { key: Schema.String, text: Schema.String },
+  ClickedSessions: {},
+  ClickedOpenSession: { target: Schema.String },
+  ClickedSessionsBack: {},
+  UpdatedSessionSearch: { value: Schema.String },
+  SelectedSessionGroup: { group: SessionGroup },
+  SelectedSessionOrder: { order: SessionOrder },
+  ClickedPinSession: { address: Schema.String },
   ClickedNestedThread: { key: Schema.String },
   ClickedStartSideThread: {},
   ClickedSideThreadWith: { key: Schema.String },
@@ -1456,6 +1465,52 @@ export const update = (model: Model, message: Message) =>
             }),
           }
     },
+    ClickedSessions: () => ({
+      model: modifyFields(model, {
+        side: side => (side === 'Talk' ? 'None' : 'Talk'),
+        inbox: inbox =>
+          modifyFields(inbox, { isSessionDirectory: () => true }),
+      }),
+    }),
+    ClickedOpenSession: ({ target }) => ({
+      model: modifyFields(model, {
+        side: () => 'Talk',
+        workspace: value =>
+          modifyFields(value, {
+            maybeDiscussionTarget: () => Option.some(target),
+          }),
+        inbox: inbox =>
+          modifyFields(inbox, { isSessionDirectory: () => false }),
+      }),
+      commands: [FocusTalkBox()],
+    }),
+    ClickedSessionsBack: () => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, { isSessionDirectory: () => true }),
+      }),
+    }),
+    UpdatedSessionSearch: ({ value }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { sessionSearch: () => value }),
+      }),
+    }),
+    SelectedSessionGroup: ({ group }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { sessionGroup: () => group }),
+      }),
+    }),
+    SelectedSessionOrder: ({ order }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { sessionOrder: () => order }),
+      }),
+    }),
+    ClickedPinSession: ({ address }) => ({
+      model: modifyFields(model, {
+        inbox: inbox =>
+          modifyFields(inbox, { pinned: pins => toggled(pins, address) }),
+      }),
+    }),
     ClickedNestedThread: ({ key }) => ({
       model: modifyFields(model, {
         inbox: inbox =>
@@ -2012,6 +2067,8 @@ export const update = (model: Model, message: Message) =>
     ClickedDiscussion: ({ target }) => ({
       model: modifyFields(model, {
         side: () => 'Talk',
+        inbox: inbox =>
+          modifyFields(inbox, { isSessionDirectory: () => false }),
         workspace: value =>
           modifyFields(value, {
             maybeDiscussionTarget: () => Option.some(target),

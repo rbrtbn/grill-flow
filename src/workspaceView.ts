@@ -69,6 +69,7 @@ import {
   readyOf,
   threadDraftKey,
 } from './main'
+import { PARKED } from './parked'
 import {
   QUOTE_BOX,
   QUOTE_DRAFT,
@@ -85,6 +86,7 @@ import {
   unsentLabel,
   unsentTrayView,
 } from './sendShortcutsView'
+import { sessionsBadge, sessionsPanelView } from './sessionsView'
 import { textLimitCount } from './textLimitView'
 import {
   type NestedThread,
@@ -476,6 +478,8 @@ export const workspaceView = (
   const question = questionOnPage(snapshot, model.currentPart)
   const isDiscussion =
     model.side === 'Talk' || model.currentPart === CONVERSATIONS
+  const hasSessions =
+    model.side === 'Talk' && model.currentPart !== CONVERSATIONS
   const expanded =
     model.workspace.isDiscussionExpanded || model.currentPart === CONVERSATIONS
   const styles = {
@@ -554,7 +558,7 @@ export const workspaceView = (
   return h.div(
     [
       h.Class(
-        `app f-workspace${model.workspace.highlightTerms ? '' : ' f-no-highlights'}${Option.isSome(model.maybeResizing) ? ' is-resizing' : ''}`,
+        `app f-workspace${hasSessions ? ' has-sessions' : ''}${model.workspace.highlightTerms ? '' : ' f-no-highlights'}${Option.isSome(model.maybeResizing) ? ' is-resizing' : ''}`,
       ),
     ],
     [
@@ -601,12 +605,7 @@ export const workspaceView = (
           )
         : h.empty,
       h.div(
-        [
-          h.Class(
-            `f-frame${isFullWidth ? ' f-no-nav' : ''}${isDiscussion && model.currentPart !== CONVERSATIONS ? ' f-with-discussion' : ''}${expanded && isDiscussion ? ' f-expanded' : ''}`,
-          ),
-          h.Style(styles),
-        ],
+        [h.Class(`f-frame${isFullWidth ? ' f-no-nav' : ''}`), h.Style(styles)],
         [
           isFullWidth
             ? reading.floatingNotices(h)
@@ -620,27 +619,6 @@ export const workspaceView = (
               ),
             ],
             [
-              model.currentPart !== CONVERSATIONS && !isDiscussion
-                ? h.div(
-                    [h.Class('f-discuss-action')],
-                    [
-                      link(
-                        discussLabel(model),
-                        Message.ClickedDiscussion({
-                          target: Option.match(question, {
-                            onSome: step => step.id,
-                            onNone: () => RUN_TARGET,
-                          }),
-                        }),
-                        h,
-                      ),
-                      Option.match(question, {
-                        onNone: () => h.empty,
-                        onSome: step => messagesLink(snapshot, step, h),
-                      }),
-                    ],
-                  )
-                : h.empty,
               Option.isSome(question)
                 ? content
                 : h.div(
@@ -664,14 +642,25 @@ export const workspaceView = (
                   ),
             ],
           ),
-          isDiscussion && model.currentPart !== CONVERSATIONS
-            ? discussionView(model, snapshot, reading, expanded, h)
-            : h.empty,
-          isDiscussion && model.currentPart !== CONVERSATIONS
-            ? reading.resize('Side', h)
-            : h.empty,
         ],
       ),
+      hasSessions
+        ? sessionsPanelView(
+            model,
+            snapshot,
+            inbox,
+            closedNote =>
+              discussionView(
+                model,
+                snapshot,
+                reading,
+                false,
+                h,
+                Option.some(closedNote),
+              ),
+            h,
+          )
+        : h.empty,
       settingView(model, h),
     ],
   )
@@ -878,7 +867,59 @@ const workspaceHeaderView = (
               ),
             ],
           ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('text-button f-parked-toggle'),
+              h.Popovertarget('workspace-parked'),
+              h.Title('What this design leaves out for now'),
+            ],
+            [`Not in this design yet · ${PARKED.length}`],
+          ),
+          h.div(
+            [
+              h.Id('workspace-parked'),
+              h.Popover('auto'),
+              h.Class('f-app-popdown f-parked'),
+              h.Role('dialog'),
+              h.AriaLabel('Not in this design yet'),
+            ],
+            [
+              h.h2([], ['Not in this design yet']),
+              h.p(
+                [h.Class('hint')],
+                [
+                  'Parked by this redesign, not dropped. Say which should come back.',
+                ],
+              ),
+              h.ol(
+                [],
+                PARKED.map(item =>
+                  h.li([], [h.b([], [item.title]), h.p([], [item.detail])]),
+                ),
+              ),
+            ],
+          ),
           freezePillView(inbox, h),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class(
+                `text-button f-sessions-toggle${model.side === 'Talk' ? ' is-active' : ''}`,
+              ),
+              h.AriaExpanded(model.side === 'Talk'),
+              h.OnClick(Message.ClickedSessions()),
+            ],
+            [
+              'Sessions',
+              sessionsBadge(model, snapshot, inbox) > 0
+                ? h.span(
+                    [h.Class('f-nav-count')],
+                    [String(sessionsBadge(model, snapshot, inbox))],
+                  )
+                : h.empty,
+            ],
+          ),
           nudgeView(model, snapshot, h),
           h.button(
             [
@@ -2769,7 +2810,11 @@ const discussionView = (
   reading: Reading,
   expanded: boolean,
   h: H,
+  // In the sessions panel: some note when the session closed and can't receive messages.
+  maybePanel: Option.Option<Option.Option<string>> = Option.none(),
 ): Html => {
+  const isInPanel = Option.isSome(maybePanel)
+  const maybeClosed = Option.flatten(maybePanel)
   const onQuestion = Option.orElse(
     questionOnPage(snapshot, model.currentPart),
     () =>
@@ -2847,7 +2892,9 @@ const discussionView = (
         )
   return h.aside(
     [
-      h.Class(`f-discussion${expanded ? ' is-expanded' : ''}`),
+      h.Class(
+        `f-discussion${expanded ? ' is-expanded' : ''}${isInPanel ? ' is-in-panel' : ''}`,
+      ),
       h.AriaLabel('Discussion'),
     ],
     [
@@ -2865,32 +2912,34 @@ const discussionView = (
                   : questionAgent(snapshot.grill, step?.question),
             ],
           ),
-          h.div(
-            [h.Class('f-discussion-actions')],
-            [
-              model.currentPart === CONVERSATIONS
-                ? h.empty
-                : link(
-                    expanded ? 'Back' : 'Expand',
-                    Message.ClickedExpandDiscussion(),
-                    h,
-                  ),
-              model.currentPart === CONVERSATIONS
-                ? link(
-                    'Back',
-                    Message.ClickedReturnConversation({ open: true }),
-                    h,
-                  )
-                : h.empty,
-              model.currentPart === CONVERSATIONS
-                ? link(
-                    'Close',
-                    Message.ClickedReturnConversation({ open: false }),
-                    h,
-                  )
-                : link('Close', Message.ClickedCloseDiscussion(), h),
-            ],
-          ),
+          isInPanel
+            ? h.empty
+            : h.div(
+                [h.Class('f-discussion-actions')],
+                [
+                  model.currentPart === CONVERSATIONS
+                    ? h.empty
+                    : link(
+                        expanded ? 'Back' : 'Expand',
+                        Message.ClickedExpandDiscussion(),
+                        h,
+                      ),
+                  model.currentPart === CONVERSATIONS
+                    ? link(
+                        'Back',
+                        Message.ClickedReturnConversation({ open: true }),
+                        h,
+                      )
+                    : h.empty,
+                  model.currentPart === CONVERSATIONS
+                    ? link(
+                        'Close',
+                        Message.ClickedReturnConversation({ open: false }),
+                        h,
+                      )
+                    : link('Close', Message.ClickedCloseDiscussion(), h),
+                ],
+              ),
         ],
       ),
       recipientPicker(
@@ -2944,62 +2993,84 @@ const discussionView = (
             : thread),
         ],
       ),
-      h.form(
-        [
-          h.Class('f-discussion-compose'),
-          h.OnSubmit(Message.SubmittedWorkspaceDiscussion({ target })),
-        ],
-        [
-          h.label(
-            [h.For('talk-box')],
+      Option.isSome(maybeClosed)
+        ? h.div(
+            [h.Class('f-discussion-closed'), h.Role('note')],
             [
-              isMaintainer
-                ? 'Ask about grill-flow'
-                : agentAddressOf(target) !== undefined
-                  ? `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
-                  : step === undefined
-                    ? 'Ask about the run'
-                    : `Ask about ${step.question.id}`,
-            ],
-          ),
-          h.keyed('textarea')(`discussion-${target}-${model.talkGeneration}`, [
-            h.Id('talk-box'),
-            h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(target)),
-            h.Rows(4),
-            h.OnMount(FillBox({ text: draft })),
-            h.Placeholder('Ask, push back, or ask for a clearer explanation…'),
-            h.OnInput(value =>
-              Message.UpdatedTalkDraft({
-                partId: threadDraftKey(target),
-                value,
-              }),
-            ),
-            h.OnKeyDownPreventDefault((key, { shiftKey }) =>
-              key === 'Enter' && !shiftKey
-                ? Option.some(Message.SubmittedWorkspaceDiscussion({ target }))
-                : Option.none(),
-            ),
-          ]),
-          textLimitCount(draft, h),
-          h.div(
-            [h.Class('f-send-foot')],
-            [
-              h.span(
-                [h.Class('hint')],
-                ['Enter to send · Shift + Enter for a new line'],
-              ),
+              h.p([], [maybeClosed.value]),
               h.button(
                 [
-                  h.Type('submit'),
-                  h.Class('send-button'),
-                  h.Disabled(isOverTextLimit(draft.trim())),
+                  h.Type('button'),
+                  h.Class('quiet-button'),
+                  h.OnClick(Message.ClickedOpenSession({ target: RUN_TARGET })),
                 ],
-                ['Ask'],
+                ['Message the lead instead'],
+              ),
+            ],
+          )
+        : h.form(
+            [
+              h.Class('f-discussion-compose'),
+              h.OnSubmit(Message.SubmittedWorkspaceDiscussion({ target })),
+            ],
+            [
+              h.label(
+                [h.For('talk-box')],
+                [
+                  isMaintainer
+                    ? 'Ask about grill-flow'
+                    : agentAddressOf(target) !== undefined
+                      ? `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
+                      : step === undefined
+                        ? 'Ask about the run'
+                        : `Ask about ${step.question.id}`,
+                ],
+              ),
+              h.keyed('textarea')(
+                `discussion-${target}-${model.talkGeneration}`,
+                [
+                  h.Id('talk-box'),
+                  h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(target)),
+                  h.Rows(4),
+                  h.OnMount(FillBox({ text: draft })),
+                  h.Placeholder(
+                    'Ask, push back, or ask for a clearer explanation…',
+                  ),
+                  h.OnInput(value =>
+                    Message.UpdatedTalkDraft({
+                      partId: threadDraftKey(target),
+                      value,
+                    }),
+                  ),
+                  h.OnKeyDownPreventDefault((key, { shiftKey }) =>
+                    key === 'Enter' && !shiftKey
+                      ? Option.some(
+                          Message.SubmittedWorkspaceDiscussion({ target }),
+                        )
+                      : Option.none(),
+                  ),
+                ],
+              ),
+              textLimitCount(draft, h),
+              h.div(
+                [h.Class('f-send-foot')],
+                [
+                  h.span(
+                    [h.Class('hint')],
+                    ['Enter to send · Shift + Enter for a new line'],
+                  ),
+                  h.button(
+                    [
+                      h.Type('submit'),
+                      h.Class('send-button'),
+                      h.Disabled(isOverTextLimit(draft.trim())),
+                    ],
+                    ['Ask'],
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
     ],
   )
 }
