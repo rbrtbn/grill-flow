@@ -193,6 +193,24 @@ export const SESSION_TYPE_OVERRIDES: Readonly<Record<string, SessionType>> = {
   t1mn: 'Ended',
 }
 
+// A session's set-once profile, until sessions publish one (t2j6's session-work-state schema).
+export type SessionProfile = Readonly<{
+  model: string
+  effort: string
+  subagents: boolean
+}>
+
+export const SESSION_PROFILES: Readonly<Record<string, SessionProfile>> = {
+  t2cr: { model: 'Opus 5.5', effort: 'high', subagents: true },
+  t2hq: { model: 'Opus 5.5', effort: 'xhigh', subagents: true },
+  t2j5: { model: 'Opus 5.5', effort: 'high', subagents: false },
+  t2j6: { model: 'Opus 5.5', effort: 'high', subagents: false },
+  t2j8: { model: 'Sonnet 5.5', effort: 'medium', subagents: false },
+  t118: { model: 'Haiku 5.5', effort: 'low', subagents: false },
+  t2j0: { model: 'Sonnet 5.5', effort: 'medium', subagents: false },
+  t2gx: { model: 'Opus 5.5', effort: 'high', subagents: true },
+}
+
 export const inboxFixture = (
   base: InboxBase,
 ): InboxBase & { sessionTypes: Readonly<Record<string, SessionType>> } => ({

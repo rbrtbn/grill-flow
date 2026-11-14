@@ -159,6 +159,15 @@ const everySessionRow = (
   })
 }
 
+/** One session as the panel knows it, for its reference card. */
+export const sessionRowOf = (
+  model: Model,
+  snapshot: Snapshot,
+  inbox: InboxData,
+  address: string,
+): SessionRow | undefined =>
+  everySessionRow(model, snapshot, inbox).find(row => row.address === address)
+
 /** The sessions the sidebar lists. */
 export const sessionRows = (
   model: Model,
