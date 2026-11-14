@@ -29,7 +29,6 @@ import {
   writeProvenance,
 } from './authoring'
 import { remoteItemError } from './channel'
-import { withoutDiscussions } from './discussions'
 import { DrawingReply, drawingMessage } from './drawings'
 import {
   GrillInvalid,
@@ -259,9 +258,7 @@ export const runOutbox = async (
     case 'load': {
       const { grill, unknownKeys } = (() => {
         try {
-          return decodeStrict(
-            withoutDiscussions(readJsonFile(args[0] ?? fail(usage))),
-          )
+          return decodeStrict(readJsonFile(args[0] ?? fail(usage)))
         } catch (error) {
           return fail(error instanceof Error ? error.message : String(error))
         }

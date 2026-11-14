@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { OWN, TEXT_LIMIT } from '../src/domain'
 import {
   freezeSubmission,
   questionRevisions,
@@ -70,6 +71,15 @@ beforeAll(async () => {
     `#!${process.execPath}
 import { appendFileSync } from 'node:fs'
 appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n')
+if (process.argv[2] === 'ls' && !process.argv.includes('--label')) {
+  const where = 'squad.routing / lead tab'
+  console.log(JSON.stringify({ machines: [], terminals: [
+    { address: 'lead', name: 'routing-lead', agent: 'claude-code', parent: null, state: 'live', where },
+    { address: 'helper', name: 'routing-helper', agent: 'codex', parent: 'lead', state: 'live', where },
+    { address: 'outsider', name: 'other', agent: 'codex', parent: null, state: 'live', where: 'elsewhere / 1' },
+  ] }))
+  process.exit(0)
+}
 if (process.argv[2] === 'get') {
   if (process.argv[3] === 'maintainer') { console.log('{"state":"live"}'); process.exit(0) }
   console.error('{"error":{"kind":"not_found"}}'); process.exit(3)
@@ -258,6 +268,48 @@ describe('HTTP delivery routing', () => {
       redelivered.asks.find((item: { id: number }) => item.id === ask.id)
         .delivery,
     ).toEqual({ state: 'delivered', to: 'lead', detail: 'sent to lead' })
+  })
+
+  it('messages a running agent of the squad space and refuses others', async () => {
+    const read = async () =>
+      (await (await fetch(`${base}/api/grills/routing-fixture`)).json()).agents
+    await read()
+    await Bun.sleep(300)
+    expect(await read()).toEqual([
+      {
+        address: 'lead',
+        name: 'routing-lead',
+        program: 'claude-code',
+        lead: true,
+      },
+      {
+        address: 'helper',
+        name: 'routing-helper',
+        program: 'codex',
+        lead: false,
+      },
+    ])
+    const state = await request('events', {
+      kind: 'asked',
+      stepId: 'agent:helper',
+      text: 'Status on the build?',
+    })
+    expect(received().at(-1)?.[1]).toBe('helper')
+    expect(received().at(-1)?.[2]).toContain('addressed to you directly')
+    expect(received().at(-1)?.[2]).toContain(
+      'revise routing-fixture agent:helper --ask',
+    )
+    expect(state.asks.at(-1).delivery.to).toBe('helper')
+    const refused = await fetch(`${base}/api/grills/routing-fixture/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        kind: 'asked',
+        stepId: 'agent:outsider',
+        text: 'Hi',
+      }),
+    })
+    expect(refused.status).toBe(400)
   })
 
   it('reports whether the grill-flow session is running', async () => {
@@ -528,4 +580,45 @@ it('uses fixed focus argv from the published owner step without sending its comm
   } finally {
     db.close()
   }
+})
+
+describe('text over the limit', () => {
+  const tooLong = 'x'.repeat(TEXT_LIMIT + 1)
+  it.each([
+    ['events', { kind: 'noted', question: 'Q2', text: tooLong }, 'The note'],
+    [
+      'events',
+      { kind: 'answered', question: 'Q2', key: OWN, text: tooLong },
+      'Your own answer',
+    ],
+    ['events', { kind: 'asked', stepId: 'run', text: tooLong }, 'The message'],
+    ['send', { message: tooLong }, 'The message'],
+  ])('refuses %s %j instead of cutting it short', async (path, body, what) => {
+    const db = new Database(database)
+    const before = events(db, 'routing-fixture').length
+    const response = await fetch(`${base}/api/grills/routing-fixture/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    })
+    try {
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toBe(
+        `${what} is 4,001 characters; the limit is 4,000. Shorten it and try again.`,
+      )
+      expect(events(db, 'routing-fixture')).toHaveLength(before)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('keeps text at the limit whole', async () => {
+    const atLimit = 'y'.repeat(TEXT_LIMIT)
+    const state = await request('events', {
+      kind: 'noted',
+      question: 'Q2',
+      text: atLimit,
+    })
+    expect(state.notes.Q2).toBe(atLimit)
+  })
 })

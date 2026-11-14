@@ -11,7 +11,7 @@ import {
   proseView,
   stateLabelFor,
 } from './diagramView'
-import { roundLabel, roundOf } from './domain'
+import { isOverTextLimit, roundLabel, roundOf } from './domain'
 import {
   type AgentMessage,
   type Ask,
@@ -75,6 +75,7 @@ import type {
 import {
   CARD_PAGE,
   DECIDED,
+  DRAFT_ATTRIBUTE,
   FillBox,
   ISSUE_PAGE,
   Message,
@@ -95,6 +96,7 @@ import {
   visibleToastsOf,
 } from './main'
 import { splitQuote } from './quote'
+import { textLimitCount } from './textLimitView'
 import { isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
 
@@ -1142,6 +1144,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 : Option.none(),
             ),
           ]),
+          textLimitCount(model.sendMessage, h),
           h.details(
             [h.Class('send-review send-preview')],
             [
@@ -1181,7 +1184,9 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 [
                   h.Class('send-button'),
                   h.Disabled(
-                    isSending || freshAnswerCount(model, snapshot) === 0,
+                    isSending ||
+                      freshAnswerCount(model, snapshot) === 0 ||
+                      isOverTextLimit(model.sendMessage),
                   ),
                   h.Title(
                     freshAnswerCount(model, snapshot) === 0 ? NOTHING_NEW : '',
@@ -2811,7 +2816,7 @@ const noteBox = (id: string, note: string, inactive: boolean, h: H): Html =>
     h.Id(`note-${id}`),
     h.Class('note-box'),
     h.Rows(2),
-    h.Value(note),
+    h.OnMount(FillBox({ text: note })),
     h.Disabled(inactive),
     h.AriaLabel(`Note for the agent on ${id}`),
     h.Placeholder('Note for the agent: a condition or a doubt (optional)'),
@@ -2861,7 +2866,7 @@ const ownOptionView = (
             h.Id(`own-${id}`),
             h.Class('own-text'),
             h.Rows(3),
-            h.Value(text),
+            h.OnMount(FillBox({ text })),
             h.AriaLabel(`Your own answer to ${id}`),
             h.Placeholder('Your answer, in your words'),
             h.OnInput(value =>
@@ -3549,6 +3554,7 @@ const threadBox = (model: Model, step: Step, h: H): Html =>
     [
       h.keyed('textarea')(`thread-${step.id}-${model.talkGeneration}`, [
         h.Id(`thread-box-${step.id}`),
+        h.DataAttribute(DRAFT_ATTRIBUTE, threadDraftKey(step.id)),
         h.Rows(1),
         h.OnMount(
           FillBox({
@@ -3573,6 +3579,13 @@ const threadBox = (model: Model, step: Step, h: H): Html =>
         ),
       ]),
       h.button([h.Type('submit'), h.Class('quiet-button')], ['Send']),
+      textLimitCount(
+        Option.getOrElse(
+          Record.get(model.talkDrafts, threadDraftKey(step.id)),
+          () => '',
+        ),
+        h,
+      ),
     ],
   )
 
@@ -3719,6 +3732,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
           ),
           h.keyed('textarea')(`talk-${key}-${model.talkGeneration}`, [
             h.Id('talk-box'),
+            h.DataAttribute(DRAFT_ATTRIBUTE, key),
             h.Rows(4),
             h.OnMount(FillBox({ text: draft })),
             h.AriaLabel('Message to the agent'),
@@ -3732,6 +3746,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                 : Option.none(),
             ),
           ]),
+          textLimitCount(draft, h),
           h.div(
             [h.Class('composer-foot')],
             [
@@ -3741,7 +3756,14 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                   `Enter sends, Shift+Enter for a new line. ${grill.session === '' ? 'The agent picks it up from here' : `Goes to ${grill.session}`}; the reply lands here.`,
                 ],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(draft.trim())),
+                ],
+                ['Send'],
+              ),
             ],
           ),
         ],

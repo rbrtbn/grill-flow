@@ -116,11 +116,13 @@ export const strictCheck = (
 export const decodeStrict = (
   raw: unknown,
 ): Readonly<{ grill: Grill; unknownKeys: ReadonlyArray<Problem> }> => {
-  const { errors, unknownKeys } = strictCheck(raw)
+  // A served grill copied back carries `discussions`; drop it with a warning (ADR 0033).
+  const grillOnly = withoutDiscussions(raw)
+  const { errors, unknownKeys } = strictCheck(grillOnly)
   if (errors.length > 0) {
     throw new GrillInvalid(errors)
   }
-  return { grill: decodeGrill(raw), unknownKeys }
+  return { grill: decodeGrill(grillOnly), unknownKeys }
 }
 
 export const unknownKeyWarning = (
@@ -234,7 +236,7 @@ export const loadChecked = (
   provenance: WriteProvenance,
   expectRev?: number,
 ): Loaded => {
-  const { grill, unknownKeys } = decodeStrict(withoutDiscussions(raw))
+  const { grill, unknownKeys } = decodeStrict(raw)
   return db
     .transaction(() => {
       if (expectRev !== undefined) {

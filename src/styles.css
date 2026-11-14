@@ -2683,3 +2683,21 @@ button.plan-title:hover {
   font-weight: 400;
   white-space: normal;
 }
+
+/* A draft's length once it nears the server's limit (TEXT_LIMIT in domain.ts). */
+.char-count {
+  display: block;
+  font: 500 0.8rem var(--label);
+  color: var(--muted);
+  text-align: right;
+}
+.thread-box {
+  flex-wrap: wrap;
+}
+.thread-box .char-count {
+  flex-basis: 100%;
+}
+.char-count.is-over {
+  color: var(--del-ink);
+  font-weight: 600;
+}
