@@ -1,0 +1,31 @@
+/* PROTOTYPE A · One list */
+.page { max-width: 760px; margin: 0 auto; padding: 28px 20px; }
+.page h1 { margin: 0 0 4px; font-size: 30px; }
+.lead { color: var(--muted); margin: 0 0 20px; }
+.group { margin: 28px 0; }
+.group h2 { font: 600 13px var(--label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 1px solid var(--rule); padding-bottom: 6px; margin: 0 0 6px; }
+.group h2 .n { font-weight: 500; }
+.small { font: 13px var(--label); margin: 0 0 6px; }
+.hold { border: 1px solid var(--rust); background: var(--rust-wash); border-radius: 8px; padding: 10px 14px; font-family: var(--label); }
+.hold p { margin: 4px 0 0; font-size: 14px; }
+.item { border-bottom: 1px solid var(--rule); padding: 4px 0; }
+.item-head { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; }
+.item-head:focus-visible { outline: 2px solid var(--link); }
+.item-head .t { flex: 1; font-weight: 600; }
+.item-head .caret { width: 12px; color: var(--muted); font-size: 12px; }
+.item-head .place { font: 13px var(--label); color: var(--muted); white-space: nowrap; }
+.item > .copybox { margin: 0 0 8px 22px; }
+.item-body { padding: 0 0 12px 22px; }
+.item-body .prose { margin: 6px 0; }
+.p-completed .t, .p-withdrawn .t { color: var(--muted); }
+.qrow { display: flex; gap: 8px; align-items: center; padding: 6px 0; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.qrow:hover { background: var(--panel); }
+.status { border-bottom: 1px solid var(--rule); padding: 6px 0; }
+.status summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.status .first { flex-basis: 100%; color: var(--muted); font-size: 14px; padding-left: 16px; }
+.status dl { display: grid; grid-template-columns: 170px 1fr; gap: 4px 12px; margin: 8px 0 4px 16px; font-size: 14.5px; }
+.status dt { font: 600 13px var(--label); color: var(--muted); }
+.status dd { margin: 0; }
+.status.is-stale summary b { text-decoration: line-through; color: var(--muted); }
+.stale-note { font: 13.5px var(--label); color: var(--rust); margin: 6px 0 0 16px; }
+@media (max-width: 640px) { .status dl { grid-template-columns: 1fr; } .item-head .place { display: none; } }
