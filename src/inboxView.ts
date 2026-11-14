@@ -48,6 +48,8 @@ import {
   threadTarget,
 } from './inbox'
 import { Message, type Model, PAGE_LINK_COPY } from './main'
+import { refView } from './refCard'
+import { sessionCard } from './refCards'
 import { QUESTION_PAGE } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -1041,6 +1043,7 @@ const groupsOf = (
 
 const filterBar = (
   model: Model,
+  snapshot: Snapshot,
   data: InboxData,
   filters: Filters,
   h: H,
@@ -1052,7 +1055,7 @@ const filterBar = (
     options: ReadonlyArray<readonly [string, string]>,
   ) =>
     h.div(
-      [h.Class('f-facet')],
+      [h.Class(`f-facet is-${name}`)],
       [
         h.span([h.Class('f-facet-label')], [label]),
         h.div(
@@ -1066,7 +1069,7 @@ const filterBar = (
                   ? entry.kind === value
                   : entry.session === value,
             ).length
-            return h.button(
+            const chip = h.button(
               [
                 h.Type('button'),
                 h.Class(`f-pill${on ? ' is-on' : ''}`),
@@ -1074,10 +1077,25 @@ const filterBar = (
                 h.OnClick(Message.ClickedInboxFacet({ facet: name, value })),
               ],
               [
-                `${on ? '✓ ' : ''}${text} `,
+                name === 'urgency'
+                  ? h.span([
+                      h.Class(`f-urgency-dot is-${value}`),
+                      h.AriaHidden(true),
+                    ])
+                  : h.empty,
+                `${text} `,
                 h.span([h.Class('f-count')], [String(count)]),
               ],
             )
+            return name === 'session'
+              ? refView(
+                  sessionCard(model, snapshot, data, value),
+                  'inbox-facet',
+                  chip,
+                  h,
+                  false,
+                )
+              : chip
           }),
         ),
       ],
@@ -1087,56 +1105,70 @@ const filterBar = (
     [h.Class('f-inbox-filters'), h.AriaLabel(NAMES.filter)],
     [
       h.div(
-        [h.Class('f-facet')],
+        [h.Class('f-views-row')],
         [
-          h.span([h.Class('f-facet-label')], [NAMES.views]),
           h.div(
-            [h.Class('f-pills')],
             [
-              ...views.map(view =>
-                h.button(
-                  [
-                    h.Type('button'),
-                    h.Class(
-                      `f-view${isCurrentView(view, filters) ? ' is-on' : ''}`,
-                    ),
-                    h.OnClick(Message.ClickedInboxView({ query: view.query })),
-                  ],
-                  [view.name],
-                ),
+              h.Class('f-segmented f-views'),
+              h.Role('group'),
+              h.AriaLabel(NAMES.views),
+            ],
+            views.map(view =>
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(isCurrentView(view, filters) ? 'is-on' : ''),
+                  h.AriaPressed(String(isCurrentView(view, filters))),
+                  h.OnClick(Message.ClickedInboxView({ query: view.query })),
+                ],
+                [view.name],
+              ),
+            ),
+          ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('text-button f-save-view'),
+              h.Disabled(views.some(view => isCurrentView(view, filters))),
+              h.Title('Save the current filters as a view (kept until reload)'),
+              h.OnClick(
+                Message.ClickedSaveInboxView({
+                  name: viewName(data, filters),
+                }),
+              ),
+            ],
+            ['+ Save view'],
+          ),
+          h.div(
+            [h.Class('f-filter-actions')],
+            [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('text-button'),
+                  h.Disabled(!hasFilters(filters)),
+                  h.OnClick(Message.ClickedClearInboxFilters()),
+                ],
+                ['Clear filters'],
               ),
               h.button(
                 [
                   h.Type('button'),
-                  h.Class('f-view is-add'),
-                  h.Disabled(views.some(view => isCurrentView(view, filters))),
-                  h.Title(
-                    'Save the current filters as a view (kept until reload)',
-                  ),
-                  h.OnClick(
-                    Message.ClickedSaveInboxView({
-                      name: viewName(data, filters),
-                    }),
-                  ),
+                  h.Class('text-button'),
+                  h.Title('Copy a link to this exact view'),
+                  h.OnClick(Message.ClickedCopyPageLink()),
                 ],
-                ['+ Save view'],
+                [copyLabel(model, PAGE_LINK_COPY, 'Copy link')],
               ),
             ],
           ),
         ],
       ),
-      facet('kind', NAMES.filter, KINDS),
+      facet('kind', 'Kind', KINDS),
       facet(
         'urgency',
         'Urgency',
         BUCKETS.map(bucket => option(bucket, bucketLabel(bucket))),
-      ),
-      facet(
-        'session',
-        'Session',
-        data.sessions
-          .filter(isLive)
-          .map(session => option(session.address, session.address)),
       ),
       h.div(
         [h.Class('f-facet')],
@@ -1156,26 +1188,14 @@ const filterBar = (
               ),
             ),
           ),
-          hasFilters(filters)
-            ? h.button(
-                [
-                  h.Type('button'),
-                  h.Class('text-button'),
-                  h.OnClick(Message.ClickedClearInboxFilters()),
-                ],
-                ['Clear filters'],
-              )
-            : h.empty,
-          h.button(
-            [
-              h.Type('button'),
-              h.Class('text-button'),
-              h.Title('Copy a link to this exact view'),
-              h.OnClick(Message.ClickedCopyPageLink()),
-            ],
-            [copyLabel(model, PAGE_LINK_COPY, 'Copy link')],
-          ),
         ],
+      ),
+      facet(
+        'session',
+        'Session',
+        data.sessions
+          .filter(isLive)
+          .map(session => option(session.address, session.address)),
       ),
     ],
   )
@@ -1317,7 +1337,7 @@ export const inboxPage = (
         : h.empty,
       requestStrip(model, h),
       ...freezeBanner(model, data, h),
-      filterBar(model, data, filters, h),
+      filterBar(model, snapshot, data, filters, h),
       ...Array.match(groups, {
         onEmpty: () => [
           h.p([h.Class('hint')], ['Nothing matches these filters.']),

@@ -67,6 +67,16 @@ it('filters the Inbox from its address and keeps the filter there', () => {
     { update, view },
     given(loaded('/g/fixture/inbox')),
     expect(selector('.f-inbox h1')).toHaveText('Inbox'),
+    expect(role('group', { name: 'Views' })).toExist(),
+    expect(role('button', { name: 'Clear filters' })).toBeDisabled(),
+    expect(role('button', { name: 'Copy link' })).toExist(),
+    expect(selector('.f-facet.is-urgency .f-urgency-dot.is-now')).toExist(),
+    expect(selector('.f-inbox-filters')).toHaveText(
+      /Kind.*Urgency.*Group by.*Session/,
+    ),
+    expect(selector('.f-facet.is-session .f-ref-card')).toContainText(
+      'Squad lead',
+    ),
     expect(role('button', { name: 'Merge the PR' })).toExist(),
     click(role('button', { name: /^Lines to type/ })),
     Command.expectExact(ReplacePage({ url: '/g/fixture/inbox?kind=type' })),

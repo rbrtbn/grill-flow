@@ -292,9 +292,9 @@
 }
 .f-pill.is-on,
 .f-view.is-on {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
+  border-color: var(--ink);
+  background: var(--accent-wash);
+  color: var(--ink);
 }
 .f-pill.is-on .f-count {
   color: inherit;
@@ -338,6 +338,62 @@
 .f-segmented > button.is-on {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+/* Views are presets: an ink segmented control above the lighter facet pills. */
+.f-views-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.f-views {
+  border-color: var(--ink);
+}
+.f-views > button {
+  padding: 5px 12px;
+  border-right-color: var(--ink);
+  font-weight: 600;
+}
+.f-save-view {
+  color: var(--muted);
+  font-size: 13px;
+}
+.f-filter-actions {
+  display: flex;
+  gap: 14px;
+  margin-left: auto;
+}
+.f-filter-actions .text-button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: default;
+}
+.f-urgency-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--muted);
+}
+.f-urgency-dot.is-now,
+.f-urgency-dot.is-blocking {
+  background: var(--u-blocking);
+}
+.f-urgency-dot.is-next,
+.f-urgency-dot.is-soon {
+  background: var(--u-soon);
+}
+.f-urgency-dot.is-later,
+.f-urgency-dot.is-wait {
+  background: var(--u-wait);
+}
+.f-urgency-dot.is-fyi {
+  background: var(--u-fyi);
 }
 .f-active-filters {
   display: flex;
