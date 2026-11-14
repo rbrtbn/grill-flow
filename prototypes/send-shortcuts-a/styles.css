@@ -1,0 +1,50 @@
+.row-send,
+.round-send {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--link);
+  border: 1px solid #b9c6e6;
+  background: #fff;
+  border-radius: 10px;
+  padding: 1px 9px;
+}
+.row-send:hover,
+.round-send:hover {
+  background: var(--wash);
+}
+.row-send.retry {
+  color: var(--red);
+  border-color: #dcb1ac;
+}
+.round-send {
+  background: var(--link);
+  color: #fff;
+  border-color: var(--link);
+}
+.round-send:hover:not(:disabled) {
+  background: #23407f;
+  color: #fff;
+}
+.row-note {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+.row-wrap .who {
+  display: none;
+}
+.row-wrap:not(:has(.row-send)) .who {
+  display: inline;
+}
+.scrim.clear {
+  background: transparent;
+}
+.to-group + .to-group {
+  border-top: 1px solid var(--panel);
+  padding-top: 6px;
+}
+.small-print {
+  font-size: 12px;
+  margin: 4px 0 10px;
+}

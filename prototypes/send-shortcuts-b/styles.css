@@ -1,0 +1,73 @@
+.send-strip {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #b9c6e6;
+  border-left: 4px solid var(--link);
+  border-radius: 6px;
+  background: #f7f9fe;
+}
+.send-strip.quiet {
+  border-color: var(--rule);
+  border-left-color: var(--muted);
+  background: #fff;
+}
+.send-strip.done {
+  border-color: #b8d3be;
+  border-left-color: var(--green);
+  background: #f4f9f5;
+}
+.send-strip.holding {
+  border-left-color: var(--amber);
+  background: var(--amber-wash);
+  border-color: #e3c99b;
+}
+.strip-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.strip-actions {
+  display: flex;
+  gap: 8px 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.strip-actions:empty {
+  display: none;
+}
+.primary kbd {
+  background: transparent;
+  color: #dbe3f7;
+  border-color: #6f87c4;
+}
+.also {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--rule);
+  font-size: 14px;
+  color: var(--muted);
+}
+.clock {
+  color: var(--amber);
+  font-size: 13px;
+}
+.hold-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 31;
+  background: var(--amber-wash);
+  border: 1px solid #e3c99b;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  gap: 12px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.12);
+}
+.hold-toast button {
+  font-weight: 600;
+  color: var(--link);
+}
