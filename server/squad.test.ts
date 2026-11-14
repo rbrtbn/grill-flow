@@ -527,3 +527,70 @@ it('projects updates and immutable answer history and resolves canonical source 
       ?.item.body,
   ).toBe('Progress on Q1.')
 })
+
+it('hands the page to a new lead so run asks and old-lead questions reach it', async () => {
+  const moved = await cli(
+    'handover',
+    'squad',
+    '--session',
+    'new-lead',
+    '--reason',
+    'lead recycled',
+  )
+  expect(moved).toContain(
+    'lead is now new-lead; deliveries to lead go to new-lead',
+  )
+  expect((await state()).grill.session).toBe('new-lead')
+  await post('squad', 'events', { kind: 'asked', stepId: 'run', text: 'Next?' })
+  expect(calls().at(-1)?.[1]).toBe('new-lead')
+  await post('squad', 'events', {
+    kind: 'asked',
+    stepId: 'lead-run::step-q1',
+    text: 'Still open?',
+  })
+  expect(calls().at(-1)?.[1]).toBe('new-lead')
+  await cli('handover', 'squad', '--session', 'lead', '--reason', 'lead back')
+  await post('squad', 'events', {
+    kind: 'asked',
+    stepId: 'lead-run::step-q1',
+    text: 'Back with you?',
+  })
+  expect(calls().at(-1)?.[1]).toBe('lead')
+})
+
+it('joins the GF_SQUAD page on load unless --solo', async () => {
+  const load = async (id: string, ...flags: ReadonlyArray<string>) => {
+    const { squad: _squad, ...plain } = source(id, 'helper')
+    const file = join(dir, `${id}.json`)
+    writeFileSync(file, JSON.stringify(plain))
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        'server/cli.ts',
+        'load',
+        file,
+        ...flags,
+        '--skill-revision',
+        String(SKILL_REVISION),
+      ],
+      {
+        env: { ...environment, GF_SQUAD: 'squad', HC_TERMINAL_ID: '' },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    )
+    const [code, text] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+    ])
+    expect(code).toBe(0)
+    return text
+  }
+  expect(await load('helper-run')).toContain('joining the squad page')
+  expect(getGrill(db, 'helper-run')?.squad).toEqual({
+    id: 'squad',
+    section: fixture.title,
+  })
+  await load('solo-run', '--solo')
+  expect(getGrill(db, 'solo-run')?.squad).toBeUndefined()
+})

@@ -40,6 +40,7 @@ export type EventKind =
   | 'replied'
   | 'retired'
   | 'restored'
+  | 'squad-lead'
 
 type EventRow = Readonly<{
   id: number
@@ -538,6 +539,48 @@ export const SquadRegistration = Schema.Struct({
   rounds: Schema.Record(Schema.String, Schema.Number),
 })
 export type SquadRegistration = typeof SquadRegistration.Type
+
+export const LeadHandover = Schema.Struct({
+  session: Schema.String,
+  from: Schema.String,
+  reason: Schema.String,
+  member: Schema.optionalKey(Schema.String),
+})
+export type LeadHandover = typeof LeadHandover.Type
+
+export const leadHandovers = (
+  db: Database,
+  pageId: string,
+): ReadonlyArray<LeadHandover> =>
+  events(db, pageId)
+    .filter(event => event.kind === 'squad-lead')
+    .map(event =>
+      Schema.decodeUnknownSync(LeadHandover)(JSON.parse(event.payload)),
+    )
+
+/**
+ * Where a page delivers to an address: each handover moves its old lead's address to the new
+ * one, so questions still naming a drained lead reach its successor (docs/adr/0030).
+ */
+export const sessionAlias = (
+  db: Database,
+  pageId: string,
+): ((address: string) => string) => {
+  const moves = new Map<string, string>()
+  leadHandovers(db, pageId).forEach(handover => {
+    moves.delete(handover.session)
+    if (handover.from !== '' && handover.from !== handover.session) {
+      moves.set(handover.from, handover.session)
+    }
+  })
+  const resolve = (address: string, hops: number): string => {
+    const next = moves.get(address)
+    return next === undefined || hops >= moves.size
+      ? address
+      : resolve(next, hops + 1)
+  }
+  return address => resolve(address, 0)
+}
 
 export const squadRegistrations = (
   db: Database,
