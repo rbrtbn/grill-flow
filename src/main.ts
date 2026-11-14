@@ -530,6 +530,8 @@ export const Message = defineMessageUnion({
   ScrolledToQuestion: { question: Schema.String },
   CompletedFillBox: {},
   CompletedClearSendBox: {},
+  PastedText: { text: Schema.String },
+  CompletedInsertPastedText: {},
   ClickedAskAbout: { partId: Schema.String, question: Schema.String },
   ClickedShowChanges: { question: Schema.String, stepId: Schema.String },
   HoveredMapNode: { question: Schema.String },
@@ -1825,6 +1827,11 @@ export const update = (model: Model, message: Message) =>
 
     CompletedFillBox: () => ({ model }),
     CompletedClearSendBox: () => ({ model }),
+    PastedText: ({ text }) => ({
+      model,
+      commands: [InsertPastedText({ text })],
+    }),
+    CompletedInsertPastedText: () => ({ model }),
 
     ScrolledToAbout: ({ partId, about }) =>
       about === 'concept'
@@ -3956,6 +3963,41 @@ export const ReadNoteBox = Command.define('ReadNoteBox', {
     ),
 })
 
+const isTextBox = (
+  target: unknown,
+): target is HTMLTextAreaElement | HTMLInputElement =>
+  target instanceof HTMLTextAreaElement ||
+  (target instanceof HTMLInputElement &&
+    ['text', 'search', 'url', 'email', 'tel'].includes(target.type))
+
+// A dictation tool that pastes through a clipboard it takes back at once can leave the
+// browser's own paste with nothing to insert: the paste event fires and no text follows. The
+// text is still readable inside that event, so the page reads it there and inserts it itself.
+// `insertText` keeps undo working and raises the input event the boxes' drafts follow.
+export const InsertPastedText = Command.define('InsertPastedText', {
+  args: { text: Schema.String },
+  messages: [Message.CompletedInsertPastedText],
+  execute: ({ text }) =>
+    Effect.sync(() => {
+      const box = document.activeElement
+      if (isTextBox(box) && !document.execCommand('insertText', false, text)) {
+        const end = box.value.length
+        box.setRangeText(
+          text,
+          box.selectionStart ?? end,
+          box.selectionEnd ?? end,
+          'end',
+        )
+        box.dispatchEvent(
+          new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
+        )
+      }
+      return Message.CompletedInsertPastedText()
+    }).pipe(
+      Effect.catch(() => Effect.succeed(Message.CompletedInsertPastedText())),
+    ),
+})
+
 export const ClearSendBox = Command.define('ClearSendBox', {
   messages: [Message.CompletedClearSendBox],
   execute: Effect.sync(() => {
@@ -4668,6 +4710,27 @@ const isMixedPage = (page: string): boolean =>
   page.startsWith(CARD_PAGE)
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
+  // The clipboard must be read while the paste event is being dispatched (InsertPastedText).
+  // An empty read, such as a pasted image, is left to the browser.
+  pastedText: entry(
+    {},
+    {
+      modelToDependencies: () => ({}),
+      dependenciesToStream: () =>
+        Dom.streamFromEventFilterMapPreventDefault({
+          target: document,
+          type: 'paste',
+          filterMapEvent: event => {
+            const text = isTextBox(event.target)
+              ? (event.clipboardData?.getData('text/plain') ?? '')
+              : ''
+            return text === ''
+              ? Option.none()
+              : Option.some(Message.PastedText({ text }))
+          },
+        }),
+    },
+  ),
   browserNoticeEvents: entry(
     {},
     {

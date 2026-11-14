@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { Grill, OWN, type Snapshot } from './domain'
 import {
   ClearSendBox,
+  InsertPastedText,
   Message,
   PageData,
   PostEvent,
@@ -224,5 +225,15 @@ describe('text that reaches a box with no input event', () => {
     expect(
       update({ ...loaded, sendMessage: 'newer' }, restored).model.sendMessage,
     ).toBe('newer')
+  })
+
+  it('inserts a pasted text itself instead of leaving it to the browser', () => {
+    story(
+      update,
+      given(loaded),
+      message(Message.PastedText({ text: 'dictated words' })),
+      Command.expectExact(InsertPastedText({ text: 'dictated words' })),
+      Command.resolve(InsertPastedText, Message.CompletedInsertPastedText()),
+    )
   })
 })

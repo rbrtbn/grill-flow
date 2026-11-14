@@ -56,7 +56,9 @@ def posted(page, path, text, act):
 
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
-    page = browser.new_context(viewport={"width": 1500, "height": 950}).new_page()
+    context = browser.new_context(viewport={"width": 1500, "height": 950})
+    context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page = context.new_page()
     question_url = f"{args.url}/g/{args.grill}/question/{args.question}"
     page.goto(question_url)
     page.wait_for_selector(".f-answer-section")
@@ -101,6 +103,36 @@ with sync_playwright() as playwright:
         body["kind"] == "asked" and body["text"] == talk_text,
         "discussion box sends the box's text",
     )
+
+    # The page takes a paste itself: it reads the text inside the paste event and inserts it,
+    # because a dictation tool's paste can leave the browser's own insertion empty.
+    page.wait_for_selector("#talk-box")
+    page.evaluate(
+        """() => {
+          window.__pastes = []
+          window.addEventListener('paste', event => setTimeout(
+            () => window.__pastes.push(event.defaultPrevented), 0), true)
+        }"""
+    )
+    for selector in ["#talk-box", note, own]:
+        pasted_text = f"pasted {selector} {stamp}"
+        page.evaluate("text => navigator.clipboard.writeText(text)", pasted_text)
+        page.locator(selector).focus()
+        page.keyboard.press("ControlOrMeta+A")
+        page.keyboard.press("ControlOrMeta+V")
+        page.wait_for_timeout(300)
+        check(
+            value(page, selector) == pasted_text,
+            f"{selector} holds a pasted text exactly once",
+        )
+    check(
+        page.evaluate("window.__pastes") == [True, True, True],
+        "the page takes each paste itself",
+    )
+    before_undo = value(page, own)
+    page.keyboard.press("ControlOrMeta+Z")
+    check(value(page, own) != before_undo, "undo takes a pasted text back")
+    page.keyboard.press("ControlOrMeta+Shift+Z")
 
     # A new build reloads the page; the boxes' text and the caret must come back.
     carried_note = f"carried note {stamp}"
