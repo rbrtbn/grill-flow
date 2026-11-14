@@ -400,6 +400,56 @@ export const withFixtureQuestions = (snapshot: Snapshot): Snapshot => {
       ],
     },
   }
-  cache.set(snapshot, merged)
-  return merged
+  const withThread: Snapshot = {
+    ...merged,
+    asks: [
+      ...snapshot.asks.filter(ask => ask.stepId !== SAMPLE_THREAD),
+      ...SAMPLE_ASKS,
+    ],
+    revisions: [
+      ...snapshot.revisions.filter(
+        revision => revision.stepId !== SAMPLE_THREAD,
+      ),
+      ...SAMPLE_ANSWERS,
+    ],
+  }
+  cache.set(snapshot, withThread)
+  return withThread
 }
+
+// A direct thread with t2j6, so the sessions panel has a conversation to open.
+const SAMPLE_THREAD = 'agent:t2j6'
+const SAMPLE_ASKS: Snapshot['asks'] = [
+  {
+    id: 990001,
+    stepId: SAMPLE_THREAD,
+    text: 'When the side list comes back on Questions, does it change your thread schema?',
+    at: Date.parse('2026-11-14T03:52:00Z'),
+    answered: true,
+  },
+  {
+    id: 990002,
+    stepId: SAMPLE_THREAD,
+    text: 'And the unread count per question: can it count passage and side threads too?',
+    at: Date.parse('2026-11-14T04:06:00Z'),
+    answered: true,
+  },
+]
+const SAMPLE_ANSWERS: Snapshot['revisions'] = [
+  {
+    id: 990101,
+    stepId: SAMPLE_THREAD,
+    askId: 990001,
+    kind: 'comment',
+    text: 'No. A thread is still <subject>@<address>; the list only reads it.',
+    at: Date.parse('2026-11-14T03:58:00Z'),
+  },
+  {
+    id: 990102,
+    stepId: SAMPLE_THREAD,
+    askId: 990002,
+    kind: 'comment',
+    text: 'Yes: every thread whose subject is the question counts, passage and side ones included. I add read state per thread in the business-logic phase.',
+    at: Date.parse('2026-11-14T04:15:00Z'),
+  },
+]
