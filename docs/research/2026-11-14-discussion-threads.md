@@ -132,3 +132,18 @@ grouping control keeps I's squad view one choice away.
 
 Building it for real needs, beyond rounds 1 and 2: per-session issue, PR and terminal state
 (the squad's claimed issues and Herdr's terminal list), and a note field on answers in the send.
+
+## Decision (2026-11-14)
+
+Rob chose G's question page with variant I:
+
+- Clicking an answer picks it and opens an optional note under the answers, with "Write my own"
+  as the last answer.
+- The sessions panel replaces the Discussion panel and opens grouped by squad, with recent
+  conversations on top.
+- Finished and closed sessions leave the panel after a day; their history stays on the
+  Conversations page (`finished-sessions` = c, unlike the prototype, which folds them).
+
+The UI is built in `feat/inbox-ui` by the inbox-ui session; the business logic follows on
+`feat/discussion-threads`, branched from it. The full change list against today's page is in
+`~/.handoffs/2026-11-14-discussion-threads-variant-i.md`.
