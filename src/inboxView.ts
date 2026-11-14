@@ -31,6 +31,7 @@ import {
   type TaskStep,
   bucketLabel,
   bucketOf,
+  decisionKey,
   dueCount,
   entriesOf,
   filtersFrom,
@@ -42,6 +43,7 @@ import {
   passes,
   placeLabel,
   placeOf,
+  provisionalDecisions,
   questionPasses,
   questionQueryFrom,
   questionQueryString,
@@ -49,8 +51,6 @@ import {
   sessionOf,
   taskEntry,
   threadTarget,
-  decisionKey,
-  provisionalDecisions,
 } from './inbox'
 import { Message, type Model, PAGE_LINK_COPY } from './main'
 import { refView } from './refCard'

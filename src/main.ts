@@ -74,8 +74,8 @@ import {
 import { drawingAttemptKey } from './drawings'
 import {
   ALL_SCOPES,
-  INBOX,
   DECISION_PAGE,
+  INBOX,
   ITEM_PAGE,
   InboxUi,
   RUNS,
