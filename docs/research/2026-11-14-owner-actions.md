@@ -128,6 +128,56 @@ Added size over the estimates below: the Runs page is ~250 code / ~150 tests, th
 ~120 / ~80, item threads ~200 / ~160 (reusing agent threads), and Group by or batch mode
 ~150 / ~100.
 
+## Round 3: variant F (D revised)
+
+Rob picked D, with these changes, all built into F (port 4355):
+
+- **Questions join the Inbox.** Each group (Now, Next, Later, or a place, kind or session)
+  has one line per group, such as "❓ 3 questions to answer · t2j6, t2hq · Answer ›". It
+  expands inline to show each question's key, session, round and context. Questions count
+  toward the facets: Kind has "Questions", Where has "On the Questions page", and Session is
+  the asking session. The header count is everything in Now and Next, questions included.
+- **The Questions page filters.** It has Session, Urgency and Round facets, a "Showing 3 of
+  10" line with removable chips, and links in the form
+  `#/questions?run=t2j8&urgency=next&round=…`. The Inbox's Answer › link and the Runs
+  page's round links open it already filtered. In the product this needs the question queue
+  (ADR 0024, 0025) to read filters from the URL, which is small. It also needs a session and
+  round on every question, which both already exist.
+- **Filters you can combine.** Kind, Urgency and Session are multi-select pills with counts.
+  Group by stays single-select. Views are saved filter sets (Everything; Merges and lines to
+  type; Just questions; Now only; Interactive sessions; + Save view). Copy link copies the
+  current view.
+- **Interactive and helper sessions.** Runs shows a lane for every session on the page, typed
+  as Orchestrated run, Squad lead, Helper, Interactive or Ended, with a legend. An
+  interactive session has no run state, gates or status. Its lane shows its tasks, its
+  questions grouped by round, and "No run, so no status. Last active 2 min ago: added two
+  questions", which comes from page events. It offers a "Request update" link instead.
+  Lines typed into an interactive session count in that session only, because the grant log
+  covers only sessions registered with the squad (squad ADR 0042).
+- **Request update.** This is a page action on Inbox, Questions and Runs. Rob picks what to
+  bring up to date (tasks and freezes, questions, status) and which sessions; the sessions in
+  the current view are preselected. The fixed message is shown before sending, and the page
+  delivers it the same way it delivers asks. Replies collect under the page header with a
+  status per session (… sent, ✓ answered, ✕ not delivered to an ended session). Confirmed
+  tasks show ↻. The request grants nothing. Size: ~140 code / ~120 tests, reusing ask
+  delivery.
+- **Recently done apart.** Finished tasks move to a card area at the bottom, hidden by
+  default.
+- **Names.** Inbox, Questions, Runs and Conversations are locked. The improved picks are:
+  - Task, for something only Rob can do.
+  - Now · Next · Later for urgency.
+  - Waiting on agent, for a follow-up an agent owes.
+  - Confirming, for a step Rob reported done.
+  - Freeze, for "don't do X yet".
+  - Status.
+  - Thread.
+  - Recently done.
+  - Request update.
+  - Filter and Views.
+  - Interactive, for a session without a run.
+
+  Each slot in the Names panel shows its reason and the alternatives.
+
 ## Proposed model
 
 1. **Keep `owner-step` for actions.** Add optional fields, so older items still load:

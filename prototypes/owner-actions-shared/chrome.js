@@ -9,6 +9,7 @@ export const VARIANTS = [
   { key: 'C', name: 'By conversation', port: 4353 },
   { key: 'D', name: 'Combined · views', port: 4354, path: '/owner-actions-combined/?variant=D' },
   { key: 'E', name: 'Combined · batches', port: 4354, path: '/owner-actions-combined/?variant=E' },
+  { key: 'F', name: 'Inbox (D revised)', port: 4355, path: '/owner-actions-inbox/' },
 ]
 const variantUrl = v => `${location.protocol}//${location.hostname}:${v.port}${v.path ?? '/'}`
 

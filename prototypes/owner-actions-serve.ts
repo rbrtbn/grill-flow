@@ -1,9 +1,10 @@
 // PROTOTYPE static server: `bun prototypes/owner-actions-serve.ts` serves variants A, B and C on
-// 127.0.0.1:4351-4353 and the combined D/E on 4354. No live server, database or agent is touched.
+// 127.0.0.1:4351-4353 the combined D/E on 4354 and
+// the revised inbox F on 4355. No live server, database or agent is touched.
 import { join, normalize } from 'node:path'
 
 const root = import.meta.dir
-const variants = { a: 4351, b: 4352, c: 4353, combined: 4354 } as const
+const variants = { a: 4351, b: 4352, c: 4353, combined: 4354, inbox: 4355 } as const
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

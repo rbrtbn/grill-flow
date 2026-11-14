@@ -23,6 +23,20 @@ bun prototypes/owner-actions-serve.ts
 - E · Combined, batches: <http://127.0.0.1:4354/owner-actions-combined/?variant=E>. The same
   pages, except batching works through batch cards ("5 lines to type in t2hq", "3 merges")
   that open a one-at-a-time batch mode: copy and focus, I did it, next.
+- F · Inbox, D revised: <http://127.0.0.1:4355/owner-actions-inbox/>. This is Rob's round 3.
+  - Questions sit inside the Inbox groups as one line each ("❓ 3 questions to answer"),
+    which expands inline. Its Answer › link opens the Questions page filtered to the same
+    urgency and session.
+  - The Questions page has Session, Urgency and Round filters, with removable chips.
+  - Inbox filters are multi-select facets (Kind, Urgency, Session) with saved Views, and
+    they are kept in the link.
+  - "Request update" (a page action on Inbox, Questions and Runs) asks the chosen sessions
+    to bring their tasks, questions or status up to date. Replies collect under the header.
+  - Interactive sessions (t2j5, t2j6, t2j8, which have no run) show on Runs and in the
+    Inbox with a dashed "interactive" tag, and their last activity stands in for a status.
+  - Done is a separate card area at the bottom, hidden until you click Show.
+  - The four names Rob kept are locked in the Names panel; the rest show improved picks
+    with a reason for each. `?refresh=1` opens the update menu from a link.
 - Names (floating bar): every label follows a chosen set of names (Inbox, My work, Waiting on
   you, Queue), and any single word can be swapped. "Copy my picks" copies the result for the
   squad page. `?names=0`, `?tray=1` and `?group=place` open those states from a link.
