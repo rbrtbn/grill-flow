@@ -411,15 +411,30 @@ export const cardsOf = (grill: Grill): ReadonlyArray<string> =>
   )
 
 /** A conversation about the run, a concept (`part:<id>`) or a card (`card:<card>`). */
+/** A direct conversation with one agent of the page's Herdr space, by its address. */
+export const AGENT_TARGET_PREFIX = 'agent:'
+export const agentTarget = (address: string): string =>
+  `${AGENT_TARGET_PREFIX}${address}`
+export const agentAddressOf = (target: string): string | undefined =>
+  target.startsWith(AGENT_TARGET_PREFIX) &&
+  /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)?$/.test(
+    target.slice(AGENT_TARGET_PREFIX.length),
+  )
+    ? target.slice(AGENT_TARGET_PREFIX.length)
+    : undefined
+
 export const isWholeTarget = (target: string): boolean =>
   target === GRILL_FLOW_TARGET ||
+  target.startsWith(AGENT_TARGET_PREFIX) ||
   target === 'run' ||
   target.startsWith('part:') ||
   target.startsWith('card:')
 
 /** Whether this grill contains the step, concept, card or whole-run reply target. */
 export const hasTarget = (grill: Grill, target: string): boolean =>
-  target === 'run' || target === GRILL_FLOW_TARGET
+  target === 'run' ||
+  target === GRILL_FLOW_TARGET ||
+  agentAddressOf(target) !== undefined
     ? true
     : target.startsWith('part:')
       ? grill.parts.some(part => `part:${part.id}` === target)
@@ -524,6 +539,14 @@ export const DiscussionRef = Schema.Struct({
 })
 export type DiscussionRef = typeof DiscussionRef.Type
 
+export const PageAgent = Schema.Struct({
+  address: Schema.String,
+  name: Schema.String,
+  program: Schema.String,
+  lead: Schema.Boolean,
+})
+export type PageAgent = typeof PageAgent.Type
+
 export const SessionState = Schema.Literals(['live', 'stopped', 'missing'])
 export type SessionState = typeof SessionState.Type
 
@@ -552,6 +575,8 @@ export const Snapshot = Schema.Struct({
   maintainerSession: Schema.optionalKey(Schema.String),
   // Absent until Herdr has been asked, and on servers that do not probe it.
   maintainerState: Schema.optionalKey(SessionState),
+  // Running agents in the page session's Herdr space; absent until Herdr has answered.
+  agents: Schema.optionalKey(Schema.Array(PageAgent)),
   questionRevisions: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String),
   ),
