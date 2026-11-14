@@ -169,10 +169,29 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  * Clarity findings for the steps this write adds or changes, all in one pass, so an edit to one
  * question never repeats findings on questions it left alone.
  */
+/**
+ * `siblings` are the other member grills of this grill's squad page, which a qualified
+ * `[[member/key]]` may name; undefined means they can't be seen here (an outbox on another
+ * machine), so such references are left unchecked rather than reported.
+ */
 export const lintGrill = (
   grill: Grill,
   previous?: Grill,
+  siblings?: ReadonlyArray<Grill>,
 ): ReadonlyArray<Finding> => {
+  const resolves = (reference: string): boolean => {
+    if (Option.isSome(stepByKey(grill, reference))) {
+      return true
+    }
+    const slash = reference.indexOf('/')
+    if (slash < 0 || reference.slice(0, slash) === grill.id) {
+      return false
+    }
+    return (
+      siblings === undefined ||
+      siblings.some(sibling => Option.isSome(stepByKey(sibling, reference)))
+    )
+  }
   const before = new Map(
     (previous?.steps ?? []).map(step => [step.question.id, step]),
   )
@@ -203,10 +222,12 @@ export const lintGrill = (
         match[1]!.trim(),
       )
       const unresolved = references
-        .filter(reference => Option.isNone(stepByKey(grill, reference)))
+        .filter(reference => !resolves(reference))
         .map(reference => ({
           path: field.path,
-          message: `[[${reference}]] names no question in ${grill.id}; write [[key]] with a key a question here has`,
+          message: reference.includes('/')
+            ? `[[${reference}]] names no question in ${grill.id} or another member of its squad page; write [[key]] for a question here, or [[member-grill-id/key]] for another member's`
+            : `[[${reference}]] names no question in ${grill.id}; write [[key]] with a key a question here has`,
         }))
       const forwardKeys = references
         .flatMap(reference =>

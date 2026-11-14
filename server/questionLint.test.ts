@@ -164,6 +164,34 @@ describe('clarity lint', () => {
     ])
   })
 
+  it('resolves [[member/key]] against the other members of its squad page', () => {
+    const lead: Grill = {
+      ...grillOf(step('Q1', { key: 'release-fix' })),
+      id: 'lead-run',
+    }
+    const worker = grillOf(
+      step('Q1', { ask: 'Ship after [[lead-run/release-fix]]?' }),
+      step('Q2', { ask: 'Ship after [[lead-run/missing]]?' }),
+      step('Q3', { ask: 'Ship after [[release-fix]]?' }),
+    )
+    expect(
+      lintGrill(worker, undefined, [lead]).map(finding => finding.message),
+    ).toEqual([
+      "[[lead-run/missing]] names no question in fixture or another member of its squad page; write [[key]] for a question here, or [[member-grill-id/key]] for another member's",
+      '[[release-fix]] names no question in fixture; write [[key]] with a key a question here has',
+    ])
+  })
+
+  it('leaves [[member/key]] unchecked where the squad page cannot be seen', () => {
+    const worker = grillOf(
+      step('Q1', { ask: 'Ship after [[lead-run/release-fix]]?' }),
+    )
+    expect(lintGrill(worker, undefined, undefined)).toEqual([])
+    expect(
+      lintGrill(worker, undefined, []).map(finding => finding.path),
+    ).toEqual(['/steps/0/question/ask'])
+  })
+
   it('lints only the questions a write adds or changes', () => {
     const before = grillOf(step('Q1', { context: undefined }), step('Q2'))
     const after = grillOf(
@@ -434,6 +462,43 @@ describe('keys, lint and discussions on the CLI', () => {
     expect(reused.code).toBe(2)
     expect(reused.error).toContain(
       '"deploy-order" was the key of Q1 in an earlier revision; keys are never reused',
+    )
+  })
+
+  it("loads a member referencing another member's key on the same squad page without lint", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'grill-siblings-'))
+    folders.add(dir)
+    const member = (id: string, steps: ReadonlyArray<Step>) =>
+      file(dir, `${id}.json`, {
+        ...grillOf(...steps),
+        id,
+        squad: { id: 'team', section: id },
+      })
+    const load = (path: string) =>
+      run(dir, ['load', path, '--expect-rev', '0', '--reason', 'round 1'])
+    expect(
+      await load(member('lead-run', [step('Q1', { key: 'release-fix' })])),
+    ).toMatchObject({ code: 0, error: '' })
+    const worker = await load(
+      member('worker-run', [
+        step('Q1', {
+          key: 'ship-order',
+          ask: 'Ship after [[lead-run/release-fix]]?',
+        }),
+      ]),
+    )
+    expect(worker).toMatchObject({ code: 0, error: '' })
+    const stray = await load(
+      member('helper-run', [
+        step('Q1', {
+          key: 'helper-check',
+          ask: 'Ship after [[lead-run/missing]]?',
+        }),
+      ]),
+    )
+    expect(stray.code).toBe(0)
+    expect(stray.error).toContain(
+      '[[lead-run/missing]] names no question in helper-run or another member of its squad page',
     )
   })
 
