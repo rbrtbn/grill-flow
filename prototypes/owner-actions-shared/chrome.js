@@ -7,7 +7,10 @@ export const VARIANTS = [
   { key: 'A', name: 'One list', port: 4351 },
   { key: 'B', name: 'By place', port: 4352 },
   { key: 'C', name: 'By conversation', port: 4353 },
+  { key: 'D', name: 'Combined · views', port: 4354, path: '/owner-actions-combined/?variant=D' },
+  { key: 'E', name: 'Combined · batches', port: 4354, path: '/owner-actions-combined/?variant=E' },
 ]
+const variantUrl = v => `${location.protocol}//${location.hostname}:${v.port}${v.path ?? '/'}`
 
 export const esc = s =>
   String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -138,11 +141,13 @@ export const header = nav => `
 export const headerCount = (label, n, active, extra = '') =>
   `<button type="button" class="tb ${active ? 'is-active' : ''}" ${extra}>${label}${n > 0 ? ` <span class="count">${n}</span>` : ''}</button>`
 
+let extraBar = ''
+export const setExtraBar = html => (extraBar = html)
 const floatingBar = current => {
   const i = VARIANTS.findIndex(v => v.key === current)
   const prev = VARIANTS[(i + VARIANTS.length - 1) % VARIANTS.length]
   const next = VARIANTS[(i + 1) % VARIANTS.length]
-  const url = v => `${location.protocol}//${location.hostname}:${v.port}/`
+  const url = variantUrl
   return `
   <div class="proto-bar" role="toolbar" aria-label="Prototype controls">
     <a class="pb-arrow" href="${url(prev)}" title="${prev.key} · ${prev.name} (←)">‹</a>
@@ -155,6 +160,7 @@ const floatingBar = current => {
     <button type="button" data-sim="clearHold">hold clears</button>
     <button type="button" data-sim="togglePageGrants" class="${state.pageGrants ? 'on' : ''}" title="squad profile grant_sources">grant_sources: ${state.pageGrants ? 'desktop cli page' : 'desktop+cli'}</button>
     <span class="pb-sep"></span>
+    ${extraBar}
     <button type="button" data-sim="state">State</button>
     <button type="button" data-sim="reset">Reset</button>
   </div>`
@@ -229,9 +235,9 @@ export const mount = (variant, render, onClick = () => false) => {
     if (sim && simulate[sim]) simulate[sim]()
   })
   document.addEventListener('keydown', e => {
-    if (e.target.closest('input,textarea,[contenteditable]')) return
+    if (e.target.closest('input,textarea,select,[contenteditable]')) return
     const i = VARIANTS.findIndex(v => v.key === variant)
-    const go = d => (location.href = `${location.protocol}//${location.hostname}:${VARIANTS[(i + d + VARIANTS.length) % VARIANTS.length].port}/`)
+    const go = d => (location.href = variantUrl(VARIANTS[(i + d + VARIANTS.length) % VARIANTS.length]))
     if (e.key === 'ArrowLeft') go(-1)
     if (e.key === 'ArrowRight') go(1)
   })

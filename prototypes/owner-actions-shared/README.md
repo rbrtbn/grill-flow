@@ -15,6 +15,18 @@ bun prototypes/owner-actions-serve.ts
 - C · By conversation: <http://127.0.0.1:4353/>. Each session gets a lane, and every step
   sits under the answer or pick it came from.
 
+- D · Combined, views: <http://127.0.0.1:4354/owner-actions-combined/?variant=D>. This is
+  Rob's round-2 combination. A's urgency list is the catch-up page, with a "Group by" control
+  (urgency, where, kind, run) and kind filters taken from B. C's Runs page has a per-run focus
+  view. C's quick look is a header dropdown that works on every page, Questions included (press
+  `.`). B's detail sheet becomes a full item page with a thread to the session.
+- E · Combined, batches: <http://127.0.0.1:4354/owner-actions-combined/?variant=E>. The same
+  pages, except batching works through batch cards ("5 lines to type in t2hq", "3 merges")
+  that open a one-at-a-time batch mode: copy and focus, I did it, next.
+- Names (floating bar): every label follows a chosen set of names (Inbox, My work, Waiting on
+  you, Queue), and any single word can be swapped. "Copy my picks" copies the result for the
+  squad page. `?names=0`, `?tray=1` and `?group=place` open those states from a link.
+
 The sample data copies the owner steps t2hq and t2cr published on 2026-11-14 for ask 9621,
 Q380's answer note, and t1mn's Q196 digest. Q380's filled-in grant line, the open question
 titles and the proof strings are illustrative. Everything stays in memory: nothing reaches the

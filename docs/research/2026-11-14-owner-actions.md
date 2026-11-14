@@ -87,6 +87,47 @@ is fastest at the terminal, but keeping Status apart brings back two pages. Two 
 worth borrowing: the "From your answer Q380" origin line (already in A's expanded rows), and
 B's per-session batch with a single Focus as an optional grouping.
 
+## Round 2: Rob's combination (D and E)
+
+Rob found good parts in all three variants. A works as the catch-up page after time away,
+C's Runs page shows where each session stands and lets him unblock one run first, and C's
+dropdown gives a quick look without switching context. B's batching suits doing all the
+merges or all the grants in one sitting, and B's detail sheet should carry a thread to the
+session. He also asked to see the naming options and pick industry terms.
+
+The combined prototype (4354) has these pages:
+
+- **Inbox** (A, catch-up): freezes on top, then Now / Next / Questions / Later, Upcoming
+  (promised), Verifying (reported), Run status and Done. One-line items show "Copy & focus
+  t2hq": a single click copies the line and focuses the terminal, after which Rob pastes and
+  presses Enter. Both parts are page-safe, and pasting counts as typing.
+- **Runs** (C): one lane per session, with "Waiting on you (7) · squad#157 merges", the
+  freeze, the status, and each step under the answer or pick it came from. Picking a run
+  opens it alone, with a "What happened" history.
+- **Quick look** (C's dropdown): it hangs off the Inbox nav item (a split button with a count
+  and a caret), or a bell at the right, or both. It opens over any page, Questions included,
+  and `.` toggles it. It shows Now / Next / Later rows, the active freeze and counts by run.
+- **Item page** (B's sheet): where, what, unblocks, if you wait, related, the origin, the
+  steps, the route, the buttons and the history. A **Thread** with the session sits beside
+  it, with quick asks (clarify, update the steps, not now, can you do it instead). The
+  agent's replies land on the item. In the product this reuses the agent-thread delivery of
+  ADR 0029, keyed to the item instead of the discussion panel.
+- **Batching** (B): in **D** it is "Group by: Urgency | Where | Kind | Run" plus kind filters
+  on the Inbox, with Focus on each terminal group. In **E** it is batch cards above the list
+  that open a one-at-a-time **Batch** mode: copy and focus, I did it, next. D keeps
+  everything on one page. E is faster for "do all the merges now".
+
+Names: the recommended set is **Inbox · Questions · Runs**, an **Action item** for one
+thing, **Now / Next / Later**, **Upcoming** for promised follow-ups, **Verifying** for
+reported steps, **Freeze** for holds, **Run status**, **Thread**, **Done** and **Batch**.
+Linear and GitHub call the triage list an Inbox. Now / Next / Later is the roadmap
+convention. A change freeze is the operations term for "don't ship X yet". The page offers
+three other coherent sets and lets any word be swapped.
+
+Added size over the estimates below: the Runs page is ~250 code / ~150 tests, the quick look
+~120 / ~80, item threads ~200 / ~160 (reusing agent threads), and Group by or batch mode
+~150 / ~100.
+
 ## Proposed model
 
 1. **Keep `owner-step` for actions.** Add optional fields, so older items still load:
