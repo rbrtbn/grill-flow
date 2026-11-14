@@ -12,13 +12,16 @@ in chat.
 1. Run `gf --skill` and read the complete guide. It owns authoring,
    delivery, routing, examples and constraints. Keep its revision with the
    guide in context.
-2. Before each load, item, revise, reply or draw, run
+2. Before each load, question, patch, item, revise, reply or draw, run
    `gf --skill --if-newer-than <revision-read>`. Read the full replacement
    when changed. After context loss, fetch the full guide rather than only a
    version.
 3. Follow the guide and declare `--skill-revision <revision-read>` on the
    write. A warning during migration preserves successful publication; apply
    changed guidance to the next write or make a deliberate correction.
+
+Once a grill is loaded, change it with `gf question` or `gf patch`, never by
+editing `grills/<id>.json`: the plugin's hook refuses those edits.
 
 Use the same retrieval with `GF_OUTBOX` for remote writing. Read its cached
 or unverified label honestly, and read host import warnings through
