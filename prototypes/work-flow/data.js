@@ -1,0 +1,823 @@
+// PROTOTYPE data: one squad run (2026-11-11 stage 1) extracted from its run logs, Linear and
+// GitHub on 2026-11-14. Times marked (mtime) are inferred from file times.
+export const DATA = {
+ "run": {
+  "id": "2026-11-11-squad-stage1-t2cr",
+  "lead": "t2cr",
+  "orchestrator": "t2hq",
+  "startedAt": "2026-11-11T12:36:00Z",
+  "notes": "Real Linear statuses (read 2026-11-14) supersede the plan snapshot: LAB-1369, 1372, 1396, 1429, 1365, 1393, 1368 are Done; LAB-1411 is building (PR 164 draft). Times are UTC; mtime-derived ones are file mtime minus 1h (CET). Orchestrator t2cr (session 9d2c2519) handed to t2hq (d82cca71) 2026-11-13T17:21Z."
+ },
+ "issues": [
+  {
+   "id": "LAB-1369",
+   "title": "Rotate a run's state.md so it stops growing",
+   "linearStatus": "Done",
+   "pr": 148,
+   "prState": "merged",
+   "state": "merged",
+   "dependsOn": [
+    "LAB-1364"
+   ],
+   "blockedBy": null,
+   "doing": "Merged under G7; follow-ups filed as LAB-1439",
+   "rounds": {
+    "review": 4,
+    "fix": 2
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-10T11:40:18Z",
+     "state": "building",
+     "agent": "b1369",
+     "note": "codex b1369 (old run t20c) · PR 148 opened in the earlier run (GitHub createdAt)"
+    },
+    {
+     "at": "2026-11-11T13:19:48Z",
+     "state": "building",
+     "agent": "b1369",
+     "note": "t2cr + codex b1369 · Claimed In Progress in this run (Linear stateHistory); builder resumed from checkpoint"
+    },
+    {
+     "at": "2026-11-11T17:17:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewers 148-r1-spec/standards (Opus) · Round 1 re-briefed on c1ea835d after stale import aborted (judgment call)"
+    },
+    {
+     "at": "2026-11-11T17:13:41Z",
+     "state": "fixing",
+     "agent": "b1369",
+     "note": "codex b1369 (1369-fix-r1) · d1-builder record (mtime, CET-1h)"
+    },
+    {
+     "at": "2026-11-11T18:00:37Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewer 148-r2-combined · Round 2 combined review (mtime)"
+    },
+    {
+     "at": "2026-11-11T18:22:11Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewer 148-r3-final-delta · Round 3 final delta (mtime)"
+    },
+    {
+     "at": "2026-11-12T08:04:00Z",
+     "state": "fixing",
+     "agent": "b1369",
+     "note": "codex b1369 (1369-main-merge) · Main merge + suites, check timeout +3600s; pushed fc064284 08:29Z"
+    },
+    {
+     "at": "2026-11-12T11:15:00Z",
+     "state": "merge-ready",
+     "agent": "reviewer",
+     "note": "reviewer 148-r4-final-delta · Round 4 over merge-only delta after exit-5 workaround"
+    },
+    {
+     "at": "2026-11-12T11:19:49Z",
+     "state": "merged",
+     "agent": "t2cr",
+     "note": "Merged under G7 (GitHub mergedAt); Linear Done 11:19:52Z"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1372",
+   "title": "One record per card (asks/<id>.json); state row is a pointer",
+   "linearStatus": "Done",
+   "pr": 158,
+   "prState": "merged",
+   "state": "merged",
+   "dependsOn": [
+    "LAB-1368",
+    "LAB-1364"
+   ],
+   "blockedBy": "Post-merge audit (round 4) found 3 highs shipped in 25.8.0; revert PR 162 vs fix-forward waits on Rob (card stage1-t2cr-16)",
+   "doing": "Audit highs filed on LAB-1454; draft revert PR 162 held for Rob",
+   "rounds": {
+    "review": 4,
+    "fix": 4
+   },
+   "estimateLeft": "Rob decides revert or fix forward, then a fix PR for R4-A1..A3 and a re-audit",
+   "transitions": [
+    {
+     "at": "2026-11-11T13:19:59Z",
+     "state": "building",
+     "agent": "b1372",
+     "note": "codex b1372 · Claimed In Progress (Linear stateHistory)"
+    },
+    {
+     "at": "2026-11-11T19:51:19Z",
+     "state": "building",
+     "agent": "b1372",
+     "note": "codex b1372 · PR 158 opened (createdAt), stacked on 148"
+    },
+    {
+     "at": "2026-11-11T21:01:03Z",
+     "state": "building",
+     "agent": "b1372",
+     "note": "codex b1372 · 1372-build handback (mtime); CI fixes and main merge continued 2026-11-12/13"
+    },
+    {
+     "at": "2026-11-13T01:50:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewers 158-r1-spec/standards · Head c6262e62 verified; round 1 reviews landed ~02:16Z (mtime)"
+    },
+    {
+     "at": "2026-11-13T04:10:00Z",
+     "state": "fixing",
+     "agent": "b1372",
+     "note": "codex b1372 (1372-r1-fix) · 7 H/M fixed, round 2 opens at ff431d6b"
+    },
+    {
+     "at": "2026-11-13T05:37:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewers 158-r2/r3 · Round 3 (cap round) opens at 5a674c36 after 1372-r2-fix"
+    },
+    {
+     "at": "2026-11-13T05:59:00Z",
+     "state": "blocked",
+     "agent": "t2cr",
+     "note": "At cap with R3-A1, R3-B1 open; card stage1-t2cr-10, accept-check question"
+    },
+    {
+     "at": "2026-11-13T14:49:00Z",
+     "state": "fixing",
+     "agent": "b1372",
+     "note": "Fable cap arbiter + codex b1372 · Cap outcome 3: 29-line pinned fix; applied 15:34Z, verified 16:20Z"
+    },
+    {
+     "at": "2026-11-13T17:17:55Z",
+     "state": "merged",
+     "agent": "Rob",
+     "note": "Merged by Rob (cap merge); Linear Done 17:17:58Z"
+    },
+    {
+     "at": "2026-11-13T17:43:00Z",
+     "state": "fixing",
+     "agent": "reviewer",
+     "note": "reviewer 158-r4-audit · Post-merge audit: 3 new highs; draft revert PR 162 opened 18:01Z"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1396",
+   "title": "Enable PAGE authority for rob-mbp via installed profile",
+   "linearStatus": "Done",
+   "pr": 136,
+   "prState": "merged",
+   "state": "merged",
+   "dependsOn": [],
+   "blockedBy": "Rob-side: enabling the rob-mbp setting follows the squad release",
+   "doing": "Released; t2cr to enable the setting for rob-mbp",
+   "rounds": {
+    "review": 3,
+    "fix": 1
+   },
+   "estimateLeft": "enable setting after release",
+   "transitions": [
+    {
+     "at": "2026-11-11T13:23:12Z",
+     "state": "building",
+     "agent": "b1396",
+     "note": "codex b1396 (cx) · Claimed In Progress (Linear stateHistory)"
+    },
+    {
+     "at": "2026-11-11T14:19:00Z",
+     "state": "review",
+     "agent": "t2cr",
+     "note": "PR 136 marked ready at aab3f524 (judgment call); Linear In Review 14:24:27Z"
+    },
+    {
+     "at": "2026-11-11T14:44:11Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewer 136-r3-final-delta · Round 3 final delta (mtime, CET-1h)"
+    },
+    {
+     "at": "2026-11-11T15:25:59Z",
+     "state": "fixing",
+     "agent": "b1396",
+     "note": "codex b1396 (136-lows) · Lows batch (mtime)"
+    },
+    {
+     "at": "2026-11-12T05:49:03Z",
+     "state": "merged",
+     "agent": "t2cr",
+     "note": "Merged under G10; Linear Done 05:49:05Z"
+    },
+    {
+     "at": "2026-11-12T10:47:00Z",
+     "state": "released",
+     "agent": "t2cr",
+     "note": "Squad release run 43203397273 shipped #136"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1429",
+   "title": "Every ADR 0057 gated path is on the design-gate list",
+   "linearStatus": "Done",
+   "pr": 155,
+   "prState": "merged",
+   "state": "merged",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Released with LAB-1396",
+   "rounds": {
+    "review": 2,
+    "fix": 1
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-11T14:16:43Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Filed under G5/G6 (Todo)"
+    },
+    {
+     "at": "2026-11-11T14:24:19Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1429-arb1 · Claimed In Progress; arbiter facts file 14:44Z (mtime)"
+    },
+    {
+     "at": "2026-11-11T15:58:52Z",
+     "state": "building",
+     "agent": "b1429",
+     "note": "codex b1429 · PR 155 opened (createdAt); build brief 15:31Z (mtime)"
+    },
+    {
+     "at": "2026-11-11T16:47:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewers 155-r1-spec/standards · Round 1 both axes NEW H/M 0; round 2 skipped 16:49Z"
+    },
+    {
+     "at": "2026-11-11T17:34:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewer 155-r3-final-delta · Round 3 (mtime)"
+    },
+    {
+     "at": "2026-11-11T17:51:00Z",
+     "state": "fixing",
+     "agent": "b1429",
+     "note": "codex b1429 (155-lows3) · Lows (mtime)"
+    },
+    {
+     "at": "2026-11-12T05:50:20Z",
+     "state": "merged",
+     "agent": "t2cr",
+     "note": "Merged under G10"
+    },
+    {
+     "at": "2026-11-12T10:47:00Z",
+     "state": "released",
+     "agent": "t2cr",
+     "note": "Release run 43203397273"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1426",
+   "title": "Clean round 1 closes, lows never block, older findings stay in ledger",
+   "linearStatus": "In Progress",
+   "pr": 157,
+   "prState": "open",
+   "state": "merge-ready",
+   "dependsOn": [],
+   "blockedBy": "Rob's own merge: capped PR, gate denies agent merge (stage1-t2cr-7/8); ready at fcee236e, CI green",
+   "doing": "Waiting for Rob to merge; follow-up filed as LAB-1453",
+   "rounds": {
+    "review": 3,
+    "fix": 3
+   },
+   "estimateLeft": "Rob merge, then release; LAB-1449 build waits on it",
+   "transitions": [
+    {
+     "at": "2026-11-11T13:22:58Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiters 1426-arb1/arb2 · Claimed; arb1 facts 13:45Z, arb2 14:19Z (mtime); amendments Q16-Q22 by Rob 14:15Z"
+    },
+    {
+     "at": "2026-11-11T14:23:00Z",
+     "state": "building",
+     "agent": "b1426",
+     "note": "codex b1426 · Build brief (mtime); handback 16:35Z"
+    },
+    {
+     "at": "2026-11-11T16:27:11Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewers 157-r1-spec/standards · PR 157 opened; round 1 reviews 16:57-17:04Z (mtime)"
+    },
+    {
+     "at": "2026-11-11T17:05:00Z",
+     "state": "fixing",
+     "agent": "b1426",
+     "note": "codex b1426 (1426-fix-r1) · 5 mediums routed; d1 builder record 18:57Z (mtime)"
+    },
+    {
+     "at": "2026-11-11T19:32:00Z",
+     "state": "review",
+     "agent": "reviewer",
+     "note": "reviewer 157-r2-combined · Round 2 (mtime)"
+    },
+    {
+     "at": "2026-11-12T05:11:00Z",
+     "state": "blocked",
+     "agent": "reviewer",
+     "note": "reviewer 157-r3-final-delta · Round 3 at the cap; Fable cap arbiter 05:12Z"
+    },
+    {
+     "at": "2026-11-12T06:14:00Z",
+     "state": "fixing",
+     "agent": "b1426",
+     "note": "codex b1426 (1426-cap-fix) · Cap outcome 3 applied; verified 08:23Z; R3-A2 lows verified 11:08Z"
+    },
+    {
+     "at": "2026-11-13T14:54:00Z",
+     "state": "merge-ready",
+     "agent": "t2cr",
+     "note": "LAB-1453 filed; merge under G12 denied by gate; waiting on Rob at fcee236e"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1411",
+   "title": "Pickup allows a stacked draft when every blocker has an open PR",
+   "linearStatus": "In Progress",
+   "pr": 164,
+   "prState": "open",
+   "state": "building",
+   "dependsOn": [
+    "LAB-1372"
+   ],
+   "blockedBy": null,
+   "doing": "Synced to main 66ab5d2c; awaiting CI verdict · next: Draft PR 164 CI pending (stage1-t2cr-15 waiter hold), then round 1",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "CI, two-axis round 1, probably one fix round, merge under G13",
+   "transitions": [
+    {
+     "at": "2026-11-13T00:38:00Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1411-arb1 (Opus xhigh) · Read-only gate started overnight; facts file 02:23Z (mtime)"
+    },
+    {
+     "at": "2026-11-13T00:41:29Z",
+     "state": "design-gate",
+     "agent": "t2cr",
+     "note": "Claimed In Progress (Linear stateHistory)"
+    },
+    {
+     "at": "2026-11-13T17:25:00Z",
+     "state": "building",
+     "agent": "b1411",
+     "note": "codex b1411 (Herdr t2hs) · Started on main 491d1ebb after #158 merged"
+    },
+    {
+     "at": "2026-11-13T18:20:27Z",
+     "state": "building",
+     "agent": "b1411",
+     "note": "codex b1411 · Draft PR 164 opened; d0-builder record 18:22Z (mtime)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1440",
+   "title": "Count defects found after each merged PR (squad-escapes)",
+   "linearStatus": "In Progress",
+   "pr": 163,
+   "prState": "open",
+   "state": "building",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Merged main into branch; moving tests/run.sh rows into suite manifests · next: Draft PR 163 CI pending, then round 1",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "CI, round 1, fix round, merge",
+   "transitions": [
+    {
+     "at": "2026-11-13T13:24:18Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1440-arb1 (Opus xhigh) · Admitted under G11; In Progress; facts file 13:47Z (mtime); RU-12 14:12Z"
+    },
+    {
+     "at": "2026-11-13T17:25:00Z",
+     "state": "building",
+     "agent": "b1440",
+     "note": "codex b1440 (Herdr t2ht) · Builder started on main 491d1ebb"
+    },
+    {
+     "at": "2026-11-13T18:16:59Z",
+     "state": "building",
+     "agent": "b1440",
+     "note": "codex b1440 · Draft PR 163 opened (createdAt)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1441",
+   "title": "Print a PR's tier and report the tier mix of past PRs",
+   "linearStatus": "In Progress",
+   "pr": 161,
+   "prState": "open",
+   "state": "building",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Synced to main; allowed fixture-only test edit · next: Draft PR 161 CI pending, then round 1",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "CI, round 1, fix round, merge; LAB-1444 waits on its report",
+   "transitions": [
+    {
+     "at": "2026-11-13T13:24:22Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1441-arb1 (Opus xhigh) · Admitted under G11; In Progress; facts file 13:43Z (mtime); RU-11 14:12Z"
+    },
+    {
+     "at": "2026-11-13T17:25:00Z",
+     "state": "building",
+     "agent": "b1441",
+     "note": "codex b1441 (Herdr t2hv) · Builder started; blocked once on over-broad UNRELEASED brief line 17:48Z"
+    },
+    {
+     "at": "2026-11-13T17:55:31Z",
+     "state": "building",
+     "agent": "b1441",
+     "note": "codex b1441 · Draft PR 161 opened (createdAt)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1451",
+   "title": "design-gate.txt lists every path ADR 0057 calls gated",
+   "linearStatus": "In Progress",
+   "pr": null,
+   "prState": null,
+   "state": "design-gate",
+   "dependsOn": [],
+   "blockedBy": "Rob's answers to card stage1-t2cr-17 (Q58-Q64) on the grill page",
+   "doing": "Arbiter gate done (amend); questions on page",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "Rob answers, then build, review, merge; unblocks LAB-1427/1444/1446",
+   "transitions": [
+    {
+     "at": "2026-11-13T14:12:32Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Filed (Backlog); Todo 17:29Z"
+    },
+    {
+     "at": "2026-11-13T17:32:30Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1451-arb1 (Opus xhigh) · Claimed In Progress"
+    },
+    {
+     "at": "2026-11-13T17:53:00Z",
+     "state": "blocked",
+     "agent": "t2cr",
+     "note": "Card stage1-t2cr-17 asked; facts file 17:52Z (mtime); option d added 2026-11-14T01:55Z"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1449",
+   "title": "squad-check accept skips same-round reviews for earlier lows",
+   "linearStatus": "In Progress",
+   "pr": null,
+   "prState": null,
+   "state": "design-gate",
+   "dependsOn": [
+    "LAB-1426"
+   ],
+   "blockedBy": "Rob's answers to card stage1-t2cr-18 (Q65-Q67); build also waits on PR 157 merging (same text in 4 files)",
+   "doing": "Arbiter gate done (amend); questions on page",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "Rob answers, wait for #157, build, review, merge",
+   "transitions": [
+    {
+     "at": "2026-11-13T13:46:36Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Filed (Backlog) RU-9; Todo 17:29Z"
+    },
+    {
+     "at": "2026-11-13T17:32:30Z",
+     "state": "design-gate",
+     "agent": "arbiter",
+     "note": "arbiter 1449-arb1 (Opus xhigh) · Claimed In Progress"
+    },
+    {
+     "at": "2026-11-13T17:58:00Z",
+     "state": "blocked",
+     "agent": "t2cr",
+     "note": "Card stage1-t2cr-18 asked; facts file 17:57Z (mtime)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1454",
+   "title": "Review follow-up for squad#158: answer-reader gap and lows",
+   "linearStatus": "Triage",
+   "pr": null,
+   "prState": null,
+   "state": "planned",
+   "dependsOn": [
+    "LAB-1372"
+   ],
+   "blockedBy": "Rob's choice revert vs fix forward (stage1-t2cr-16)",
+   "doing": "Holds audit findings R4-A1..A6, 13 lows",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "A fix PR once Rob decides",
+   "transitions": [
+    {
+     "at": "2026-11-13T17:18:32Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Filed (Backlog) as #158 review follow-up"
+    },
+    {
+     "at": "2026-11-13T17:43:37Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Moved to Triage with audit highs"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1455",
+   "title": "Owner answers have one documented shape; refusals read back",
+   "linearStatus": "Todo",
+   "pr": null,
+   "prState": null,
+   "state": "parked",
+   "dependsOn": [
+    "LAB-1454"
+   ],
+   "blockedBy": "Not admitted: needs Rob's typed admission; design-gated (lib/, asking.md)",
+   "doing": "Nothing; filed on Rob's page ask",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "Admission, design gate, build, review",
+   "transitions": [
+    {
+     "at": "2026-11-13T23:35:22Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Filed Todo (High)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1453",
+   "title": "Review follow-up for squad#157: early-close gate edge cases",
+   "linearStatus": "Backlog",
+   "pr": null,
+   "prState": null,
+   "state": "parked",
+   "dependsOn": [
+    "LAB-1426"
+   ],
+   "blockedBy": "Not admitted",
+   "doing": "Holds R2-A1, R2-A2 and lows",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-13T14:54:35Z",
+     "state": "parked",
+     "agent": "t2cr",
+     "note": "Filed in Backlog before #157 merge"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1444",
+   "title": "Decide the fast lane: light/normal PRs with no orchestrator",
+   "linearStatus": "Backlog",
+   "pr": null,
+   "prState": null,
+   "state": "planned",
+   "dependsOn": [
+    "LAB-1441",
+    "LAB-1451"
+   ],
+   "blockedBy": "Waits for LAB-1441's report and LAB-1451",
+   "doing": "Not started",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": "After 1441 and 1451",
+   "transitions": [
+    {
+     "at": "2026-11-13T13:17:36Z",
+     "state": "planned",
+     "agent": "t2cr",
+     "note": "Admitted under G11; waits"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1412",
+   "title": "Lead and helper questions use the same card commands",
+   "linearStatus": "Backlog",
+   "pr": null,
+   "prState": null,
+   "state": "parked",
+   "dependsOn": [
+    "LAB-1372"
+   ],
+   "blockedBy": "Outside this run",
+   "doing": "Not started",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": null,
+   "transitions": []
+  },
+  {
+   "id": "LAB-1368",
+   "title": "One squad-state apply call writes a turn's run state",
+   "linearStatus": "Done",
+   "pr": null,
+   "prState": "merged",
+   "state": "merged",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Done in earlier run",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-09T22:42:25Z",
+     "state": "building",
+     "agent": "earlier run",
+     "note": "Linear stateHistory"
+    },
+    {
+     "at": "2026-11-10T04:16:04Z",
+     "state": "merge-ready",
+     "agent": "earlier run",
+     "note": "Ready to Merge (Linear stateHistory)"
+    },
+    {
+     "at": "2026-11-10T06:57:52Z",
+     "state": "merged",
+     "agent": "earlier run",
+     "note": "Done (Linear stateHistory)"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1365",
+   "title": "One multiplexed waiter per run; Codex builders detached",
+   "linearStatus": "Done",
+   "pr": null,
+   "prState": null,
+   "state": "merged",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Done in earlier run",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-08T05:35:26Z",
+     "state": "building",
+     "agent": "earlier run",
+     "note": "Linear stateHistory"
+    },
+    {
+     "at": "2026-11-08T07:40:53Z",
+     "state": "review",
+     "agent": "earlier run",
+     "note": "In Review (Linear stateHistory)"
+    },
+    {
+     "at": "2026-11-09T22:46:28Z",
+     "state": "building",
+     "agent": "earlier run",
+     "note": "Back In Progress after Todo"
+    },
+    {
+     "at": "2026-11-11T08:33:30Z",
+     "state": "parked",
+     "agent": "earlier run",
+     "note": "Parked"
+    },
+    {
+     "at": "2026-11-11T12:15:03Z",
+     "state": "merged",
+     "agent": "earlier run",
+     "note": "Done"
+    }
+   ]
+  },
+  {
+   "id": "LAB-1393",
+   "title": "ADRs carry no proposed/accepted status",
+   "linearStatus": "Done",
+   "pr": null,
+   "prState": null,
+   "state": "merged",
+   "dependsOn": [],
+   "blockedBy": null,
+   "doing": "Done in earlier run",
+   "rounds": {
+    "review": 0,
+    "fix": 0
+   },
+   "estimateLeft": null,
+   "transitions": [
+    {
+     "at": "2026-11-08T14:41:30Z",
+     "state": "building",
+     "agent": "earlier run",
+     "note": "Linear stateHistory"
+    },
+    {
+     "at": "2026-11-08T16:33:03Z",
+     "state": "review",
+     "agent": "earlier run",
+     "note": "In Review"
+    },
+    {
+     "at": "2026-11-08T21:31:21Z",
+     "state": "review",
+     "agent": "earlier run",
+     "note": "Second In Review stretch until 2026-11-09T22:05Z"
+    },
+    {
+     "at": "2026-11-11T08:33:35Z",
+     "state": "parked",
+     "agent": "earlier run",
+     "note": "Parked"
+    },
+    {
+     "at": "2026-11-11T12:26:12Z",
+     "state": "merged",
+     "agent": "earlier run",
+     "note": "Done"
+    }
+   ]
+  }
+ ],
+ "sources": [
+  "/Users/robertban/.squad/2026-11-11-squad-stage1-t2cr/state.md",
+  "/Users/robertban/.squad/2026-11-11-squad-stage1-t2cr/ledger-*/ (mtimes)",
+  "/Users/robertban/.squad/2026-11-11-squad-stage1-t2cr/facts/*.md (mtimes)",
+  "Linear get_issue stateHistory for each issue",
+  "gh pr view rbrtbn/squad 136,148,155,157,158,159,161,162,163,164"
+ ],
+ "gaps": [
+  "state.md Assignments table has no timestamps; agent spawn times are inferred from ledger/facts mtimes",
+  "No per-issue pickup time for 1396/1426/1369/1372 other than Linear In Progress",
+  "LAB-1412 has no run activity; transitions empty",
+  "Plan snapshot states (1369 building, 1365 review, 1393 review) contradict Linear/state.md; used the latter",
+  "Some transitions are out of strict time order where timestamps come from mixed sources (e.g. LAB-1369 round 1)",
+  "PR 162 revert (LAB-1372) not modelled as separate issue",
+  "LAB-1428 closed as duplicate, LAB-1438/1437 and stage-2 issues not touched yet, not included"
+ ],
+ "now": "2026-11-14T06:34:00Z"
+}
