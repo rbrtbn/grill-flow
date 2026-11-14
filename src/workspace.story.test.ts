@@ -228,7 +228,10 @@ describe('reviewing and sending real answers', () => {
         expect(current.currentPart).toBe(REVIEW)
         expect(current.maybeHeldSend).toEqual(Option.none())
       }),
-      Command.expectExact(PushPage({ url: '/g/fixture/review' }), ScrollToTop()),
+      Command.expectExact(
+        PushPage({ url: '/g/fixture/review' }),
+        ScrollToTop(),
+      ),
       Command.resolve(PushPage, Message.CompletedNavigate()),
       Command.resolve(ScrollToTop, Message.CompletedScroll()),
     )

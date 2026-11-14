@@ -34,12 +34,17 @@ your answers, takes an optional message, and types it all into the agent's termi
 Everything stays on your machine. Every answer, note, ask and rewrite is kept as an event in a
 local SQLite file, so you can later mine how you use the pages.
 
-Hold Command to turn the header's **Review & send** button into **Send**. Command-click sends
-the currently selected unsent drafts across rounds, keeping any answers you unchecked in Review
-excluded and including your saved review message. It saves visible notes and custom answer text
-first. Ordinary click still opens Review; failed saves or deliveries keep the drafts available.
+Under each answer, a strip names who gets it and sends that answer (⌘↵) or every ready draft
+in its round (⇧⌘↵); an open question you can't answer yet offers its round's ready drafts. A
+send waits five seconds with Undo (⌘Z) before anything leaves the page. The header's **N
+unsent** counter opens a tray (u) listing unsent drafts by round with their recipients: send a
+round, send the ticked rows, or **Keep back** a draft you are holding on purpose, which then
+stays out of the count and reminders. A quiet minute after answering turns the counter into a
+nudge, and following a link to another page with drafts unsent asks first. Review & send, from
+the tray, still adds a message and picks across rounds; Command-click on the counter sends its
+selection at once. Failed deliveries keep their answers as drafts.
 
-The header holds Needs you, Questions and Conversations, with Review & send at the far right.
+The header holds Needs you, Questions and Conversations, with the unsent counter at the far right.
 More contains What changed, Replies, Updates, Answer history, overviews, Your grills and
 Settings. The single question queue has Open, Drafts and All quick views. The icon Filters
 popdown holds matching-round checkboxes, state and urgency, including Sent and Unspecified.

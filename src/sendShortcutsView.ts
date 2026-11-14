@@ -84,7 +84,9 @@ const otherRounds = (
             [
               `${group.label} also has ${answerCount(group.steps.length)} unsent. `,
               button(
-                [`Send ${group.steps.length === 1 ? 'it' : `all ${group.steps.length}`}`],
+                [
+                  `Send ${group.steps.length === 1 ? 'it' : `all ${group.steps.length}`}`,
+                ],
                 Message.ClickedSendQuestions({
                   questions: group.steps.map(step => step.question.id),
                 }),
@@ -247,8 +249,10 @@ export const unsentLabel = (model: Model, snapshot: Snapshot): string => {
     model.notes,
     model.own,
   ).filter(step => model.keptBack.includes(step.question.id)).length
-  return ready === 0 && kept === 0
-    ? 'Review & send'
+  return ready === 0
+    ? kept === 0
+      ? 'Review & send'
+      : `${kept} kept back`
     : `${ready} unsent${kept > 0 ? ` · ${kept} kept back` : ''}`
 }
 
@@ -260,32 +264,35 @@ export const nudgeView = (model: Model, snapshot: Snapshot, h: H): Html => {
   ) {
     return h.empty
   }
-  return Option.match(Array.head(byRound(snapshot.grill, readyOf(model, snapshot))), {
-    onNone: () => h.empty,
-    onSome: group =>
-      h.div(
-        [h.Class('f-unsent-nudge'), h.Role('status')],
-        [
-          h.span(
-            [],
-            [
-              `${answerCount(group.steps.length)} in ${roundLabel(snapshot.grill, group.round, false)} ${group.steps.length === 1 ? 'is' : 'are'} ready to send.`,
-            ],
-          ),
-          button(
-            ['Send'],
-            Message.ClickedSendQuestions({
-              questions: group.steps.map(step => step.question.id),
-            }),
-            'text-button',
-            h,
-            h.Title(recipientSummary(snapshot.grill, group.steps)),
-          ),
-          button(['Choose'], Message.ClickedUnsentTray(), 'text-button', h),
-          button(['Not yet'], Message.ClickedNotYet(), 'text-button', h),
-        ],
-      ),
-  })
+  return Option.match(
+    Array.head(byRound(snapshot.grill, readyOf(model, snapshot))),
+    {
+      onNone: () => h.empty,
+      onSome: group =>
+        h.div(
+          [h.Class('f-unsent-nudge'), h.Role('status')],
+          [
+            h.span(
+              [],
+              [
+                `${answerCount(group.steps.length)} in ${roundLabel(snapshot.grill, group.round, false)} ${group.steps.length === 1 ? 'is' : 'are'} ready to send.`,
+              ],
+            ),
+            button(
+              ['Send'],
+              Message.ClickedSendQuestions({
+                questions: group.steps.map(step => step.question.id),
+              }),
+              'text-button',
+              h,
+              h.Title(recipientSummary(snapshot.grill, group.steps)),
+            ),
+            button(['Choose'], Message.ClickedUnsentTray(), 'text-button', h),
+            button(['Not yet'], Message.ClickedNotYet(), 'text-button', h),
+          ],
+        ),
+    },
+  )
 }
 
 /** Unsent drafts by round, each with its recipient, sent per round or as a selection. */
@@ -312,9 +319,7 @@ export const unsentTrayView = (
     const index = order.findIndex(item => item.question.id === id)
     return h.keyed('li')(
       id,
-      [
-        h.Class(`f-tray-row${index === model.trayCursor ? ' is-cursor' : ''}`),
-      ],
+      [h.Class(`f-tray-row${index === model.trayCursor ? ' is-cursor' : ''}`)],
       [
         h.input([
           h.Type('checkbox'),
@@ -335,7 +340,10 @@ export const unsentTrayView = (
             h.span([], [answerLabel(step, model.answers, model.own)]),
           ],
         ),
-        h.span([h.Class('f-tray-to')], [`To ${questionAgent(grill, step.question)}`]),
+        h.span(
+          [h.Class('f-tray-to')],
+          [`To ${questionAgent(grill, step.question)}`],
+        ),
         button(
           ['Keep back'],
           Message.ClickedKeepBack({ question: id, kept: true }),
@@ -466,11 +474,7 @@ export const unsentTrayView = (
 }
 
 /** Following a link to another page with ready drafts unsent asks first. */
-export const leaveDialogView = (
-  model: Model,
-  snapshot: Snapshot,
-  h: H,
-): Html =>
+export const leaveDialogView = (model: Model, snapshot: Snapshot, h: H): Html =>
   Option.match(model.maybeLeaving, {
     onNone: () => h.empty,
     onSome: leaving => {
@@ -509,7 +513,8 @@ export const leaveDialogView = (
                     ready
                       .filter(
                         step =>
-                          questionAgent(snapshot.grill, step.question) === agent,
+                          questionAgent(snapshot.grill, step.question) ===
+                          agent,
                       )
                       .map(step => step.question.title)
                       .join(' · '),
@@ -521,7 +526,12 @@ export const leaveDialogView = (
                 leaving.isSending
                   ? [h.span([h.Role('status')], ['Sending…'])]
                   : [
-                      button(['Stay'], Message.ClickedStay(), 'f-send-secondary', h),
+                      button(
+                        ['Stay'],
+                        Message.ClickedStay(),
+                        'f-send-secondary',
+                        h,
+                      ),
                       button(
                         ['Leave, keep as drafts'],
                         Message.ClickedLeave(),

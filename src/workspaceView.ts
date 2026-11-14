@@ -44,8 +44,8 @@ import {
   Message,
   type Model,
   RestoreDiscussionScroll,
-  readyOf,
   type SidebarEdge,
+  readyOf,
   threadDraftKey,
 } from './main'
 import {
@@ -793,7 +793,9 @@ const workspaceHeaderView = (
               h.AriaLabel(sendLabel),
               h.AriaExpanded(model.isTrayOpen),
               h.AriaKeyshortcuts('U'),
-              h.Title('Unsent answers (u) · ⌘-click sends your Review selection'),
+              h.Title(
+                'Unsent answers (u) · ⌘-click sends your Review selection',
+              ),
               h.Disabled(
                 model.send === 'Sending' || model.quickSend !== 'Idle',
               ),
@@ -1905,9 +1907,7 @@ const reviewView = (
                     return [
                       h.keyed('tr')(
                         step.id,
-                        [
-                          h.Class(isLeftOut(id) ? 'is-excluded' : ''),
-                        ],
+                        [h.Class(isLeftOut(id) ? 'is-excluded' : '')],
                         [
                           h.td(
                             [],

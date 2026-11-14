@@ -72,14 +72,6 @@ import {
 } from './domain'
 import { drawingAttemptKey } from './drawings'
 import {
-  HOLD_SECONDS,
-  IDLE_NUDGE_SECONDS,
-  readySteps,
-  roundSteps,
-  trayOrder,
-  unsentSteps,
-} from './sendShortcuts'
-import {
   QUOTE_BOX,
   QUOTE_DRAFT,
   QuoteSelection,
@@ -90,6 +82,14 @@ import {
   readQuoteSelection,
   withQuote,
 } from './quote'
+import {
+  HOLD_SECONDS,
+  IDLE_NUDGE_SECONDS,
+  readySteps,
+  roundSteps,
+  trayOrder,
+  unsentSteps,
+} from './sendShortcuts'
 import {
   ANSWER_HISTORY,
   CHANGES,
@@ -1197,10 +1197,7 @@ export const update = (model: Model, message: Message) =>
     },
 
     ClickedWorkspacePage: ({ page }) =>
-      workspaceNavigate(
-        modifyFields(model, { isTrayOpen: () => false }),
-        page,
-      ),
+      workspaceNavigate(modifyFields(model, { isTrayOpen: () => false }), page),
     ClickedQuestionNote: ({ question }) => ({
       model: modifyFields(model, {
         workspace: value =>
@@ -2028,7 +2025,8 @@ export const update = (model: Model, message: Message) =>
           onSome: leaving =>
             releaseHeldSend(
               modifyFields(model, {
-                maybeLeaving: () => Option.some({ ...leaving, isSending: true }),
+                maybeLeaving: () =>
+                  Option.some({ ...leaving, isSending: true }),
                 maybeHeldSend: () =>
                   Option.some({
                     questions: Array.dedupe([
@@ -2036,9 +2034,7 @@ export const update = (model: Model, message: Message) =>
                         onNone: () => [],
                         onSome: held => held.questions,
                       }),
-                      ...readyOf(model, snapshot).map(
-                        step => step.question.id,
-                      ),
+                      ...readyOf(model, snapshot).map(step => step.question.id),
                     ]),
                     left: 0,
                   }),
@@ -4804,11 +4800,8 @@ export const RestoreKeptBack = Command.define('RestoreKeptBack', {
   messages: [Message.RestoredKeptBack],
   execute: ({ grillId }) =>
     pipe(
-      Effect.try(
-        () =>
-          JSON.parse(
-            window.localStorage.getItem(keptBackKey(grillId)) ?? '[]',
-          ) as unknown,
+      Effect.try((): unknown =>
+        JSON.parse(window.localStorage.getItem(keptBackKey(grillId)) ?? '[]'),
       ),
       Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(Schema.String))),
       Effect.catch(() => Effect.succeed<ReadonlyArray<string>>([])),
