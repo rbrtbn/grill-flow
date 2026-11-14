@@ -8,7 +8,7 @@ import { isWholeTarget } from '../src/domain'
 import type { WriteProvenance } from './history'
 
 // Bump when guide rules change so cached instructions can be replaced (ADR 0026).
-export const SKILL_REVISION = 5
+export const SKILL_REVISION = 6
 export const AuthoringGuide = Schema.Struct({
   version: Schema.Literal(1),
   host: Schema.String.check(Schema.isMinLength(1)),
@@ -32,7 +32,9 @@ export const AuthoringWarning = Schema.Struct({
 })
 export type AuthoringWarning = typeof AuthoringWarning.Type
 export const isAuthoringCommand = (command: string | undefined): boolean =>
-  ['load', 'item', 'revise', 'reply', 'draw'].includes(command ?? '')
+  ['load', 'item', 'revise', 'reply', 'draw', 'question', 'patch'].includes(
+    command ?? '',
+  )
 
 const digest = (text: string): string =>
   createHash('sha256').update(text).digest('hex')
@@ -132,6 +134,15 @@ export const writeProvenance = (
     reason: value('--reason'),
   }
 }
+// A load without --expect-rev warns until GF_REQUIRE_EXPECT_REV=1 refuses it, as reasons do
+// (docs/adr/0032).
+export const EXPECT_REV_REQUIRED = process.env.GF_REQUIRE_EXPECT_REV === '1'
+export const expectRevWarning = (): string =>
+  `Expected revision missing: pass --expect-rev <rev> on gf load (the rev gf get or your last write printed), so a newer write by another session is refused instead of overwritten. ${
+    EXPECT_REV_REQUIRED
+      ? 'GF_REQUIRE_EXPECT_REV=1 refuses loads without one.'
+      : 'Accepted without one for now; it becomes required later.'
+  }`
 export const reasonWarning = (command: string): string =>
   `Write reason missing: pass --reason "<why>" on gf ${command}, so gf history can say why this changed. ${
     REASON_REQUIRED

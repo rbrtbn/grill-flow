@@ -28,8 +28,8 @@ import {
   writeProvenance,
 } from './authoring'
 import { remoteItemError } from './channel'
-import { withoutDiscussions } from './discussions'
 import { DrawingReply, drawingMessage } from './drawings'
+import { decodeStrict, readJsonFile, unknownKeyWarning } from './grillEdit'
 import { askMessage, pageMessage } from './messages'
 import { assertPickedOptionsRetained } from './reloadSafety'
 import { ROOT, decodeGrill } from './store'
@@ -232,6 +232,9 @@ export const runOutbox = async (
         'BLOCKED: GF_OUTBOX cannot provide authoritative immutable submission readback. Run gf grant <member-grill> <submitted-id> on the serving machine without GF_OUTBOX; outbox snapshots and delivery text are not readback.',
       )
       break
+    case 'get':
+    case 'question':
+    case 'patch':
     case 'retire':
     case 'restore':
     case 'history':
@@ -241,11 +244,21 @@ export const runOutbox = async (
       )
       break
     case 'load': {
-      const grill = decodeGrill(
-        withoutDiscussions(
-          JSON.parse(readFileSync(args[0] ?? fail(usage), 'utf8')),
-        ),
-      )
+      const { grill, unknownKeys } = (() => {
+        try {
+          return decodeStrict(readJsonFile(args[0] ?? fail(usage)))
+        } catch (error) {
+          return fail(error instanceof Error ? error.message : String(error))
+        }
+      })()
+      if (unknownKeys.length > 0) {
+        console.warn(unknownKeyWarning(unknownKeys))
+      }
+      if (args.includes('--expect-rev')) {
+        console.warn(
+          '--expect-rev is not checked with GF_OUTBOX: the serving host takes queued loads in arrival order.',
+        )
+      }
       const previous = stateOf(grill.id)?.snapshot
       if (previous !== undefined) {
         assertPickedOptionsRetained(previous, grill)

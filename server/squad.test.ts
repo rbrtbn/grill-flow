@@ -103,6 +103,8 @@ const cli = async (...args: ReadonlyArray<string>) => {
         ? ['--skill-revision', String(SKILL_REVISION)]
         : []),
       ...(needsReason(args[0], args) ? ['--reason', 'test write'] : []),
+      // Every load here creates its grill.
+      ...(args[0] === 'load' ? ['--expect-rev', '0'] : []),
     ],
     {
       env: environment,

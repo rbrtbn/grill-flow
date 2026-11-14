@@ -3,15 +3,17 @@
 Read this complete guide after session start or context loss. Before each authoring write,
 run `gf --skill --if-newer-than <revision-read>`. A changed guide replaces the whole earlier
 rule set. An unchanged response is enough only while that guide remains in your context.
-Declare `--skill-revision <revision-read>` on load, item, revise, reply and draw commands.
+Declare `--skill-revision <revision-read>` on load, question, patch, item, revise, reply and
+draw commands.
 The guide revision is independent of grill format and item revisions; copying a revision
 number does not prove understanding.
 
-Give every write its reason: `--reason "<why>"` on `gf load`, `gf item`, `gf draw`,
-`gf restore` and `gf revise --kind rewrite`, in a short line a later reader can act on, such
-as `--reason "round 3: Q7-Q9 after the reply"`. A missing reason warns now and will be refused
-later. The author is `$HC_TERMINAL_ID`; pass `--session <address>` when you write for another
-session. Every load is kept as a numbered revision with its time, author and reason:
+Give every write its reason: `--reason "<why>"` on `gf load`, `gf question`, `gf patch`,
+`gf item`, `gf draw`, `gf restore` and `gf revise --kind rewrite`, in a short line a later
+reader can act on, such as `--reason "round 3: Q7-Q9 after the reply"`. `gf question` and
+`gf patch` refuse a write without one; elsewhere a missing reason warns now and will be
+refused later. The author is `$HC_TERMINAL_ID`; pass `--session <address>` when you write for
+another session. Every load is kept as a numbered revision with its time, author and reason:
 `gf history <id>` lists them, and `gf history <id> <question-id>` shows what changed in that
 question at each revision (`--json` for machine-readable output). History is for retros and
 audits; read the page or `gf state` to work.
@@ -23,6 +25,40 @@ files. The served snapshot (`/api/grills/<id>`) carries `discussions`, keyed by 
 `gf export <id> [--out <file>]` writes the whole record as one JSON document for retros and
 audits: the grill, every revision, full threads, answers, sends and events; for a squad page,
 each member with its id mapping. Never write a `discussions` key: a load drops it and warns.
+
+## Edit the stored grill, not a copy of it
+
+Other sessions write to the same grill, so change it where it is stored rather than rewriting
+your own copy of the file:
+
+- `gf get <id>` prints the stored grill as JSON and its rev on stderr (`rev 7`).
+  `gf get <id> Q3` (or a step id) prints that step, with its JSON pointer beside the rev;
+  `gf get <id> /steps/3/question/options` prints one value; `--json` prints
+  `{"rev", "pointer", "value"}` on stdout instead.
+- `gf question add <id> <new-question-id> --file step.json [--after Q2]` adds a whole step
+  (`{id, part, heading, prose, question}`), at the end without `--after`. Use fresh ids,
+  never one a resolved question had; a question without `round` gets the grill's round.
+- `gf question update <id> Q3 --file fields.json` merges a partial step into Q3's step:
+  `{"heading": "...", "question": {"title": "...", "urgency": "soon"}}`. Objects merge,
+  lists such as `options` and `prose` are replaced whole, `null` removes an optional field.
+  Ids stay as they are.
+- `gf question resolve <id> Q3 --outcome "<what was decided>"` takes Q3 down and records its
+  outcome (Resolve and take down a question, below).
+- `gf patch <id> --file ops.json` applies JSON Patch operations (RFC 6902: `add`, `remove`,
+  `replace`, `move`, `copy`, `test`) for anything else, such as `refs`, `plan` or `next`.
+  Pointers are the ones `gf get` prints; `-` appends to a list.
+
+Each takes `--expect-rev <rev>` (the rev `gf get` or your last write printed) and `--reason`,
+and becomes an ordinary load: a new revision, the same reload guard, the same squad page.
+When another write landed after your rev, the write is refused with exit 3, the current rev
+and what changed since yours: run `gf get` again, redo your change on what is there now, and
+retry with the new rev. Never retry with a rev you have not read.
+
+Whole-file `gf load` stays for round 1 and for restructuring most of a grill. Pass
+`--expect-rev` there too (`0` for a new grill); a load without it warns now and will be
+refused later. Every write is checked against the schema in full: unknown or misspelled keys
+anywhere are errors, and every problem comes back at once with its pointer, so fix them all
+before writing again.
 
 Missing/stale revisions warn during migration and include this guide on stderr. A successful
 write remains published as submitted; do not retry it as though rejected. Apply the new guide
@@ -292,16 +328,17 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
 
 1. `gf up`. It starts the server unless it already answers.
 2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill, below). Round 1
-   creates it; a later round edits the same file: add the new frontier with the next free ids
-   and set `round` on each new question and on the grill. Keep open and partly resolved
+   creates it; a later round edits the stored grill (Edit the stored grill, above): add the
+   new frontier with `gf question add` using the next free ids, and set the grill's `round`
+   with `gf patch` before adding so new questions take it. Keep open and partly resolved
    questions; take fully resolved questions down using the resolution rule below. Send
    includes every unsent answer across rounds, labelled by round; only the current round can
    use the `all recommended` shorthand. `<id>` is unique across every agent's grills, e.g.
    `<repo>-<topic>`.
    In a squad, every session's grill joins the squad's one page (Shared squad page, below);
    never open a separate page for your questions or copy them onto another page.
-3. `gf load grills/<id>.json --reason "<why>"`. Answers, notes and asks already given
-   stay, keyed by question id.
+3. Round 1: `gf load grills/<id>.json --expect-rev 0 --reason "<why>"`. Answers, notes and
+   asks already given stay, keyed by question id.
 4. Tell the user in one short message: the link `http://127.0.0.1:4317/g/<id>`,
    the round and how many questions are open. The questions live on the page.
 5. Wait for the reply, with `gf wait` running when there's no `session`. The
@@ -352,7 +389,7 @@ Answer each one while the user is still on the page:
    step's prose: the same command with `--kind rewrite`, the whole prose,
    paragraphs split by blank lines. The user sees it as a diff.
 4. When the answer changes a question, its options or the recommendation,
-   edit the JSON and `gf load` it again. A reworded question keeps its id.
+   change it with `gf question update`. A reworded question keeps its id.
    Say in the comment what moved, including a recommendation that now differs
    from a pick the user already made.
 
@@ -525,11 +562,13 @@ agent, note}`. `phase` is `building`, `review`, `merged`, `gated` (its
 Keep only open questions and live updates on the page. When the owner has answered and you
 have acted, or the question was withdrawn, remove its step from your own source. Record the
 outcome in `decided` as `{id, text}`: id is the exact local/source question id (for example Q6),
-not its shared display number or step id, and text is the nonblank outcome. Then `gf load`
-the source with the guide revision you read. Answer events and frozen submissions stay in
-history; a decided entry is an author-reported outcome and creates no new approval. The load
-records each new outcome, so it stays under Decided even when a later load leaves it out of
-`decided`; reword one by loading the same id with new text.
+not its shared display number or step id, and text is the nonblank outcome.
+`gf question resolve <id> <question-id> --outcome "<text>"` does both in one write; it warns
+when other questions still wait on the one taken down, so update their `dependsOn` and
+`when`. Answer events and frozen submissions stay in history; a decided entry is an
+author-reported outcome and creates no new approval. The load records each new outcome, so
+it stays under Decided even when a later load leaves it out of `decided`; reword one by
+replacing its text in `decided` with `gf patch`.
 
 If only part is resolved, keep its step and question id. Rewrite the prose/options to the
 remaining open work. Keep picked option keys stable; a decided entry does not bypass that

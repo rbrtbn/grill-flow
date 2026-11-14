@@ -209,6 +209,8 @@ it('drops an agent-supplied discussions key on load, with one warning', async ()
     join(dir, 'clean.json'),
     '--reason',
     'clean',
+    '--expect-rev',
+    '1',
   ])
   expect(quiet).toMatchObject({ code: 0, error: '' })
 

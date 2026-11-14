@@ -59,8 +59,9 @@ type EventRow = Readonly<{
 export const open = (): Database => {
   mkdirSync(dirname(DB_PATH), { recursive: true, mode: 0o700 })
   const db = new Database(DB_PATH, { create: true })
-  db.exec('PRAGMA journal_mode = WAL')
+  // Set first: concurrent gf processes can find the database busy while switching to WAL.
   db.exec('PRAGMA busy_timeout = 5000')
+  db.exec('PRAGMA journal_mode = WAL')
   db.exec(`CREATE TABLE IF NOT EXISTS grills (
     id TEXT PRIMARY KEY,
     json TEXT NOT NULL,

@@ -109,6 +109,8 @@ it('validates the actual guide examples and preserves warning-first local succes
   const current = await cli(dir, [
     'load',
     join(dir, 'grill.json'),
+    '--expect-rev',
+    '1',
     '--skill-revision',
     String(SKILL_REVISION),
   ])
