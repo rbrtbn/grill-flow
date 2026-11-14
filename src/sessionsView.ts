@@ -4,6 +4,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { AGENT_TARGET_PREFIX, GRILL_FLOW_TARGET, type Snapshot } from './domain'
 import {
   type InboxData,
+  NAMES,
   SESSION_TYPES,
   type SessionGroup,
   type SessionInfo,
@@ -349,8 +350,8 @@ const pinnedGrillFlow = (snapshot: Snapshot, h: H): Html =>
           h.span(
             [h.Class('f-session-top')],
             [
-              avatar('Squad Board', h),
-              h.b([], ['Squad Board']),
+              avatar(NAMES.brand, h),
+              h.b([], [NAMES.brand]),
               h.span([
                 h.Class(
                   `f-state-dot${snapshot.maintainerState === 'live' ? ' is-live' : ''}`,

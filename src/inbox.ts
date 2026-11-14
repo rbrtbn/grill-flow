@@ -13,10 +13,12 @@ import {
 } from './domain'
 import { inboxFixture } from './inboxFixture'
 
-// NAMES: Inbox, Questions, Runs and Conversations are Rob's; the rest are prototype F's picks,
-// pending owner-actions-names-rest on /g/squad. A rename is one edit here.
+// NAMES: Rob's labels (docs/adr/0038-name-the-product-squad-board.md). A rename is one edit
+// here.
 export const NAMES = {
-  product: 'Squad Board',
+  brand: 'Board',
+  squadBoard: 'Squad Board',
+  sessionBoard: 'Session Board',
   inbox: 'Inbox',
   questions: 'Questions',
   runs: 'Runs',
@@ -37,6 +39,9 @@ export const NAMES = {
   quickLook: 'Quick look',
   interactive: 'Interactive',
 } as const
+
+export const boardName = (grill: Snapshot['grill']): string =>
+  grill.kind === 'squad' ? NAMES.squadBoard : NAMES.sessionBoard
 
 export const INBOX = 'inbox'
 export const RUNS = 'runs'

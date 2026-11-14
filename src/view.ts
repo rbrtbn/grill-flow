@@ -66,7 +66,7 @@ import {
   withRefs,
   withTerms,
 } from './domain'
-import { INBOX, ITEM_PAGE, NAMES, RUNS, RUN_PAGE } from './inbox'
+import { INBOX, ITEM_PAGE, NAMES, RUNS, RUN_PAGE, boardName } from './inbox'
 import type {
   Message as MessageType,
   Model,
@@ -135,10 +135,10 @@ const documentTitle = (model: Model, snapshot: Snapshot): string => {
       : model.currentPart === part,
   )
   if (page !== undefined) {
-    return `${NAMES.product} · ${page[1]}`
+    return `${boardName(snapshot.grill)} · ${page[1]}`
   }
   if (step !== undefined && isWorkspacePage(model.currentPart)) {
-    return `${NAMES.product} · ${step.question.id} ${step.question.title}`
+    return `${boardName(snapshot.grill)} · ${step.question.id} ${step.question.title}`
   }
   const location =
     step === undefined && snapshot.grill.squad?.id === snapshot.grill.id

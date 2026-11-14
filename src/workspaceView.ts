@@ -45,6 +45,7 @@ import {
   NAMES,
   RUNS,
   RUN_PAGE,
+  boardName,
   inboxData,
   narrowedSnapshot,
   questionOf,
@@ -684,6 +685,20 @@ const questionQueuePage = (model: Model, snapshot: Snapshot): string => {
   )
 }
 
+// Pages reached from More ▾; the toggle shows as active on any of them.
+const MORE_PAGES: ReadonlyArray<string> = [
+  CONVERSATIONS,
+  SQUAD,
+  'overview',
+  NEEDS,
+  UPDATES,
+  CHANGES,
+  REPLIES,
+  ANSWER_HISTORY,
+  'plan',
+  GRILLS,
+]
+
 const workspaceHeaderView = (
   model: Model,
   snapshot: Snapshot,
@@ -693,10 +708,6 @@ const workspaceHeaderView = (
   h: H,
 ): Html => {
   const grill = snapshot.grill
-  const priority =
-    grill.squad?.id === grill.id
-      ? grill.steps.find(step => step.id === grill.squad?.openForYou)
-      : undefined
   const changes = activityUnreadCount(
     snapshot.activity,
     model.workspace.activityRead,
@@ -722,109 +733,95 @@ const workspaceHeaderView = (
   return h.header(
     [h.Class('f-topbar f-topbar-a')],
     [
-      h.div(
-        [h.Class('f-header-brand')],
+      h.nav(
+        [h.Class('f-header-start'), h.AriaLabel('Workspace destinations')],
         [
           h.button(
             [
               h.Type('button'),
               h.Class('f-wordmark'),
-              h.AriaLabel(`${NAMES.product} home`),
+              h.AriaLabel(`${boardName(grill)} overview`),
               h.OnClick(Message.ClickedWorkspacePage({ page: GRILLS })),
             ],
-            [NAMES.product],
+            [NAMES.brand],
           ),
-          h.button(
+          h.div(
+            [h.Class('f-primary-nav')],
             [
-              h.Type('button'),
-              h.Class('f-run-name'),
-              h.Title(grill.title),
-              h.OnClick(
-                Message.ClickedWorkspacePage({
-                  page:
-                    priority === undefined
-                      ? 'overview'
-                      : `${QUESTION_PAGE}${priority.question.id}`,
-                }),
+              inboxNavView(model, inbox, h),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `text-button${model.currentPart.startsWith(QUESTION_PAGE) ? ' is-active' : ''}`,
+                  ),
+                  h.AriaCurrent(
+                    model.currentPart.startsWith(QUESTION_PAGE)
+                      ? 'page'
+                      : 'false',
+                  ),
+                  h.OnClick(
+                    Message.ClickedWorkspacePage({
+                      page: questionQueuePage(model, snapshot),
+                    }),
+                  ),
+                ],
+                [
+                  NAMES.questions,
+                  inbox.questions.length > 0
+                    ? h.span(
+                        [h.Class('f-nav-count')],
+                        [String(inbox.questions.length)],
+                      )
+                    : h.empty,
+                ],
+              ),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `text-button${model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE) ? ' is-active' : ''}`,
+                  ),
+                  h.AriaCurrent(
+                    model.currentPart === RUNS ||
+                      model.currentPart.startsWith(RUN_PAGE)
+                      ? 'page'
+                      : 'false',
+                  ),
+                  h.OnClick(Message.ClickedWorkspacePage({ page: RUNS })),
+                ],
+                [NAMES.runs],
+              ),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(
+                    `text-button f-more-toggle${MORE_PAGES.includes(model.currentPart) ? ' is-active' : ''}`,
+                  ),
+                  h.Popovertarget('workspace-more'),
+                  h.AriaLabel('More destinations'),
+                ],
+                ['More ▾'],
               ),
             ],
-            [
-              priority === undefined
-                ? grill.title.replace(/\s+[·—–-]\s+Open for you$/i, '')
-                : 'Squad',
-            ],
-          ),
-        ],
-      ),
-      h.nav(
-        [h.Class('f-primary-nav'), h.AriaLabel('Workspace destinations')],
-        [
-          inboxNavView(model, inbox, h),
-          h.button(
-            [
-              h.Type('button'),
-              h.Class(
-                `text-button${model.currentPart.startsWith(QUESTION_PAGE) ? ' is-active' : ''}`,
-              ),
-              h.AriaCurrent(
-                model.currentPart.startsWith(QUESTION_PAGE) ? 'page' : 'false',
-              ),
-              h.OnClick(
-                Message.ClickedWorkspacePage({
-                  page: questionQueuePage(model, snapshot),
-                }),
-              ),
-            ],
-            [
-              NAMES.questions,
-              inbox.questions.length > 0
-                ? h.span(
-                    [h.Class('f-nav-count')],
-                    [String(inbox.questions.length)],
-                  )
-                : h.empty,
-            ],
-          ),
-          h.button(
-            [
-              h.Type('button'),
-              h.Class(
-                `text-button${model.currentPart === RUNS || model.currentPart.startsWith(RUN_PAGE) ? ' is-active' : ''}`,
-              ),
-              h.AriaCurrent(
-                model.currentPart === RUNS ||
-                  model.currentPart.startsWith(RUN_PAGE)
-                  ? 'page'
-                  : 'false',
-              ),
-              h.OnClick(Message.ClickedWorkspacePage({ page: RUNS })),
-            ],
-            [NAMES.runs],
-          ),
-          destination(NAMES.conversations, CONVERSATIONS),
-        ],
-      ),
-      h.nav(
-        [h.Class('f-header-actions'), h.AriaLabel('Run actions')],
-        [
-          h.button(
-            [
-              h.Type('button'),
-              h.Class('text-button'),
-              h.Popovertarget('workspace-more'),
-              h.AriaLabel('More destinations'),
-            ],
-            [`More${changes !== '0' ? ` · ${changes} new` : ''}`],
           ),
           h.div(
             [
               h.Id('workspace-more'),
               h.Popover('auto'),
-              h.Class('f-app-popdown'),
+              h.Class('f-app-popdown f-more-menu'),
               h.Role('group'),
               h.AriaLabel('More destinations'),
             ],
             [
+              destination(NAMES.conversations, CONVERSATIONS, true),
+              destination(
+                grill.kind === 'squad'
+                  ? `Squad overview${AsyncData.hasData(model.workspace.catalog) ? ` · ${squadRuns(model, snapshot).length} runs` : ''}`
+                  : 'Overview',
+                grill.kind === 'squad' ? SQUAD : 'overview',
+                true,
+              ),
               destination('Needs you (old)', NEEDS, true),
               destination('Updates (old)', UPDATES, true),
               destination(
@@ -838,13 +835,6 @@ const workspaceHeaderView = (
                 true,
               ),
               destination('Answer history', ANSWER_HISTORY, true),
-              destination(
-                grill.kind === 'squad'
-                  ? `Squad overview${AsyncData.hasData(model.workspace.catalog) ? ` · ${squadRuns(model, snapshot).length} runs` : ''}`
-                  : 'Overview',
-                grill.kind === 'squad' ? SQUAD : 'overview',
-                true,
-              ),
               ...(grill.plan === undefined
                 ? []
                 : [destination('Run overview', 'plan', true)]),
@@ -862,6 +852,62 @@ const workspaceHeaderView = (
               ),
             ],
           ),
+        ],
+      ),
+      h.span(
+        [h.Class('f-run-name'), h.Title(grill.title)],
+        [grill.title.replace(/\s+[·—–-]\s+Open for you$/i, '')],
+      ),
+      h.nav(
+        [h.Class('f-header-actions'), h.AriaLabel('Run actions')],
+        [
+          nudgeView(model, snapshot, h),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class(
+                `text-button f-sessions-toggle${model.side === 'Talk' ? ' is-active' : ''}`,
+              ),
+              h.AriaExpanded(model.side === 'Talk'),
+              h.OnClick(Message.ClickedSessions()),
+            ],
+            [
+              'Sessions',
+              sessionsBadge(model, snapshot, inbox) > 0
+                ? h.span(
+                    [h.Class('f-nav-count')],
+                    [String(sessionsBadge(model, snapshot, inbox))],
+                  )
+                : h.empty,
+            ],
+          ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Id('workspace-review-send'),
+              h.Class(
+                `send-button f-header-send${readyOf(model, snapshot).length > 0 ? ' has-unsent' : ''}`,
+              ),
+              h.AriaLabel(sendLabel),
+              h.AriaExpanded(model.isTrayOpen),
+              h.AriaKeyshortcuts('U'),
+              h.Title(
+                'Unsent answers (u) · ⌘-click sends your Review selection',
+              ),
+              h.Disabled(
+                model.send === 'Sending' || model.quickSend !== 'Idle',
+              ),
+              h.OnClick(Message.ClickedUnsentTray()),
+            ],
+            [
+              h.span(
+                [h.Class('f-header-send-reserve'), h.AriaHidden(true)],
+                [reviewLabel],
+              ),
+              h.span([h.Class('f-header-send-label')], [sendLabel]),
+            ],
+          ),
+          freezePillView(inbox, h),
           h.button(
             [
               h.Type('button'),
@@ -902,53 +948,6 @@ const workspaceHeaderView = (
                   h.li([], [h.b([], [item.title]), h.p([], [item.detail])]),
                 ),
               ),
-            ],
-          ),
-          freezePillView(inbox, h),
-          h.button(
-            [
-              h.Type('button'),
-              h.Class(
-                `text-button f-sessions-toggle${model.side === 'Talk' ? ' is-active' : ''}`,
-              ),
-              h.AriaExpanded(model.side === 'Talk'),
-              h.OnClick(Message.ClickedSessions()),
-            ],
-            [
-              'Sessions',
-              sessionsBadge(model, snapshot, inbox) > 0
-                ? h.span(
-                    [h.Class('f-nav-count')],
-                    [String(sessionsBadge(model, snapshot, inbox))],
-                  )
-                : h.empty,
-            ],
-          ),
-          nudgeView(model, snapshot, h),
-          h.button(
-            [
-              h.Type('button'),
-              h.Id('workspace-review-send'),
-              h.Class(
-                `send-button f-header-send${readyOf(model, snapshot).length > 0 ? ' has-unsent' : ''}`,
-              ),
-              h.AriaLabel(sendLabel),
-              h.AriaExpanded(model.isTrayOpen),
-              h.AriaKeyshortcuts('U'),
-              h.Title(
-                'Unsent answers (u) · ⌘-click sends your Review selection',
-              ),
-              h.Disabled(
-                model.send === 'Sending' || model.quickSend !== 'Idle',
-              ),
-              h.OnClick(Message.ClickedUnsentTray()),
-            ],
-            [
-              h.span(
-                [h.Class('f-header-send-reserve'), h.AriaHidden(true)],
-                [reviewLabel],
-              ),
-              h.span([h.Class('f-header-send-label')], [sendLabel]),
             ],
           ),
         ],
@@ -2126,7 +2125,7 @@ const questionConversationView = (
 
 const quoteDestinationLabel = (snapshot: Snapshot, target: string): string =>
   target === GRILL_FLOW_TARGET
-    ? 'Squad Board'
+    ? NAMES.brand
     : target === RUN_TARGET
       ? 'the run'
       : (snapshot.grill.steps.find(item => item.id === target)?.question.id ??
@@ -2893,7 +2892,7 @@ const discussionView = (
             [h.Class('hint')],
             [
               isMaintainer
-                ? `Squad Board · ${maintainerLabel(snapshot)}`
+                ? `${NAMES.brand} · ${maintainerLabel(snapshot)}`
                 : agentAddressOf(target) !== undefined
                   ? agentLabel(snapshot, agentAddressOf(target)!)
                   : questionAgent(snapshot.grill, step?.question),
@@ -3128,11 +3127,11 @@ const recipientGroups = (
       ? []
       : [
           {
-            label: 'Squad Board',
+            label: NAMES.brand,
             recipients: [
               {
                 target: GRILL_FLOW_TARGET,
-                label: `Squad Board · ${maintainerLabel(snapshot)}`,
+                label: `${NAMES.brand} · ${maintainerLabel(snapshot)}`,
               },
             ],
           },
@@ -3274,7 +3273,7 @@ const conversationPage = (
                   ),
                 ],
                 [
-                  'Squad Board',
+                  NAMES.brand,
                   h.small(
                     [],
                     [`Interface & improvements · ${maintainerLabel(snapshot)}`],

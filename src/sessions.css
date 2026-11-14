@@ -263,6 +263,7 @@
   display: none;
 }
 .has-sessions .f-topbar-a {
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
 }
 .has-sessions .f-topbar-a .f-header-actions {

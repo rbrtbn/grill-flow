@@ -126,7 +126,7 @@ describe('the selection popover', () => {
       Subscription.emit(Message.SelectedQuoteText({ quoted })),
       expect(role('button', { name: 'Quote' })).toHaveAttr(
         'title',
-        'Add it as a quote to the Squad Board discussion',
+        'Add it as a quote to the Board discussion',
       ),
       click(role('button', { name: 'Quote' })),
       Command.expectExact(FocusDraftBox({ key: 'ask:grill-flow' })),

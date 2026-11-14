@@ -6,7 +6,8 @@
 
 ## Decision
 The page is called **Squad Board**, "the board" for short (Rob, 2026-11-14); agents say "send it
-to the board". Page text, titles, the preview notice and help copy use the new name. A grill
+to the board". The header says **Board**; a squad's page is titled Squad Board and a single
+session's page **Session Board**. Page text, titles and help copy follow. A grill
 stays the name of an agent's interview. Squad's existing rule is reused as written: "a board
 answer settles its card and grants nothing" now means an answer on this page, except where it
 qualifies as a PAGE grant (squad ADR 0053). The repo, plugin, skill, `gf` CLI and `GF_*`
