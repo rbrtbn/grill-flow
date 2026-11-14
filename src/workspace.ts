@@ -108,6 +108,8 @@ export const Workspace = Schema.Struct({
   discussionRestored: Schema.Boolean,
   discussionScroll: Schema.Record(Schema.String, Schema.Number),
   maybeDiscussionTarget: Schema.Option(Schema.String),
+  // The recipient last picked on each question (by step id), restored when the reader returns.
+  discussionTargets: Schema.Record(Schema.String, Schema.String),
   excluded: Schema.Array(Schema.String),
   quote: QuoteSelection,
 })
@@ -142,6 +144,7 @@ export const initialWorkspace: Workspace = {
   discussionRestored: false,
   discussionScroll: {},
   maybeDiscussionTarget: Option.none(),
+  discussionTargets: {},
   excluded: [],
   quote: QuoteSelection.Idle(),
 }
@@ -652,3 +655,9 @@ export const adjacentQuestion = (
       : Array.reverse(ordered.slice(0, index))
   return Array.findFirst(candidates, step => visible.has(step.id))
 }
+
+/** Where a question's discussion opens: the recipient last picked there, else the question. */
+export const rememberedTarget = (
+  workspace: Workspace,
+  stepId: string,
+): string => workspace.discussionTargets[stepId] ?? stepId
