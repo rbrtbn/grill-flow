@@ -513,6 +513,17 @@ export const AnswerHistoryEntry = Schema.Struct({
   state: Schema.Literals(['pending', 'delivered', 'failed']),
 })
 
+/** One discussion's summary; `target` is the ask target that opens it. */
+export const DiscussionRef = Schema.Struct({
+  target: Schema.String,
+  asks: Schema.Number,
+  replies: Schema.Number,
+  open: Schema.Number,
+  lastAt: Schema.Number,
+  firstAskId: Schema.Number,
+})
+export type DiscussionRef = typeof DiscussionRef.Type
+
 export const SessionState = Schema.Literals(['live', 'stopped', 'missing'])
 export type SessionState = typeof SessionState.Type
 
@@ -544,6 +555,9 @@ export const Snapshot = Schema.Struct({
   questionRevisions: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String),
   ),
+  // Keyed by question id, or by the target itself for run, part:, card: and grill-flow.
+  // Served only; a grill write never carries it (docs/adr/0033).
+  discussions: Schema.optionalKey(Schema.Record(Schema.String, DiscussionRef)),
   unconfirmedSends: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
