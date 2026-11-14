@@ -10,7 +10,7 @@ number does not prove understanding.
 
 Give every write its reason: `--reason "<why>"` on `gf load`, `gf question`, `gf patch`,
 `gf item`, `gf draw`, `gf restore` and `gf revise --kind rewrite`, in a short line a later
-reader can act on, such as `--reason "round 3: Q7-Q9 after the reply"`. `gf question` and
+reader can act on, such as `--reason "round 3: deploy-order after the reply"`. `gf question` and
 `gf patch` refuse a write without one; elsewhere a missing reason warns now and will be
 refused later. The author is `$HC_TERMINAL_ID`; pass `--session <address>` when you write for
 another session. Every load is kept as a numbered revision with its time, author and reason:
@@ -23,10 +23,11 @@ audits; read the page or `gf state` to work.
 Other sessions write to the same grill, so change it where it is stored rather than rewriting
 your own copy of the file:
 
-- `gf get <id>` prints the stored grill as JSON and its rev on stderr (`rev 7`).
-  `gf get <id> Q3` (or a step id) prints that step, with its JSON pointer beside the rev;
-  `gf get <id> /steps/3/question/options` prints one value; `--json` prints
-  `{"rev", "pointer", "value"}` on stdout instead.
+- `gf get <id>` prints the stored grill as JSON and its rev on stderr (`rev 7`), plus a
+  `discussions:` line naming the questions and targets with asks (open ones counted).
+  `gf get <id> deploy-order` (a question key, id or step id) prints that step, with its JSON
+  pointer beside the rev; `gf get <id> /steps/3/question/options` prints one value; `--json`
+  prints `{"rev", "pointer", "value", "discussions"}` on stdout instead.
 - `gf question add <id> <new-question-id> --file step.json [--after Q2]` adds a whole step
   (`{id, part, heading, prose, question}`), at the end without `--after`. Use fresh ids,
   never one a resolved question had; a question without `round` gets the grill's round.
@@ -45,6 +46,13 @@ and becomes an ordinary load: a new revision, the same reload guard, the same sq
 When another write landed after your rev, the write is refused with exit 3, the current rev
 and what changed since yours: run `gf get` again, redo your change on what is there now, and
 retry with the new rev. Never retry with a rev you have not read.
+
+Wherever these commands and `gf history` take a question id, its key works too.
+
+Once a grill is loaded, never edit `grills/<id>.json` by hand or with a script: the grill-flow
+plugin's hook refuses Write/Edit and shell writes to that file and points here. Hand edits skip
+the rev check and overwrite other sessions' writes. To restructure most of a grill, write a
+new file outside `grills/` and load it with `--expect-rev`.
 
 Whole-file `gf load` stays for round 1 and for restructuring most of a grill. Pass
 `--expect-rev` there too (`0` for a new grill); a load without it warns now and will be
@@ -75,6 +83,49 @@ Use a guide-aware CLI on remote writers to display these returned fields. Older 
 publishing and the host retains their warnings; older `state`/`wait` commands do not display
 new warning fields. Updating those checkouts is a separate rollout action.
 
+## Write questions the user can answer cold
+
+The user reads each question cold, without your transcript, numbering or terms. A question
+written from inside your context bounces back as "rewrite this more clearly" or "contextualize
+this", which costs a round trip and blocks whatever waits on the answer. Follow these rules:
+
+1. **Open with context.** Set `question.context` (format version 5) to one or two sentences:
+   what is being decided, why now, and what happens if it waits. The page shows it above the
+   ask. Write it for someone who hasn't read this run's transcript.
+2. **No bare Q numbers.** A squad page renumbers each member's questions into page-wide
+   numbers, so a question's number in chat or in another grill is not its number on the page.
+   Refer to another question by its key as `[[deploy-order]]`, which links to it on the page;
+   `[[<grill-id>/deploy-order]]` names a question of another member on the same squad page.
+3. **A stable key, used everywhere.** Give every question a `key`: 3 to 48 characters of
+   lowercase letters, digits and single hyphens, unique in the grill, such as `deploy-order`.
+   Use the same string in chat, in sends, in commits and in `gf` commands. The page shows it
+   beside the number (click to copy) and its search finds it. A key never changes, never goes
+   away and is never reused once loaded: to rename, resolve the question and add a new one.
+   Where two members of a squad page use the same key, the page shows each as
+   `<member-grill>/<key>`.
+4. **No forward references.** A question never relies on one further down the page. When it
+   depends on another decision, name it by key and say what each answer to that one would mean
+   here, or order the questions so the one it relies on comes first.
+5. **Define every term the page hasn't.** Spell out acronyms and internal names (stage, gate
+   and tool names) on first use, as "service level objective (SLO)", or add them to `terms`.
+6. **Options state their consequence.** Each option's `effect` says what changes if the user
+   picks it: what gets built, what is blocked, what it costs. The recommendation says why in
+   one sentence.
+7. **One decision per question.** Split a question that bundles two choices.
+8. **Plain words.** Short sentences, active voice, no jargon a newcomer wouldn't know.
+
+Before loading, read each question as if it were the first thing you saw today: does it make
+sense on its own, and can you name each option's consequence without scrolling?
+
+Every write lints the questions it adds or changes and prints each finding on stderr, all at
+once, as `lint: <pointer>: <finding>`: a bare Q number (with the key to use instead), a forward
+reference, an ALL-CAPS term of 2 to 6 letters defined nowhere in the grill (in `terms`,
+`entities` or as "(TERM)" after its words; PR, CI, API, URL, ID, UI, JSON, ADR, CLI, HTTP, OK
+and UTC need no definition), a `[[key]]` naming no question, a question without `context`, and
+one without `key`. Code spans, links and diagrams are not read. Findings warn and the write
+still lands; fix them on your next edit. `GF_REQUIRE_CONTEXT=1` refuses a new or changed
+question without context.
+
 ## Write for the reader
 
 - Use short, concrete decision/change titles. The sidebar displays at most two lines while
@@ -98,7 +149,7 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "id": "guide-example",
   "title": "Choose the next step",
   "session": "",
@@ -123,7 +174,9 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
       ],
       "question": {
         "id": "Q1",
+        "key": "next-step",
         "title": "Approve the next step?",
+        "context": "The manual step costs each run ten minutes; deciding now lets the change ship with this week's release, and waiting keeps the cost another week.",
         "scope": "This example decision",
         "ask": "Should we implement the recommended next step?",
         "options": [
@@ -328,7 +381,8 @@ registers your outbox once with `gf remote add <this machine> <outbox>`.
 
 1. `gf up`. It starts the server unless it already answers.
 2. Write the grill to `<checkout>/grills/<id>.json` (Writing the grill, below). Round 1
-   creates it; a later round edits the stored grill (Edit the stored grill, above): add the
+   creates it; a later round edits the stored grill, never the file (Edit the stored grill,
+   above): add the
    new frontier with `gf question add` using the next free ids, and set the grill's `round`
    with `gf patch` before adding so new questions take it. Keep open and partly resolved
    questions; take fully resolved questions down using the resolution rule below. Send
@@ -412,9 +466,11 @@ well:
 - A `### Title` first line titles its paragraph; the reader sees it on hover,
   so a few words that say what the paragraph is for. Rewrites and Talk replies
   take titles too.
-- Every question has a `scope`: one line on when or where it applies. `ask`
-  is worded so yes takes the recommendation. Each option's `effect` is one
-  line on what that choice changes later; mark one `recommended`.
+- Every question has a `key`, a `context` and a `scope`: the key names it everywhere, the
+  context says what is decided and why now (Write questions the user can answer cold,
+  above), and the scope is one line on when or where it applies. `ask` is worded so yes takes
+  the recommendation. Each option's `effect` is one line on what that choice changes later;
+  mark one `recommended`.
 - `dependsOn` greys a question until those are answered. `when` marks it not
   needed when an upstream answer falls outside `oneOf`.
 - `terms` is a short glossary of words the reasoning leans on, underlined
@@ -488,7 +544,9 @@ stays at the top of the navigation. The squad ID differs from every member ID.
 
 Continue `gf revise`, `reply`, `state` and `wait` on your own grill ID and
 local question/step IDs. The shared page has stable question numbers of its
-own; delivered answers and reply commands use your original IDs. Keep
+own; delivered answers and reply commands use your original IDs. Keys stay as
+you wrote them unless another member uses the same key; then the page shows
+`<your-grill-id>/<key>`, and your `[[key]]` references follow it. Keep
 `question.session` for the actual asker; it overrides the member's session.
 New questions get fresh shared numbers; existing questions keep theirs.
 

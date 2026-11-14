@@ -9,6 +9,10 @@ drawings, rewrites and restores also take `--reason <why>` (missing reasons warn
 `GF_REQUIRE_REASON=1` refuses them), and `bun run gf history <id> [question-id]` reads every
 load back with its time, author and reason. `bun run gf export <id> [--out <file>]` writes a
 grill's or squad page's whole record, discussion threads included, as one JSON document.
+Questions carry a stable `key` (used in chat, `gf` commands and `[[key]]` links) and a
+`context` line; every write lints the questions it adds or changes and prints `lint:` warnings
+(`GF_REQUIRE_CONTEXT=1` refuses a question without context). The plugin's hook refuses hand
+edits of a loaded `grills/<id>.json` and points to `gf question` and `gf patch` (ADR 0034).
 
 The canonical instructions and examples live in [the authoring
 guide](server/authoring-guide.md). The installed [grill skill](plugin/skills/grill/SKILL.md)

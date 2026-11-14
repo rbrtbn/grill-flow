@@ -34,3 +34,4 @@
 | [0031](0031-keep-grill-revisions-for-history-and-audits.md) | Keep grill revisions for history and audits | accepted |
 | [0032](0032-edit-stored-grills-with-expected-revisions.md) | Edit stored grills with expected revisions | accepted |
 | [0033](0033-reference-discussions-from-served-grills.md) | Reference discussions from served grills | accepted |
+| [0034](0034-stable-question-keys-context-and-clarity-lint.md) | Stable question keys, context and a clarity lint | accepted |
