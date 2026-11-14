@@ -28,6 +28,7 @@ import {
   writeProvenance,
 } from './authoring'
 import { remoteItemError } from './channel'
+import { withoutDiscussions } from './discussions'
 import { DrawingReply, drawingMessage } from './drawings'
 import { decodeStrict, readJsonFile, unknownKeyWarning } from './grillEdit'
 import { askMessage, pageMessage } from './messages'
@@ -238,6 +239,7 @@ export const runOutbox = async (
     case 'retire':
     case 'restore':
     case 'history':
+    case 'export':
       fail(
         `Run ${command} on the serving machine without GF_OUTBOX; it keeps the record.`,
       )
@@ -245,7 +247,9 @@ export const runOutbox = async (
     case 'load': {
       const { grill, unknownKeys } = (() => {
         try {
-          return decodeStrict(readJsonFile(args[0] ?? fail(usage)))
+          return decodeStrict(
+            withoutDiscussions(readJsonFile(args[0] ?? fail(usage))),
+          )
         } catch (error) {
           return fail(error instanceof Error ? error.message : String(error))
         }

@@ -14,6 +14,7 @@ import {
   roundOf,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
+import { withoutDiscussions } from './discussions'
 import { type WriteProvenance, ensureHistory, recordRevision } from './history'
 import { assertPickedOptionsRetained } from './reloadSafety'
 
@@ -101,7 +102,7 @@ export const loadGrill = (
 ): Grill =>
   db
     .transaction(() => {
-      const decoded = decodeGrill(raw)
+      const decoded = decodeGrill(withoutDiscussions(raw))
       if (decoded.squad?.id === decoded.id) {
         throw new Error(
           'A member grill must have its own ID, distinct from its squad page.',

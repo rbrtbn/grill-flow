@@ -52,6 +52,14 @@ refused later. Every write is checked against the schema in full: unknown or mis
 anywhere are errors, and every problem comes back at once with its pointer, so fix them all
 before writing again.
 
+Discussions (the user's asks and your replies) stay in the server's record, never in grill
+files. The served snapshot (`/api/grills/<id>`) carries `discussions`, keyed by question id
+(or by `run`, `part:…`, `card:…` or `grill-flow` for those threads): each entry gives the
+`target` to reply on, ask and reply counts, `open` asks, `lastAt` and `firstAskId`.
+`gf export <id> [--out <file>]` writes the whole record as one JSON document for retros and
+audits: the grill, every revision, full threads, answers, sends and events; for a squad page,
+each member with its id mapping. Never write a `discussions` key: a load drops it and warns.
+
 Missing/stale revisions warn during migration and include this guide on stderr. A successful
 write remains published as submitted; do not retry it as though rejected. Apply the new guide
 to your next write or deliberately correct the content using its normal revision rules.

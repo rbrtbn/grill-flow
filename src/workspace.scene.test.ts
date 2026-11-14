@@ -566,3 +566,47 @@ it('filters sidebar questions by urgency and preserves an explicit unspecified c
     expect(selector('.f-question-item')).toContainText('Q2'),
   )
 })
+
+it('links a question with a discussion to it, counting asks and replies', () => {
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      page: PageData.Success({
+        data: {
+          ...snapshot,
+          discussions: {
+            Q1: {
+              target: 'step-q1',
+              asks: 2,
+              replies: 1,
+              open: 1,
+              lastAt: 3,
+              firstAskId: 7,
+            },
+          },
+        },
+      }),
+    }),
+    click(
+      within(
+        selector('.f-discuss-action'),
+        role('button', { name: '3 messages' }),
+      ),
+    ),
+    Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
+      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+    ),
+    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    expect(role('textbox', { name: 'Ask about Q1' })).toExist(),
+  )
+})
+
+it('shows no message count on a question without a discussion', () => {
+  scene(
+    { update, view },
+    given(loaded),
+    expect(selector('.f-discuss-action')).not.toContainText('message'),
+  )
+})

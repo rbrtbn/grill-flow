@@ -23,6 +23,7 @@ import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
 import { startBackups } from './backup'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
+import { discussionRefs } from './discussions'
 import { pageDrawings, requestDrawing } from './drawings'
 import { InvalidSubmissionSource, askMessage, pageMessage } from './messages'
 import { readProviderCommand } from './providerReads'
@@ -202,6 +203,7 @@ const clientSnapshot = (grill: Grill) => {
       : { roster: readRoster(state.grill.squad.id) }),
     drawings: page === undefined ? [] : pageDrawings(db, page),
     questionRevisions: questionRevisions(state.grill),
+    discussions: discussionRefs(state),
     ...attentionSnapshot(db, sources, Date.now(), references?.readings),
     updates: publishedUpdates(db, sources).map(entry => ({
       ...entry,

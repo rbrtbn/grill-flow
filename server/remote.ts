@@ -15,6 +15,7 @@ import {
   skillRevision,
 } from './authoring'
 import { publishItem, publishedUpdates, remoteItemError } from './channel'
+import { discussionRefs, withoutDiscussions } from './discussions'
 import { pageDrawings, publishDrawing } from './drawings'
 import { readPage } from './squad'
 import {
@@ -214,7 +215,7 @@ const takeGrill = async (
     const provenance = queuedProvenance(raw)
     const grill = loadGrill(
       db,
-      grillOnMachine(decodeGrill(raw), remote.machine),
+      grillOnMachine(decodeGrill(withoutDiscussions(raw)), remote.machine),
       {
         ...provenance,
         author: remoteSession(remote.machine, provenance.author),
@@ -350,6 +351,7 @@ const pushStates = async (db: Database): Promise<void> => {
     if (grill === undefined || pushed.get(id) === signature) {
       continue
     }
+    const current = snapshot(db, grill)
     const state = {
       at: new Date().toISOString(),
       lastEventId: latest,
@@ -365,7 +367,8 @@ const pushStates = async (db: Database): Promise<void> => {
           }
         }),
       snapshot: {
-        ...snapshot(db, grill),
+        ...current,
+        discussions: discussionRefs(current),
         updates: publishedUpdates(db, [grill.id]),
         ...attentionSnapshot(db, [grill.id]),
         drawings: pageDrawings(db, readPage(db, grill.id)!),

@@ -14,6 +14,7 @@ import {
   updatesView,
 } from './channelView'
 import {
+  type DiscussionRef,
   FORMAT_VERSION,
   GRILL_FLOW_TARGET,
   OWN,
@@ -516,6 +517,10 @@ export const workspaceView = (
                         }),
                         h,
                       ),
+                      Option.match(question, {
+                        onNone: () => h.empty,
+                        onSome: step => messagesLink(snapshot, step, h),
+                      }),
                     ],
                   )
                 : h.empty,
@@ -1541,6 +1546,22 @@ const issueLink = (
         [issue],
       )
 }
+
+const messageCount = (ref: DiscussionRef): string => {
+  const count = ref.asks + ref.replies
+  return `${count} ${count === 1 ? 'message' : 'messages'}`
+}
+
+const messagesLink = (snapshot: Snapshot, step: Step, h: H): Html =>
+  Option.match(Option.fromNullishOr(snapshot.discussions?.[step.question.id]), {
+    onNone: () => h.empty,
+    onSome: ref =>
+      link(
+        messageCount(ref),
+        Message.ClickedDiscussion({ target: ref.target }),
+        h,
+      ),
+  })
 
 const discussLabel = (model: Model): string =>
   model.currentPart.startsWith(QUESTION_PAGE) ||
