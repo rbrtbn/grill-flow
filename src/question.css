@@ -563,3 +563,16 @@
   grid-column: 3 / -1;
   color: var(--olive);
 }
+
+/* What you sent for this question, under its answers. */
+.f-sent-answer {
+  margin: 12px var(--reading-inset) 0;
+  font: 400 14px/1.5 var(--label);
+}
+.f-sent-answer > summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+.f-sent-answer > summary b {
+  color: var(--ink);
+}

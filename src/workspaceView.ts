@@ -10,6 +10,7 @@ import { ownerWorkCounts } from './channel'
 import { channelRevealAttributes } from './channelReveal'
 import {
   answerHistoryView,
+  sentOnQuestionView,
   sourceQuestionHref,
   updatesView,
 } from './channelView'
@@ -737,7 +738,7 @@ const workspaceHeaderView = (
                 REPLIES,
                 true,
               ),
-              destination('Answer history', ANSWER_HISTORY, true),
+              destination('Log', ANSWER_HISTORY, true),
               ...(grill.plan === undefined
                 ? []
                 : [destination('Run overview', 'plan', true)]),
@@ -916,6 +917,7 @@ const questionView = (
                       reading.status(step, h),
                       answersView(model, snapshot, step, reading, h),
                       questionMetaView(model, snapshot, step, inbox, h),
+                      sentOnQuestionView(snapshot, q.id, h),
                       answerFollowUpView(snapshot, step, h),
                       backgroundView(model, snapshot, step, reading, inbox, h),
                       questionConversationView(

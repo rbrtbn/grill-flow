@@ -222,17 +222,87 @@ const savedAnswer = (
   )
 }
 
+type SentAnswer = Readonly<{
+  receipt: History
+  answer: History['answers'][number]
+}>
+
+const displayedQuestion = (
+  snapshot: Snapshot,
+  source: string,
+  question: string,
+): string | undefined =>
+  Object.entries(snapshot.questionOrigins ?? {}).find(
+    ([, origin]) => origin.grill === source && origin.question === question,
+  )?.[0] ?? (source === snapshot.grill.id ? question : undefined)
+
+/** Every send that carried an answer to this question, newest first. */
+const sentAnswersFor = (
+  snapshot: Snapshot,
+  questionId: string,
+): ReadonlyArray<SentAnswer> =>
+  [...(snapshot.answerHistory ?? [])]
+    .reverse()
+    .flatMap(receipt =>
+      receipt.answers
+        .filter(
+          answer =>
+            displayedQuestion(snapshot, receipt.source, answer.question) ===
+            questionId,
+        )
+        .map(answer => ({ receipt, answer })),
+    )
+
+const deliveryLabel = (state: History['state']): string =>
+  state === 'delivered'
+    ? 'Delivered'
+    : state === 'pending'
+      ? 'Delivery unconfirmed'
+      : 'Delivery failed or partial'
+
+/** On the question page: what you sent for it, and how its wording moved since. */
+export const sentOnQuestionView = (
+  snapshot: Snapshot,
+  questionId: string,
+  h: H,
+): Html => {
+  const sent = sentAnswersFor(snapshot, questionId)
+  const latest = sent[0]
+  return latest === undefined
+    ? h.empty
+    : h.details(
+        [h.Class('f-sent-answer')],
+        [
+          h.summary(
+            [],
+            [
+              h.b(
+                [],
+                [
+                  `Sent ${latest.answer.key === OWN ? 'own answer' : latest.answer.key}`,
+                ],
+              ),
+              ` · ${when(latest.receipt.at)} · ${deliveryLabel(latest.receipt.state)}`,
+              sent.length > 1 ? ` · sent ${sent.length} times` : '',
+            ],
+          ),
+          savedAnswer(snapshot, latest.receipt.source, latest.answer, h),
+        ],
+      )
+}
+
+/** The send log: each send with its delivery state and extra message. */
 export const answerHistoryView = (
   model: Model,
   snapshot: Snapshot,
   h: H,
 ): Html => {
-  const history = snapshot.answerHistory ?? []
+  const history = [...(snapshot.answerHistory ?? [])].reverse()
   const entry = (receipt: History): Html =>
     h.keyed('article')(
       `${receipt.source}::${receipt.event}`,
       [
-        h.Class('f-channel-entry'),
+        h.Class('f-log-entry'),
         ...channelRevealAttributes(
           model,
           answerAnchor(receipt.source, receipt.submission ?? receipt.event),
@@ -240,67 +310,62 @@ export const answerHistoryView = (
         ),
       ],
       [
-        h.h2(
-          [],
+        h.p(
+          [h.Class('f-log-head')],
           [
-            receipt.source,
-            receipt.submission === null
-              ? ' · Earlier send'
-              : ` · Send ${receipt.submission}`,
+            h.b(
+              [],
+              [
+                receipt.submission === null
+                  ? 'Earlier send'
+                  : `Send ${receipt.submission}`,
+              ],
+            ),
+            ` · ${receipt.source} · ${when(receipt.at)} · `,
+            h.span(
+              [h.Class(`f-log-state is-${receipt.state}`)],
+              [deliveryLabel(receipt.state)],
+            ),
           ],
         ),
         h.p(
-          [h.Class('f-channel-meta')],
+          [h.Class('f-log-answers')],
           [
-            when(receipt.at),
-            ' · ',
-            receipt.state === 'delivered'
-              ? 'Delivered'
-              : receipt.state === 'pending'
-                ? 'Delivery unconfirmed'
-                : 'Delivery failed or partial',
+            [
+              ...receipt.answers.map(answer => {
+                const shown =
+                  displayedQuestion(
+                    snapshot,
+                    receipt.source,
+                    answer.question,
+                  ) ?? answer.question
+                return `${shown} ${answer.key === OWN ? 'own' : answer.key}`
+              }),
+              ...Object.keys(receipt.legacyLines),
+            ].join(' · ') || 'No answers recorded',
           ],
-        ),
-        receipt.submission === null
-          ? h.p(
-              [h.Class('hint')],
-              ['Original answer context unavailable for this older send.'],
-            )
-          : h.empty,
-        ...receipt.answers.map(answer =>
-          savedAnswer(snapshot, receipt.source, answer, h),
-        ),
-        ...Object.values(receipt.legacyLines).map(line =>
-          h.p([h.Class('f-legacy-answer')], [line]),
         ),
         receipt.message === ''
           ? h.empty
-          : h.div(
-              [h.Class('f-extra-message')],
-              [
-                h.h3([], ['Extra message']),
-                h.p(
-                  [h.Class('hint')],
-                  ['Kept separately from the answer wording.'],
-                ),
-                h.p([], [receipt.message]),
-              ],
+          : h.p(
+              [h.Class('f-log-message')],
+              [h.b([], ['Extra message ']), receipt.message],
             ),
       ],
     )
   return h.section(
     [h.Class('f-page f-answer-history')],
     [
-      h.h1([], ['Answer history']),
+      h.h1([], ['Log']),
       h.p(
         [h.Class('f-lead')],
         [
-          'The words saved with each submission, including their original question wording.',
+          'Each send, newest first, with its delivery and any extra message. What you sent for a question, and how its wording moved since, is on that question’s page.',
         ],
       ),
       ...Array.match(history, {
         onEmpty: () => [
-          h.p([h.Class('f-empty hint')], ['No submissions recorded yet.']),
+          h.p([h.Class('f-empty hint')], ['No sends recorded yet.']),
         ],
         onNonEmpty: entries => entries.map(entry),
       }),

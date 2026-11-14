@@ -3110,3 +3110,28 @@ body[data-gf-preview] .f-workspace {
 .f-runs-table-section {
   margin-top: 28px;
 }
+
+/* Log: one line of facts per send. */
+.f-log-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+  font: 400 14px/1.5 var(--label);
+}
+.f-log-entry p {
+  margin: 0;
+}
+.f-log-answers {
+  color: var(--muted);
+}
+.f-log-state.is-delivered {
+  color: var(--olive);
+}
+.f-log-state.is-pending {
+  color: var(--ochre);
+}
+.f-log-state.is-failed {
+  color: var(--rust);
+}
+.f-log-message {
+  margin-top: 4px;
+}

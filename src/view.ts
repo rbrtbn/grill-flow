@@ -139,6 +139,7 @@ const PAGE_TITLES: ReadonlyArray<readonly [string, string]> = [
   [ITEM_PAGE, NAMES.task],
   [DECISION_PAGE, 'Decision'],
   ['conversations', NAMES.conversations],
+  ['answer-history', 'Log'],
 ]
 
 const documentTitle = (model: Model, snapshot: Snapshot): string => {

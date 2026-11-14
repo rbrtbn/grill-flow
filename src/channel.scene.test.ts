@@ -159,23 +159,40 @@ it('shows captured wording and note rather than substituting the latest question
         },
       }),
     }),
-    expect(selector('.f-answer-history h1')).toHaveText('Answer history'),
-    expect(selector('.f-answer-history')).toContainText('Original choice'),
-    expect(selector('.f-answer-history')).toContainText('Original consequence'),
-    expect(selector('.f-answer-history')).toContainText('Exact saved note'),
+    expect(selector('.f-answer-history h1')).toHaveText('Log'),
+    expect(selector('.f-answer-history')).toContainText('Send 72'),
+    expect(selector('.f-answer-history')).toContainText('Q1 a'),
+    expect(selector('.f-log-message')).toContainText('Extra message'),
+    expect(selector('.f-answer-history')).toContainText('Earlier send'),
+    expect(selector('.f-answer-history')).toContainText(
+      'Delivery failed or partial',
+    ),
+  )
+  scene(
+    { update, view },
+    given({
+      ...loaded,
+      currentPart: 'question:Q1',
+      page: PageData.Success({
+        data: {
+          ...snapshot,
+          answerHistory: history,
+          questionOrigins: { Q1: { grill: 'member', question: 'Q1' } },
+          questionRevisions: { Q1: 'later' },
+        },
+      }),
+    }),
+    Mount.resolveAll([FillBox, Message.CompletedFillBox()]),
+    expect(selector('.f-sent-answer summary')).toContainText('Sent a'),
+    expect(selector('.f-sent-answer')).toContainText('Original choice'),
+    expect(selector('.f-sent-answer')).toContainText('Exact saved note'),
     expect(selector('.f-wording-changes summary')).toHaveText(
       'Compare original and current wording',
     ),
     expectAll(all.selector('.f-wording-diff ins')).not.toBeEmpty(),
-    expectAll(all.selector('.f-wording-diff del')).not.toBeEmpty(),
-    expect(selector('.f-answer-history')).toContainText(
-      'Original answer context unavailable for this older send.',
-    ),
     expect(selector('.f-recorded-choice')).not.toContainText(
       grill.steps[0]!.question.options[0]!.label,
     ),
-    expect(selector('.f-extra-message')).toContainText('Extra message'),
-    expect(selector('.f-legacy-answer')).toHaveText('Q1 b'),
   )
 })
 
