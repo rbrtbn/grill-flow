@@ -1,6 +1,11 @@
 import { Schema } from 'effect'
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 
 import {
@@ -46,6 +51,8 @@ const HOST = '127.0.0.1'
 // Cookies ignore ports; previews must not replace the live server's write cookie.
 const COOKIE_NAME = PORT === 4317 ? 'gf_token' : `gf_token_${PORT}`
 const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
+// Where a page started with ?debug=input ships its input timeline; unset, the route is absent.
+const INPUT_LOG = process.env.GF_INPUT_LOG
 const db = open()
 if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
 
@@ -515,6 +522,15 @@ const handleSend = async (
   return json(clientSnapshot(grill))
 }
 
+const InputLogRequest = Schema.Struct({
+  entries: Schema.Array(
+    Schema.Record(
+      Schema.String,
+      Schema.Union([Schema.String, Schema.Number, Schema.Boolean]),
+    ),
+  ),
+})
+
 Bun.serve({
   hostname: HOST,
   port: PORT,
@@ -557,6 +573,28 @@ Bun.serve({
           : json({ error: 'no such grill' }, 404)
       }
       return asset(url.pathname)
+    }
+    if (
+      request.method === 'POST' &&
+      url.pathname === '/api/debug/input-log' &&
+      INPUT_LOG !== undefined
+    ) {
+      if (!writeAllowed(request)) {
+        return json({ error: 'This tab has no valid session.' }, 403)
+      }
+      const decoded = Schema.decodeUnknownResult(InputLogRequest)(
+        await request.json().catch(() => null),
+      )
+      if (decoded._tag === 'Failure') {
+        return json({ error: 'Invalid input log' }, 400)
+      }
+      appendFileSync(
+        INPUT_LOG,
+        decoded.success.entries
+          .map(entry => `${JSON.stringify(entry)}\n`)
+          .join(''),
+      )
+      return json({ ok: true })
     }
     if (
       request.method === 'POST' &&
