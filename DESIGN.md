@@ -22,9 +22,12 @@ between them. The reading column stays a plain book page.
   controls, with small caps for group headings; JetBrains Mono only for code and lines to
   copy.
 - The header is one 56px bar in three parts. Left: the Board wordmark, then Inbox · Questions ·
-  Runs · More ▾ as plain tabs with ink count pills (ochre for the Inbox's count of what is
-  due); everything that opens a page sits here. Centre: the squad's or session's name.
-  Right: actions only (Sessions, Review & send, the freeze pill, Not in this design yet).
+  Runs · Work · More ▾ as plain tabs with ink count pills (ochre for the Inbox's count of what
+  is due); everything that opens a page sits here. Centre: the squad's or session's name.
+  Right: actions only (Sessions, Review & send, the freeze pill, Decisions · N open).
+- Work states keep the same hues: design gate violet, building ochre, review and fixing teal,
+  merge-ready and merged olive, blocked a rust hatch. The Timeline and each row's Track read one
+  model (`workFlow.ts`).
 - Sessions wear an avatar hue from eight muted tokens (`--av-0` … `--av-7`), picked from the
   address so it is the same on every page. The hue tells sessions apart; a session's type
   stays in text and badges.
