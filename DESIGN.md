@@ -25,6 +25,11 @@ between them. The reading column stays a plain book page.
   Runs · More ▾ as plain tabs with ink count pills (ochre for the Inbox's count of what is
   due); everything that opens a page sits here. Centre: the squad's or session's name.
   Right: actions only (Sessions, Review & send, the freeze pill, Not in this design yet).
+- Sessions wear an avatar hue from eight muted tokens (`--av-0` … `--av-7`), picked from the
+  address so it is the same on every page. The hue tells sessions apart; a session's type
+  stays in text and badges.
+- References (sessions, rounds, issues, PRs, keys, tasks) open one card component on hover or
+  focus and pin on click (`refCard.ts`).
 - The question is the one block set apart, on `--panel`. Options are rows: a lettered disc, the
   label, and a muted consequence line.
 - State is shown by form, not colour alone: filled (answered), outlined (open), dashed (waiting),

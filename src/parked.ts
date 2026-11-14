@@ -3,8 +3,8 @@
 
 import type { DecisionStatus } from './retirement'
 
-// What to do with a parked piece: bring it back, drop it, or leave it to Rob.
-export type ParkedVerdict = 'Bring back' | 'Drop' | 'Open'
+// What to do with a parked piece: bring it back, drop it, keep it as it is, or leave it to Rob.
+export type ParkedVerdict = 'Bring back' | 'Drop' | 'Keep' | 'Open'
 
 export type Parked = Readonly<{
   title: string
@@ -73,10 +73,17 @@ export const PARKED: ReadonlyArray<Parked> = [
   },
   {
     title: 'Needs you and Updates as top-level pages',
-    detail:
-      'The Inbox and Runs carry their parts; old links redirect there.',
+    detail: 'The Inbox and Runs carry their parts; old links redirect there.',
     verdict: 'Drop',
     where: 'Inbox, Runs',
     status: 'Done',
+  },
+  {
+    title: 'Kept on purpose, in their old look',
+    detail:
+      'The full Review & send page (the tray covers quick sends), Settings, Your grills, Run overview (until Runs › one run has shown its work for a while), and a single session’s concept pages outside the workspace. Each still works; none has had the redesign yet.',
+    verdict: 'Keep',
+    where: 'More, and the Review & send tray',
+    status: 'Open',
   },
 ]

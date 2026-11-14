@@ -119,7 +119,7 @@ export const decisionPanelView = (h: H): Html =>
       h.p(
         [h.Class('f-retiring-key')],
         [
-          'Already in: the new design shows it. Move to: it needs a small change there. Keep: it stays. Drop: not needed. Bring back: a parked piece returns.',
+          'Already in: the new design shows it. Move to: it needs a small change there. Keep: it stays as it is. Drop: not needed. Bring back: a parked piece returns.',
         ],
       ),
       ...SECTIONS.map(([status, title, note]) => {
