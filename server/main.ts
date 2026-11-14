@@ -20,6 +20,7 @@ import {
   unconfirmedSends,
 } from './answerReceipts'
 import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
+import { startBackups } from './backup'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { pageDrawings, requestDrawing } from './drawings'
@@ -39,6 +40,7 @@ import {
   sourceText,
 } from './squad'
 import {
+  DB_PATH,
   ROOT,
   appendEvent,
   open,
@@ -55,6 +57,7 @@ const COOKIE_NAME = PORT === 4317 ? 'gf_token' : `gf_token_${PORT}`
 const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
 const db = open()
 if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
+startBackups(DB_PATH, join(dirname(DB_PATH), 'backups'))
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
 // the token survives restarts so an open tab keeps working.
