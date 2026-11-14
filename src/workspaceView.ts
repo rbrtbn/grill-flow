@@ -21,7 +21,6 @@ import {
   type Step,
   agentAddressOf,
   agentMessagesOf,
-  agentTarget,
   answerRoundLabel,
   isOverTextLimit,
   planPhaseOf,
@@ -88,7 +87,6 @@ import {
   unsentTrayView,
 } from './sendShortcutsView'
 import {
-  maintainerLabel,
   sessionsBadge,
   sessionsPanelView,
 } from './sessionsView'
@@ -363,7 +361,7 @@ export const workspaceView = (
     model.inbox.isFixture,
   )
   const panelConversation = (closedNote: Option.Option<string>) =>
-    discussionView(model, snapshot, reading, false, h, Option.some(closedNote))
+    discussionView(model, snapshot, reading, h, closedNote)
   const content =
     model.currentPart === INBOX
       ? inboxPage(model, snapshot, inbox, h)
@@ -2312,13 +2310,10 @@ const discussionView = (
   model: Model,
   snapshot: Snapshot,
   reading: Reading,
-  expanded: boolean,
   h: H,
-  // In the sessions panel: some note when the session closed and can't receive messages.
-  maybePanel: Option.Option<Option.Option<string>> = Option.none(),
+  // Some note when the session closed and can't receive messages.
+  maybeClosed: Option.Option<string>,
 ): Html => {
-  const isInPanel = Option.isSome(maybePanel)
-  const maybeClosed = Option.flatten(maybePanel)
   const onQuestion = Option.orElse(
     questionOnPage(snapshot, model.currentPart),
     () =>
@@ -2375,7 +2370,7 @@ const discussionView = (
       : h.div(
           [h.Class('f-context')],
           [
-            expanded ? h.h2([], ['Context for this conversation']) : h.empty,
+            h.empty,
             h.h3([], [`${step.question.id} · ${step.question.title}`]),
             h.p([], reading.heading(step.question.ask, h)),
             h.details(
@@ -2391,71 +2386,12 @@ const discussionView = (
                 ),
               ],
             ),
-            expanded ? reading.reasoning(step, h) : h.empty,
+            h.empty,
           ],
         )
   return h.aside(
+    [h.Class('f-discussion is-in-panel'), h.AriaLabel('Discussion')],
     [
-      h.Class(
-        `f-discussion${expanded ? ' is-expanded' : ''}${isInPanel ? ' is-in-panel' : ''}`,
-      ),
-      h.AriaLabel('Discussion'),
-    ],
-    [
-      isInPanel
-        ? h.empty
-        : h.header(
-            [h.Class('f-discussion-head')],
-            [
-              h.h2([], ['Discussion']),
-              h.span(
-                [h.Class('hint')],
-                [
-                  isMaintainer
-                    ? `${NAMES.brand} · ${maintainerLabel(snapshot)}`
-                    : agentAddressOf(target) !== undefined
-                      ? agentLabel(snapshot, agentAddressOf(target)!)
-                      : questionAgent(snapshot.grill, step?.question),
-                ],
-              ),
-              isInPanel
-                ? h.empty
-                : h.div(
-                    [h.Class('f-discussion-actions')],
-                    [
-                      model.currentPart === CONVERSATIONS
-                        ? h.empty
-                        : link(
-                            expanded ? 'Back' : 'Expand',
-                            Message.ClickedExpandDiscussion(),
-                            h,
-                          ),
-                      model.currentPart === CONVERSATIONS
-                        ? link(
-                            'Back',
-                            Message.ClickedReturnConversation({ open: true }),
-                            h,
-                          )
-                        : h.empty,
-                      model.currentPart === CONVERSATIONS
-                        ? link(
-                            'Close',
-                            Message.ClickedReturnConversation({ open: false }),
-                            h,
-                          )
-                        : link('Close', Message.ClickedCloseDiscussion(), h),
-                    ],
-                  ),
-            ],
-          ),
-      isInPanel
-        ? h.empty
-        : recipientPicker(
-            snapshot,
-            target,
-            step === undefined ? onQuestion : Option.some(step),
-            h,
-          ),
       h.div(
         [
           h.Class('f-discussion-messages'),
@@ -2468,7 +2404,7 @@ const discussionView = (
           ),
         ],
         [
-          expanded || step !== undefined ? context : h.empty,
+          step !== undefined ? context : h.empty,
           isMaintainer ? maintainerWarning(snapshot, h) : h.empty,
           ...(Array.isReadonlyArrayEmpty(thread)
             ? [
@@ -2528,9 +2464,7 @@ const discussionView = (
                   isMaintainer
                     ? 'Ask about the board'
                     : agentAddressOf(target) !== undefined
-                      ? isInPanel
-                        ? `Message ${agentAddressOf(target)}`
-                        : `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
+                      ? `Message ${agentAddressOf(target)}`
                       : step === undefined
                         ? 'Ask about the run'
                         : `Ask about ${step.question.id}`,
@@ -2592,113 +2526,6 @@ const agentLabel = (snapshot: Snapshot, address: string): string => {
     : `${agent.lead ? 'Lead · ' : ''}${agent.name === '' ? agent.program : agent.name} · ${address}`
 }
 
-type Recipient = Readonly<{ target: string; label: string }>
-
-/**
- * Who a message goes to: this page's question or run, any running agent of the squad's Herdr
- * space (lead first), or the grill-flow maintainer even while it is down.
- */
-const recipientGroups = (
-  snapshot: Snapshot,
-  target: string,
-  maybeQuestion: Option.Option<Step>,
-): ReadonlyArray<
-  Readonly<{ label: string; recipients: ReadonlyArray<Recipient> }>
-> => {
-  const session = snapshot.grill.session
-  const agents = (snapshot.agents ?? []).filter(
-    agent =>
-      agent.address !== snapshot.maintainerSession &&
-      (agent.lead || agent.address !== session),
-  )
-  const strayAgent = Option.filter(
-    Option.fromUndefinedOr(agentAddressOf(target)),
-    address => !agents.some(agent => agent.address === address),
-  )
-  const page: ReadonlyArray<Recipient> = [
-    ...Option.match(maybeQuestion, {
-      onNone: () => [],
-      onSome: question => [
-        {
-          target: question.id,
-          label: `This question · ${question.question.id} · ${questionAgent(snapshot.grill, question.question)}`,
-        },
-      ],
-    }),
-    {
-      target: RUN_TARGET,
-      label: `Run · ${session === '' ? 'its agent' : session}`,
-    },
-  ]
-  const squad: ReadonlyArray<Recipient> = [
-    ...agents.map(agent => ({
-      target: agentTarget(agent.address),
-      label: `${agent.lead ? '★ ' : ''}${agentLabel(snapshot, agent.address)}`,
-    })),
-    ...Option.match(strayAgent, {
-      onNone: () => [],
-      onSome: address => [
-        { target: agentTarget(address), label: agentLabel(snapshot, address) },
-      ],
-    }),
-  ]
-  return [
-    { label: 'This page', recipients: page },
-    ...(Array.isReadonlyArrayEmpty(squad)
-      ? []
-      : [{ label: 'Squad agents in Herdr', recipients: squad }]),
-    ...(snapshot.maintainerSession === undefined
-      ? []
-      : [
-          {
-            label: NAMES.brand,
-            recipients: [
-              {
-                target: GRILL_FLOW_TARGET,
-                label: `${NAMES.brand} · ${maintainerLabel(snapshot)}`,
-              },
-            ],
-          },
-        ]),
-  ]
-}
-
-const recipientPicker = (
-  snapshot: Snapshot,
-  target: string,
-  maybeQuestion: Option.Option<Step>,
-  h: H,
-): Html =>
-  h.label(
-    [h.Class('f-discussion-scope')],
-    [
-      h.span([], ['To']),
-      h.select(
-        [
-          h.Id('discussion-recipient'),
-          h.AriaLabel('To'),
-          h.Value(target),
-          h.OnChange(value =>
-            Message.SelectedDiscussionTarget({ target: value }),
-          ),
-        ],
-        recipientGroups(snapshot, target, maybeQuestion).map(group =>
-          h.optgroup(
-            [h.Attribute('label', group.label)],
-            group.recipients.map(recipient =>
-              h.option(
-                [
-                  h.Value(recipient.target),
-                  h.Selected(recipient.target === target),
-                ],
-                [recipient.label],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ],
-  )
 
 const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
   snapshot.maintainerState === 'missing' ||
