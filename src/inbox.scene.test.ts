@@ -185,7 +185,10 @@ it('dots what arrived since the reader last looked and clears it on Mark seen', 
     ),
     expect(selector('.f-task-title .f-new-dot')).toExist(),
     click(role('button', { name: 'Mark seen' })),
-    Command.resolve(SaveInboxSeen, Message.CompletedSaveInboxSeen()),
+    Command.resolve(
+      SaveInboxSeen,
+      Message.CompletedSaveInboxSeen({ at: 5000 }),
+    ),
     expect(selector('.f-seen-line')).not.toExist(),
     expect(selector('.f-task-title .f-new-dot')).not.toExist(),
   )

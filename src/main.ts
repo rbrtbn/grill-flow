@@ -670,7 +670,7 @@ export const Message = defineMessageUnion({
   ClickedSessions: {},
   RestoredInboxSeen: { at: Schema.Number },
   ClickedMarkInboxSeen: {},
-  CompletedSaveInboxSeen: {},
+  CompletedSaveInboxSeen: { at: Schema.Number },
   ClickedOpenSession: { target: Schema.String },
   ClickedSessionsBack: {},
   UpdatedSessionSearch: { value: Schema.String },
@@ -1506,19 +1506,18 @@ export const update = (model: Model, message: Message) =>
         inbox: inbox => modifyFields(inbox, { seenAt: () => at }),
       }),
     }),
-    ClickedMarkInboxSeen: () => {
-      const at = model.now === 0 ? Date.now() : model.now
-      return {
-        model: modifyFields(model, {
-          inbox: inbox => modifyFields(inbox, { seenAt: () => at }),
-        }),
-        commands: Option.match(grillIdOf(model), {
-          onNone: () => [],
-          onSome: grillId => [SaveInboxSeen({ grillId, at })],
-        }),
-      }
-    },
-    CompletedSaveInboxSeen: () => ({ model }),
+    ClickedMarkInboxSeen: () => ({
+      model,
+      commands: Option.match(grillIdOf(model), {
+        onNone: () => [],
+        onSome: grillId => [SaveInboxSeen({ grillId })],
+      }),
+    }),
+    CompletedSaveInboxSeen: ({ at }) => ({
+      model: modifyFields(model, {
+        inbox: inbox => modifyFields(inbox, { seenAt: () => at }),
+      }),
+    }),
     ClickedSessions: () => ({
       model: modifyFields(model, {
         side: side => (side === 'Talk' ? 'None' : 'Talk'),
@@ -4289,16 +4288,16 @@ export const RestoreInboxSeen = Command.define('RestoreInboxSeen', {
 })
 
 export const SaveInboxSeen = Command.define('SaveInboxSeen', {
-  args: { grillId: Schema.String, at: Schema.Number },
+  args: { grillId: Schema.String },
   messages: [Message.CompletedSaveInboxSeen],
-  execute: ({ grillId, at }) =>
-    Effect.sync(() => {
+  execute: ({ grillId }) =>
+    Effect.map(Clock.currentTimeMillis, at => {
       try {
         localStorage.setItem(inboxSeenKey(grillId), String(at))
       } catch {
         // Storage can be off; the dots then come back on the next load.
       }
-      return Message.CompletedSaveInboxSeen()
+      return Message.CompletedSaveInboxSeen({ at })
     }),
 })
 
