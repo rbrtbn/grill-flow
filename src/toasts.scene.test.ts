@@ -59,44 +59,6 @@ const loaded = {
 }
 
 describe('agent toast notifications', () => {
-  it('keeps an unread badge after expiry and reopens the newest unread cards', () => {
-    scene(
-      { update, view },
-      given(loaded),
-      fillOne,
-      expect(selector('.f-frame .toasts')).toExist(),
-      expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
-      expectAll(all.selector('.f-question-pane .toasts')).toHaveCount(0),
-      expectAll(all.selector('.toast')).toHaveCount(3),
-      expectAll(all.selector('.toast-progress')).toHaveCount(3),
-      expect(role('button', { name: 'Hide 5 unread notifications' })).toExist(),
-      expect(selector('.toast-progress')).toHaveHandler('animationend'),
-    )
-    const expired = ['reply-5', 'reply-4', 'reply-3'].reduce(
-      (model, id) => update(model, Message.EndedToastCountdown({ id })).model,
-      loaded,
-    )
-    assert(expired.readIds).toEqual([])
-    assert(unreadMessagesOf(expired)).toHaveLength(5)
-    scene(
-      { update, view },
-      given(expired),
-      fillOne,
-      expectAll(all.selector('.toast')).toHaveCount(0),
-      expect(selector('.notification-count')).toHaveText('5'),
-      click(role('button', { name: 'Show 5 unread notifications' })),
-      expectAll(all.selector('.toast')).toHaveCount(3),
-      expectAll(all.selector('.toast-progress')).toHaveCount(3),
-      expect(selector('.notification-count')).toHaveText('5'),
-    )
-    scene(
-      { update, view },
-      given({ ...expired, currentPart: 'overview' }),
-      expect(selector('.f-question-pane .toasts')).toExist(),
-      expect(selector('.notification-count')).toHaveText('5 unread'),
-    )
-  })
-
   it.each([
     ['question:Q1', '5', fillOne],
     ['part-1', '5', noMounts],

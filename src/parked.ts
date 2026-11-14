@@ -5,9 +5,9 @@ export type Parked = Readonly<{ title: string; detail: string }>
 
 export const PARKED: ReadonlyArray<Parked> = [
   {
-    title: 'Question sidebar on the Questions page',
+    title: 'The question sidebar, on every page',
     detail:
-      'The tree of questions waiting on others, folded rounds and round sections, and renaming a round. It still shows on Overview, Review and the history pages.',
+      'The tree of questions waiting on others, folded rounds and round sections, renaming a round, and its resizable width. Questions keeps a filtered list behind "N of M ▾" whose rows show new messages and Answered B, as the question header does.',
   },
   {
     title: 'Advanced question filters and sort',

@@ -34,6 +34,7 @@ import {
   roundLabel,
   roundOf,
   statusOf,
+  unreadOf,
   urgencyDetail,
 } from './domain'
 import { drawingButton, drawingPanel } from './drawingView'
@@ -103,23 +104,17 @@ import {
   GRILLS,
   NEEDS,
   QUESTION_PAGE,
-  type QuestionNode,
   REPLIES,
   REVIEW,
   RUN_TARGET,
   SQUAD,
   UPDATES,
-  activeQuestionFilters,
   answerLabel,
   draftAnswerIds,
   draftQuestions,
-  questionFilterFrom,
-  questionGroups,
   questionOnPage,
   questionState,
-  questionUrgencyFilterFrom,
   quickViews,
-  selectedRounds,
   sidebarRoundName,
   visibleQuestions,
   workspaceLines,
@@ -213,126 +208,6 @@ const stateMark = (
           ),
         ],
   )
-
-const questionNodeView = (
-  model: Model,
-  snapshot: Snapshot,
-  node: QuestionNode,
-  h: H,
-): Html => {
-  const step = node.step
-  const state = questionState(
-    snapshot,
-    step,
-    model.answers,
-    model.notes,
-    model.own,
-  )
-  const hasChildren = Array.isReadonlyArrayNonEmpty(node.children)
-  const collapsed =
-    model.workspace.search.trim() === '' &&
-    model.workspace.foldedQuestions.includes(step.question.id)
-  const urgency = Option.getOrElse(urgencyDetail(step.question), () => '')
-  return h.keyed('li')(
-    step.id,
-    [h.Class('f-question-node'), h.Id(`question-node-${step.question.id}`)],
-    [
-      h.div(
-        [h.Class('f-question-row')],
-        [
-          h.button(
-            [
-              h.Class(
-                `f-question-item${model.currentPart === `${QUESTION_PAGE}${step.question.id}` ? ' is-current' : ''}`,
-              ),
-              h.OnClick(
-                Message.ClickedWorkspacePage({
-                  page: `${QUESTION_PAGE}${step.question.id}`,
-                }),
-              ),
-              h.AriaCurrent(
-                model.currentPart === `${QUESTION_PAGE}${step.question.id}`
-                  ? 'page'
-                  : 'false',
-              ),
-              h.Title(
-                `${step.question.id}${step.question.key === undefined ? '' : ` (${step.question.key})`} · ${state} · ${step.question.title} · Asked by ${questionAgent(snapshot.grill, step.question)} · ${roundLabel(snapshot.grill, roundOf(snapshot.grill, step.question))}${urgency === '' ? '' : ` · ${urgency}`}`,
-              ),
-            ],
-            [
-              stateMark(state, step.question, h),
-              h.span([h.Class('f-question-number')], [step.question.id]),
-              h.span(
-                [h.Class('f-question-copy')],
-                [
-                  h.span([h.Class('f-question-label')], [step.question.title]),
-                  h.small(
-                    [h.Class('f-question-context')],
-                    [
-                      `${step.question.key === undefined ? '' : `${step.question.key} · `}${questionAgent(snapshot.grill, step.question)} · ${sidebarRoundName(snapshot, roundOf(snapshot.grill, step.question))}`,
-                    ],
-                  ),
-                ],
-              ),
-              h.span(
-                [h.Class('sr-only')],
-                [
-                  `${state}${state === 'Open' && urgency !== '' ? ` · ${urgency}` : ''}`,
-                ],
-              ),
-            ],
-          ),
-          hasChildren
-            ? h.button(
-                [
-                  h.Class('f-question-branch'),
-                  h.AriaExpanded(!collapsed),
-                  h.AriaControls(`question-children-${step.question.id}`),
-                  h.AriaLabel(
-                    `${collapsed ? 'Expand' : 'Collapse'} dependents of ${step.question.id}`,
-                  ),
-                  h.Title(`Questions waiting on ${step.question.id}`),
-                  h.OnClick(
-                    Message.ClickedQuestionBranch({
-                      question: step.question.id,
-                    }),
-                  ),
-                ],
-                [
-                  h.svg(
-                    [
-                      h.ViewBox('0 0 16 16'),
-                      h.Class(collapsed ? '' : 'is-open'),
-                      h.AriaHidden(true),
-                    ],
-                    [
-                      h.path([
-                        h.D('m6 4 4 4-4 4'),
-                        h.Fill('none'),
-                        h.Stroke('currentColor'),
-                        h.StrokeWidth('1.5'),
-                      ]),
-                    ],
-                  ),
-                ],
-              )
-            : h.empty,
-        ],
-      ),
-      hasChildren && !collapsed
-        ? h.ul(
-            [
-              h.Class('f-question-children'),
-              h.Id(`question-children-${step.question.id}`),
-            ],
-            node.children.map(child =>
-              questionNodeView(model, snapshot, child, h),
-            ),
-          )
-        : h.empty,
-    ],
-  )
-}
 
 const settingView = (model: Model, h: H): Html =>
   h.dialog(
@@ -488,13 +363,6 @@ export const workspaceView = (
     model.now === 0 ? (snapshot.channelNow ?? 0) : model.now,
     model.inbox.isFixture,
   )
-  const isFullWidth =
-    model.currentPart.startsWith(QUESTION_PAGE) ||
-    model.currentPart === CONVERSATIONS ||
-    model.currentPart === INBOX ||
-    model.currentPart === RUNS ||
-    model.currentPart.startsWith(RUN_PAGE) ||
-    model.currentPart.startsWith(ITEM_PAGE)
   const content =
     model.currentPart === INBOX
       ? inboxPage(model, snapshot, inbox, h)
@@ -601,12 +469,9 @@ export const workspaceView = (
           )
         : h.empty,
       h.div(
-        [h.Class(`f-frame${isFullWidth ? ' f-no-nav' : ''}`), h.Style(styles)],
+        [h.Class('f-frame f-no-nav'), h.Style(styles)],
         [
-          isFullWidth
-            ? reading.floatingNotices(h)
-            : navigationView(model, snapshot, inbox, reading.notices, h),
-          isFullWidth ? h.empty : reading.resize('Nav', h),
+          reading.floatingNotices(h),
           h.main(
             [
               h.Id('workspace-main'),
@@ -956,469 +821,6 @@ const workspaceHeaderView = (
   )
 }
 
-const queueSnapshot = (model: Model, snapshot: Snapshot): Snapshot =>
-  model.currentPart.startsWith(QUESTION_PAGE)
-    ? narrowedSnapshot(snapshot, model.pageQuery)
-    : snapshot
-
-const navigationView = (
-  model: Model,
-  fullSnapshot: Snapshot,
-  inbox: InboxData,
-  notices: Reading['notices'],
-  h: H,
-): Html => {
-  const snapshot = queueSnapshot(model, fullSnapshot)
-  const grill = snapshot.grill
-  const visible = visibleQuestions(
-    model.workspace,
-    snapshot,
-    model.answers,
-    model.notes,
-    model.own,
-  )
-  const groups = questionGroups(
-    model.workspace,
-    snapshot,
-    model.answers,
-    model.notes,
-    model.own,
-  )
-  const scope = selectedRounds(model.workspace, snapshot)
-  const activeFilters = activeQuestionFilters(model.workspace, snapshot)
-  const roundMatches = visibleQuestions(
-    modifyFields(model.workspace, { roundScopes: () => ({}) }),
-    snapshot,
-    model.answers,
-    model.notes,
-    model.own,
-  )
-  const rounds = Array.dedupe(
-    grill.steps.map(step => roundOf(grill, step.question)),
-  ).filter(
-    round =>
-      scope.includes(round) ||
-      roundMatches.some(step => roundOf(grill, step.question) === round),
-  )
-  const name = (round: number) => {
-    const section = grill.roundSections?.[String(round)]
-    return `${section === undefined ? '' : `${section} / `}${sidebarRoundName(snapshot, round)}`
-  }
-  const count = (
-    filter: typeof model.workspace.filter,
-    urgencyFilter: typeof model.workspace.urgencyFilter,
-  ) =>
-    visibleQuestions(
-      modifyFields(model.workspace, {
-        filter: () => filter,
-        urgencyFilter: () => urgencyFilter,
-      }),
-      snapshot,
-      model.answers,
-      model.notes,
-      model.own,
-    ).length
-  const urgencyNames = {
-    All: 'All urgencies',
-    urgent: 'Blocking or Soon',
-    blocking: 'Blocking',
-    soon: 'Soon',
-    wait: 'Can wait',
-    fyi: 'FYI',
-    unspecified: 'Unspecified',
-  }
-  return h.aside(
-    [h.Class('f-navigation f-navigation-a'), h.AriaLabel('Grill navigation')],
-    [
-      h.div(
-        [h.Class('f-question-pane')],
-        [
-          h.div(
-            [h.Class('f-question-tools')],
-            [
-              h.div(
-                [h.Class('f-question-tools-heading')],
-                [
-                  h.strong([], ['Questions']),
-                  h.div(
-                    [h.Class('f-question-tool-actions')],
-                    [
-                      h.button(
-                        [
-                          h.Type('button'),
-                          h.Class(
-                            `f-filter-trigger${activeFilters > 0 ? ' is-active' : ''}`,
-                          ),
-                          h.Popovertarget('workspace-filters'),
-                          h.AriaLabel('Filters'),
-                          h.Title(
-                            activeFilters > 0
-                              ? `${activeFilters} active advanced filters`
-                              : 'Advanced question filters',
-                          ),
-                        ],
-                        [
-                          h.svg(
-                            [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
-                            [
-                              h.path([
-                                h.D(
-                                  'M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6M10 15v6',
-                                ),
-                                h.Fill('none'),
-                                h.Stroke('currentColor'),
-                                h.StrokeWidth('1.5'),
-                              ]),
-                            ],
-                          ),
-                          activeFilters > 0
-                            ? h.span(
-                                [h.Class('f-filter-badge'), h.AriaHidden(true)],
-                                [String(activeFilters)],
-                              )
-                            : h.empty,
-                        ],
-                      ),
-                      h.button(
-                        [
-                          h.Type('button'),
-                          h.Class(
-                            `f-filter-trigger${model.workspace.sort !== 'Round' ? ' is-active' : ''}`,
-                          ),
-                          h.Popovertarget('workspace-sort'),
-                          h.AriaLabel('Sort questions'),
-                          h.Title(`Sort: ${model.workspace.sort}`),
-                        ],
-                        [
-                          h.svg(
-                            [h.ViewBox('0 0 24 24'), h.AriaHidden(true)],
-                            [
-                              h.path([
-                                h.D(
-                                  'M4 5h14M4 10h10M4 15h6M18 9v11m-4-4 4 4 4-4',
-                                ),
-                                h.Fill('none'),
-                                h.Stroke('currentColor'),
-                                h.StrokeWidth('1.5'),
-                              ]),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              h.input([
-                h.Type('search'),
-                h.Placeholder('Find question or issue…'),
-                h.AriaLabel('Find question or issue'),
-                h.Value(model.workspace.search),
-                h.OnInput(value => Message.UpdatedQuestionSearch({ value })),
-              ]),
-              h.div(
-                [
-                  h.Class('f-quick-views'),
-                  h.Role('group'),
-                  h.AriaLabel('Quick views'),
-                ],
-                quickViews.map(preset =>
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.Class(
-                        model.workspace.filter === preset.filter &&
-                          model.workspace.urgencyFilter === preset.urgencyFilter
-                          ? 'is-active'
-                          : '',
-                      ),
-                      h.AriaPressed(
-                        String(
-                          model.workspace.filter === preset.filter &&
-                            model.workspace.urgencyFilter ===
-                              preset.urgencyFilter,
-                        ),
-                      ),
-                      h.OnClick(
-                        Message.SelectedQuestionView({
-                          filter: preset.filter,
-                          urgencyFilter: preset.urgencyFilter,
-                        }),
-                      ),
-                    ],
-                    [
-                      h.span([], [preset.label]),
-                      h.small(
-                        [],
-                        [String(count(preset.filter, preset.urgencyFilter))],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              activeFilters > 0 || model.workspace.search.trim() !== ''
-                ? h.p(
-                    [h.Class('f-filter-readout')],
-                    [
-                      `${visible.length} match · ${model.workspace.filter === 'All' ? 'All states' : model.workspace.filter} · ${urgencyNames[model.workspace.urgencyFilter]}`,
-                    ],
-                  )
-                : h.empty,
-            ],
-          ),
-          h.div(
-            [
-              h.Id('workspace-filters'),
-              h.Popover('auto'),
-              h.Class('f-filter-popdown'),
-              h.Role('dialog'),
-              h.AriaLabel('Advanced question filters'),
-            ],
-            [
-              h.div(
-                [h.Class('f-filter-popdown-heading')],
-                [
-                  h.strong([], ['Filters']),
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.Class('text-button'),
-                      h.Popovertarget('workspace-filters'),
-                      h.Popovertargetaction('hide'),
-                      h.AriaLabel('Close filters'),
-                    ],
-                    ['Close'],
-                  ),
-                ],
-              ),
-              h.fieldset(
-                [h.Class('f-round-filter')],
-                [
-                  h.legend([], ['Rounds']),
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.Class('text-button f-round-all'),
-                      h.AriaPressed(String(Array.isReadonlyArrayEmpty(scope))),
-                      h.OnClick(Message.SelectedRoundScopes({ rounds: [] })),
-                    ],
-                    ['All rounds'],
-                  ),
-                  ...rounds.map(round =>
-                    h.keyed('label')(
-                      String(round),
-                      [h.Class('f-round-choice')],
-                      [
-                        h.input([
-                          h.Type('checkbox'),
-                          h.Checked(scope.includes(round)),
-                          h.AriaLabel(name(round)),
-                          h.OnClick(
-                            Message.SelectedRoundScopes({
-                              rounds: scope.includes(round)
-                                ? scope.filter(value => value !== round)
-                                : [...scope, round],
-                            }),
-                          ),
-                        ]),
-                        h.span(
-                          [],
-                          [
-                            `${name(round)} · ${roundMatches.filter(step => roundOf(grill, step.question) === round).length} match`,
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              h.label(
-                [],
-                [
-                  h.span([], ['Question state']),
-                  h.select(
-                    [
-                      h.AriaLabel('Question state filter'),
-                      h.Value(model.workspace.filter),
-                      h.OnChange(value =>
-                        Message.ChangedQuestionFilter({
-                          filter: questionFilterFrom(value),
-                        }),
-                      ),
-                    ],
-                    ['All', 'Open', 'Draft', 'Sent'].map(value =>
-                      h.option([h.Value(value)], [value]),
-                    ),
-                  ),
-                ],
-              ),
-              h.label(
-                [],
-                [
-                  h.span([], ['Urgency']),
-                  h.select(
-                    [
-                      h.AriaLabel('Urgency filter'),
-                      h.Value(model.workspace.urgencyFilter),
-                      h.OnChange(value =>
-                        Message.ChangedQuestionUrgencyFilter({
-                          urgencyFilter: questionUrgencyFilterFrom(value),
-                        }),
-                      ),
-                    ],
-                    Object.entries(urgencyNames).map(([value, label]) =>
-                      h.option([h.Value(value)], [label]),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          h.div(
-            [
-              h.Id('workspace-sort'),
-              h.Popover('auto'),
-              h.Class('f-filter-popdown f-sort-popdown'),
-              h.Role('group'),
-              h.AriaLabel('Question sorting'),
-            ],
-            [
-              h.strong([], ['Sort questions']),
-              ...(
-                ['Urgency', 'Round', 'Recency'] satisfies ReadonlyArray<
-                  typeof model.workspace.sort
-                >
-              ).map(sort =>
-                h.keyed('button')(
-                  sort,
-                  [
-                    h.Type('button'),
-                    h.Class('f-sort-option'),
-                    h.AriaPressed(String(model.workspace.sort === sort)),
-                    h.Popovertarget('workspace-sort'),
-                    h.Popovertargetaction('hide'),
-                    h.OnClick(Message.SelectedQuestionSort({ sort })),
-                    h.Title(
-                      sort === 'Recency'
-                        ? 'Newest question number first; source order for unnumbered questions'
-                        : sort === 'Urgency'
-                          ? 'Most urgent first; blockers stay ahead of dependents'
-                          : 'Source and round order',
-                    ),
-                  ],
-                  [
-                    sort,
-                    model.workspace.sort === sort
-                      ? h.svg(
-                          [h.ViewBox('0 0 16 16'), h.AriaHidden(true)],
-                          [
-                            h.path([
-                              h.D('m3 8 3 3 7-7'),
-                              h.Fill('none'),
-                              h.Stroke('currentColor'),
-                              h.StrokeWidth('1.5'),
-                            ]),
-                          ],
-                        )
-                      : h.empty,
-                  ],
-                ),
-              ),
-            ],
-          ),
-          h.nav(
-            [
-              h.Class('f-question-list'),
-              h.AriaLabel(`Questions by ${model.workspace.sort.toLowerCase()}`),
-            ],
-            [
-              ...(Array.isReadonlyArrayEmpty(visible)
-                ? [
-                    h.p(
-                      [h.Class('hint f-empty-nav')],
-                      [
-                        'No questions match. Clear the search or adjust the filters.',
-                      ],
-                    ),
-                  ]
-                : []),
-              ...groups.map((group, index) =>
-                h.keyed('section')(
-                  group.key,
-                  [h.Class('f-round')],
-                  [
-                    group.section !== undefined &&
-                    group.section !== groups[index - 1]?.section
-                      ? h.h3([h.Class('f-agent-section')], [group.section])
-                      : h.empty,
-                    group.key === 'sorted'
-                      ? h.empty
-                      : h.div(
-                          [h.Class('f-round-heading')],
-                          [
-                            h.button(
-                              [
-                                h.Type('button'),
-                                h.Class('f-round-toggle'),
-                                h.AriaExpanded(!group.collapsed),
-                                h.AriaLabel(
-                                  `${sidebarRoundName(snapshot, Number(group.key))} · ${group.steps.filter(step => questionState(snapshot, step, model.answers, model.notes, model.own) === 'Sent').length} of ${group.steps.length} sent`,
-                                ),
-                                h.OnClick(
-                                  Message.ClickedRound({
-                                    round: Number(group.key),
-                                  }),
-                                ),
-                              ],
-                              [
-                                h.svg(
-                                  [
-                                    h.ViewBox('0 0 16 16'),
-                                    h.Class(group.collapsed ? '' : 'is-open'),
-                                    h.AriaHidden(true),
-                                  ],
-                                  [
-                                    h.path([
-                                      h.D('m6 4 4 4-4 4'),
-                                      h.Fill('none'),
-                                      h.Stroke('currentColor'),
-                                      h.StrokeWidth('1.5'),
-                                    ]),
-                                  ],
-                                ),
-                                h.span(
-                                  [h.Class('f-round-name')],
-                                  [
-                                    sidebarRoundName(
-                                      snapshot,
-                                      Number(group.key),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                    group.collapsed
-                      ? h.empty
-                      : h.ul(
-                          [h.Class('f-question-tree')],
-                          group.roots.map(node =>
-                            questionNodeView(model, snapshot, node, h),
-                          ),
-                        ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          notices(h),
-        ],
-      ),
-    ],
-  )
-}
-
 const questionView = (
   model: Model,
   snapshot: Snapshot,
@@ -1488,6 +890,12 @@ const questionView = (
                           state === 'Draft' ? 'Draft · not sent' : state,
                         ],
                       ),
+                      ...Option.toArray(
+                        Option.map(answeredLabel(model, step), label =>
+                          h.span([h.Class('f-answered-label')], [label]),
+                        ),
+                      ),
+                      unreadBadge(questionUnread(model, snapshot, step), h),
                       questionTimesView(snapshot, q.id, h),
                     ],
                   ),
@@ -1693,7 +1101,6 @@ const questionsBar = (
                 model.notes,
                 model.own,
               )
-              const answered = model.answers[item.question.id]
               return h.keyed('li')(
                 item.id,
                 [],
@@ -1719,9 +1126,17 @@ const questionsBar = (
                       h.small(
                         [],
                         [
-                          `${questionSession(snapshot.grill, item.question)} · ${sidebarRoundName(snapshot, roundOf(snapshot.grill, item.question))}${answered === undefined ? '' : ` · Answered ${answered === OWN ? 'own' : answered}`}`,
+                          [
+                            questionSession(snapshot.grill, item.question),
+                            sidebarRoundName(
+                              snapshot,
+                              roundOf(snapshot.grill, item.question),
+                            ),
+                            ...Option.toArray(answeredLabel(model, item)),
+                          ].join(' · '),
                         ],
                       ),
+                      unreadBadge(questionUnread(model, snapshot, item), h),
                       messagesCount(snapshot, item, h),
                     ],
                   ),
@@ -1733,6 +1148,34 @@ const questionsBar = (
     ],
   )
 }
+
+// New messages about one question: agent answers to its asks, and in the preview fixture the
+// new lines of its passage and side threads.
+const questionUnread = (model: Model, snapshot: Snapshot, step: Step): number =>
+  unreadOf(
+    agentMessagesOf(snapshot).filter(message => message.stepId === step.id),
+    Option.getOrElse(model.readSince, () => Infinity),
+    model.readIds,
+  ).length +
+  (model.inbox.isFixture
+    ? fixtureThreads(snapshot, step, '')
+        .flatMap(thread => thread.lines)
+        .filter(line => line.isNew === true).length
+    : 0)
+
+const unreadBadge = (count: number, h: H): Html =>
+  count === 0
+    ? h.empty
+    : h.span(
+        [h.Class('f-nav-count is-hot f-question-unread')],
+        [`${count} new`],
+      )
+
+const answeredLabel = (model: Model, step: Step): Option.Option<string> =>
+  Option.map(
+    Option.fromNullishOr(model.answers[step.question.id]),
+    answer => `Answered ${answer === OWN ? 'own' : answer}`,
+  )
 
 const messagesCount = (snapshot: Snapshot, step: Step, h: H): Html => {
   const ref = snapshot.discussions?.[step.question.id]

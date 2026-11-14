@@ -3,11 +3,9 @@ import { Url } from 'foldkit'
 import {
   Command,
   Mount,
-  all,
   change,
   click,
   expect,
-  expectAll,
   given,
   role,
   scene,
@@ -24,7 +22,6 @@ import {
   PageData,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
-  SaveWorkspaceSettings,
   init,
   update,
 } from './main'
@@ -66,31 +63,6 @@ const start = init(
 const loaded = { ...start, page: PageData.Success({ data: snapshot }) }
 
 describe('asking agents in the workspace', () => {
-  it('selects a round without changing its asking-session routing', () => {
-    scene(
-      { update, view },
-      given({ ...loaded, currentPart: 'overview' }),
-      expectAll(all.selector('.f-round')).toHaveCount(3),
-      expectAll(
-        all.role('combobox', { name: 'Group questions by' }),
-      ).toHaveCount(0),
-      click(role('checkbox', { name: 'Round 2' })),
-      Command.resolve(
-        SaveWorkspaceSettings,
-        Message.CompletedSaveWorkspaceSettings(),
-      ),
-      expectAll(all.selector('.f-question-item')).toHaveCount(1),
-      expect(selector('.f-question-item')).toContainText('Q2'),
-      expect(role('navigation', { name: 'Questions by round' })).toExist(),
-      click(role('button', { name: 'All rounds' })),
-      Command.resolve(
-        SaveWorkspaceSettings,
-        Message.CompletedSaveWorkspaceSettings(),
-      ),
-      expectAll(all.selector('.f-question-item')).toHaveCount(3),
-    )
-  })
-
   it('shows the asking session on the question and each review answer', () => {
     scene(
       { update, view },
@@ -136,9 +108,7 @@ describe('asking agents in the workspace', () => {
         Message.CompletedRestoreDiscussionPosition(),
       ),
       Command.resolve(FocusTalkBox, Message.CompletedFocus()),
-      expect(selector('.f-discussion-head')).toContainText(
-        'Board · builder',
-      ),
+      expect(selector('.f-discussion-head')).toContainText('Board · builder'),
       expect(role('textbox', { name: 'Ask about the board' })).toExist(),
       expect(role('combobox', { name: 'To' })).toHaveValue('grill-flow'),
       change(role('combobox', { name: 'To' }), 'step-q1'),

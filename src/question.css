@@ -91,7 +91,7 @@
 }
 .f-question-list-row {
   display: grid;
-  grid-template-columns: 16px max-content minmax(0, 1fr) auto;
+  grid-template-columns: 16px max-content minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: 2px 10px;
   width: 100%;
@@ -119,9 +119,14 @@
 .f-question-list-title {
   font-weight: 600;
 }
-.f-message-count {
+.f-question-list-row .f-question-unread {
   grid-row: 1;
   grid-column: 4;
+  margin: 0;
+}
+.f-message-count {
+  grid-row: 1;
+  grid-column: 5;
   min-width: 20px;
   padding: 0 6px;
   border-radius: 10px;
@@ -440,4 +445,12 @@
 }
 .f-nested-title > * + * {
   margin-left: 6px;
+}
+
+.f-question-meta .f-question-unread {
+  margin: 0;
+}
+.f-answered-label {
+  color: var(--ink);
+  font-weight: 600;
 }

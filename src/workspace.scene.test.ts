@@ -5,7 +5,6 @@ import {
   Mount,
   Subscription,
   all,
-  change,
   click,
   expect,
   expectAll,
@@ -32,7 +31,6 @@ import {
   RestoreBrowserNotices,
   RestoreDiscussionPosition,
   RestoreDiscussionScroll,
-  SaveWorkspaceSettings,
   ScrollToQuestion,
   ScrollToTop,
   init,
@@ -436,16 +434,6 @@ describe('the question workspace', () => {
       expectAll(all.selector('.f-question-list-row')).toHaveCount(size),
       expect(role('button', { name: 'Next question' })).toBeEnabled(),
     )
-    scene(
-      { update, view },
-      given({
-        ...loaded,
-        currentPart: 'overview',
-        page: PageData.Success({ data: many }),
-      }),
-      expectAll(all.selector('.f-question-item')).toHaveCount(size),
-      expectAll(all.selector('.f-round')).toHaveCount(size / 10),
-    )
   })
 
   it('wires clicking outside Settings to its close command', () => {
@@ -556,48 +544,6 @@ it('shows a failed quick-send on the question page with a path to the remaining 
     fillOne,
     expect(role('alert')).toContainText('Not sent: Agent unavailable'),
     expect(role('button', { name: 'Review drafts' })).toExist(),
-  )
-})
-
-it('filters sidebar questions by urgency and preserves an explicit unspecified choice', () => {
-  const state = {
-    ...snapshot,
-    grill: {
-      ...grill,
-      steps: grill.steps.slice(0, 2).map((step, index) => ({
-        ...step,
-        question: {
-          ...step.question,
-          ...(index === 0 ? { urgency: 'blocking' satisfies 'blocking' } : {}),
-        },
-      })),
-    },
-  }
-  scene(
-    { update, view },
-    given({
-      ...loaded,
-      currentPart: 'overview',
-      page: PageData.Success({ data: state }),
-    }),
-    expect(role('button', { name: 'Filters' })).toHaveAttr(
-      'popovertarget',
-      'workspace-filters',
-    ),
-    expect(role('combobox', { name: 'Urgency filter' })).toHaveValue('All'),
-    change(role('combobox', { name: 'Urgency filter' }), 'blocking'),
-    Command.resolve(
-      SaveWorkspaceSettings,
-      Message.CompletedSaveWorkspaceSettings(),
-    ),
-    expectAll(all.selector('.f-question-item')).toHaveCount(1),
-    expect(selector('.f-question-item')).toContainText('Q1'),
-    change(role('combobox', { name: 'Urgency filter' }), 'unspecified'),
-    Command.resolve(
-      SaveWorkspaceSettings,
-      Message.CompletedSaveWorkspaceSettings(),
-    ),
-    expect(selector('.f-question-item')).toContainText('Q2'),
   )
 })
 

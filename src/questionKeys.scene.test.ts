@@ -129,22 +129,6 @@ it('shows no context line or key button for a question without them', () => {
   )
 })
 
-it('names the key in sidebar rows and finds a question by its key', () => {
-  scene(
-    { update, view },
-    given({ ...loaded, currentPart: 'overview' }),
-    expect(selector('#question-node-Q1 .f-question-context')).toContainText(
-      'deploy-order · ',
-    ),
-    type(
-      role('searchbox', { name: 'Find question or issue' }),
-      'rollout-window',
-    ),
-    expectAll(all.selector('.f-question-item')).toHaveCount(1),
-    expect(selector('.f-question-item')).toContainText('Q2'),
-  )
-})
-
 it('finds a question by its key from the question filter strip', () => {
   scene(
     { update, view },
