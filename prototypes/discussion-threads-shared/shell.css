@@ -334,3 +334,58 @@ small {
 .prototype-switcher a.active:hover {
   color: #222c26;
 }
+/* Round 2: quoted passages and the quote-reply popover. */
+.q-prose {
+  font: 16px/1.65 var(--read);
+  margin: 0 0 12px;
+}
+mark.passage {
+  background: #fbeec2;
+  border-bottom: 2px solid #e2b84a;
+  cursor: pointer;
+  padding: 0 1px;
+  color: inherit;
+}
+mark.passage.is-active {
+  background: #f6dc8a;
+}
+mark.passage.is-unread {
+  border-bottom-color: var(--link);
+}
+mark.passage sup {
+  font: 700 10px var(--label);
+  color: #8a5a00;
+  margin-left: 2px;
+}
+.sel-pop {
+  position: fixed;
+  z-index: 30;
+  background: #222c26;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px #1a291840;
+}
+.sel-pop button {
+  color: #f1f4ef;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sel-pop button:hover {
+  color: #b9cdf7;
+}
+.state {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.state-working {
+  background: #3b8c4a;
+}
+.state-idle {
+  background: #b9beb6;
+}
+.state-waiting {
+  background: #d08a1c;
+}

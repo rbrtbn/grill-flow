@@ -8,14 +8,21 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 
 import {
+  type Anchor,
+  anchorOf,
   askerThread,
   cannedReply,
   type Line,
+  longProse,
   question,
+  questionOf,
   questions,
+  seedAnchors,
   seedThreads,
+  seedThreads2,
   session,
   threadAbout,
+  threadKey,
   threadWith,
 } from './data'
 import './shell.css'
@@ -35,6 +42,10 @@ export const Model = Schema.Struct({
   remembered: Schema.Record(Schema.String, Schema.String),
   drafts: Schema.Record(Schema.String, Schema.String),
   ui: Schema.Record(Schema.String, Schema.String),
+  anchors: Schema.Record(
+    Schema.String,
+    Schema.Array(Schema.Struct({ id: Schema.String, text: Schema.String })),
+  ),
   nextId: Schema.Number,
 })
 export type Model = typeof Model.Type
@@ -43,33 +54,68 @@ export const Message = defineMessageUnion({
   SelectedQuestion: { key: Schema.String },
   OpenedThread: { key: Schema.String },
   OpenedQuestionThread: { key: Schema.String },
+  OpenedSide: { key: Schema.String },
   UpdatedDraft: { key: Schema.String, value: Schema.String },
   SentMessage: { key: Schema.String },
   Delivered: { key: Schema.String, id: Schema.Number },
   Replied: { key: Schema.String, text: Schema.String },
   SetUi: { name: Schema.String, value: Schema.String },
   PressedVariantArrow: { direction: Schema.Number },
+  SelectedText: { text: Schema.String, x: Schema.Number, y: Schema.Number },
+  AddedAnchor: {},
   Ignored: {},
 })
 export type Message = typeof Message.Type
 export type H = HtmlBuilder<Message>
 
 export const VARIANTS = [
-  { key: 'tabs', port: 4361, letter: 'A', name: 'Thread tabs' },
-  { key: 'timeline', port: 4362, letter: 'B', name: 'One addressed timeline' },
+  { key: 'tabs', port: 4361, letter: 'A', name: 'Thread tabs', round: 1 },
+  {
+    key: 'timeline',
+    port: 4362,
+    letter: 'B',
+    name: 'One addressed timeline',
+    round: 1,
+  },
   {
     key: 'inbox',
     port: 4363,
     letter: 'C',
     name: 'Thread list beside the panel',
+    round: 1,
   },
   {
     key: 'stack',
     port: 4364,
     letter: 'D',
     name: 'Thread cards on the question',
+    round: 1,
+  },
+  {
+    key: 'under',
+    port: 4365,
+    letter: 'E',
+    name: 'Conversation under the question',
+    round: 2,
+  },
+  {
+    key: 'margin',
+    port: 4367,
+    letter: 'F',
+    name: 'Margin threads + message palette',
+    round: 2,
+  },
+  {
+    key: 'issue',
+    port: 4368,
+    letter: 'G',
+    name: 'Question as an issue page',
+    round: 2,
   },
 ] as const
+
+const roundOf = (variant: string) =>
+  VARIANTS.find(item => item.key === variant)?.round ?? 1
 
 const now = () => {
   const date = new Date()
@@ -101,6 +147,31 @@ const go = Command.define('Go', {
       return Message.Ignored()
     }),
 })
+const focus = Command.define('Focus', {
+  args: { selector: Schema.String },
+  messages: [Message.Ignored],
+  execute: ({ selector }) =>
+    Effect.sleep(Duration.millis(30)).pipe(
+      Effect.flatMap(() => Dom.focus(selector)),
+      Effect.ignore,
+      Effect.as(Message.Ignored()),
+    ),
+})
+const reveal = Command.define('Reveal', {
+  args: { key: Schema.String },
+  messages: [Message.Ignored],
+  execute: ({ key }) =>
+    Effect.sleep(Duration.millis(40)).pipe(
+      Effect.tap(() =>
+        Effect.sync(() =>
+          document
+            .querySelector(`[data-thread="${CSS.escape(key)}"]`)
+            ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+        ),
+      ),
+      Effect.as(Message.Ignored()),
+    ),
+})
 const replaceUrl = Command.define('ReplaceUrl', {
   args: { key: Schema.String },
   messages: [Message.Ignored],
@@ -112,6 +183,17 @@ const replaceUrl = Command.define('ReplaceUrl', {
       return Message.Ignored()
     }),
 })
+
+const markRead = (model: Model, key: string): Model =>
+  model.threads[key] === undefined
+    ? model
+    : {
+        ...model,
+        threads: {
+          ...model.threads,
+          [key]: model.threads[key].map(line => ({ ...line, unread: false })),
+        },
+      }
 
 /** Opening a thread marks it read and makes it the one this question returns to. */
 const open = (model: Model, key: string): Model => ({
@@ -144,10 +226,20 @@ const makeUpdate =
           commands: [replaceUrl({ key })],
         }
       },
-      OpenedThread: ({ key }) => ({ model: open(model, key) }),
+      OpenedThread: ({ key }) => ({
+        model: open(model, key),
+        commands: [reveal({ key })],
+      }),
+      // A side conversation (the messages panel) never changes what the question reopens.
+      OpenedSide: ({ key }) => ({
+        model: markRead(
+          { ...model, ui: { ...model.ui, side: key, palette: '', menu: '' } },
+          key,
+        ),
+      }),
       OpenedQuestionThread: ({ key }) => ({
-        model: open({ ...model, question: threadAbout(key) }, key),
-        commands: [replaceUrl({ key: threadAbout(key) })],
+        model: open({ ...model, question: questionOf(key) }, key),
+        commands: [replaceUrl({ key: questionOf(key) })],
       }),
       UpdatedDraft: ({ key, value }) => ({
         model: { ...model, drafts: { ...model.drafts, [key]: value } },
@@ -163,19 +255,17 @@ const makeUpdate =
           state: 'sending',
           unread: false,
         }
+        const sent = {
+          ...model,
+          nextId: model.nextId + 1,
+          drafts: { ...model.drafts, [key]: '' },
+          threads: {
+            ...model.threads,
+            [key]: [...(model.threads[key] ?? []), line],
+          },
+        }
         return {
-          model: open(
-            {
-              ...model,
-              nextId: model.nextId + 1,
-              drafts: { ...model.drafts, [key]: '' },
-              threads: {
-                ...model.threads,
-                [key]: [...(model.threads[key] ?? []), line],
-              },
-            },
-            key,
-          ),
+          model: key === model.ui.side ? sent : open(sent, key),
           commands: [
             deliver({ key, id: line.id }),
             reply({ key, text: cannedReply(key) }),
@@ -207,7 +297,7 @@ const makeUpdate =
                 text,
                 at: now(),
                 state: 'reply' as const,
-                unread: model.active !== key,
+                unread: model.active !== key && model.ui.side !== key,
               },
             ],
           },
@@ -215,14 +305,50 @@ const makeUpdate =
       }),
       SetUi: ({ name, value }) => ({
         model: { ...model, ui: { ...model.ui, [name]: value } },
+        commands:
+          name === 'palette' && value === 'open'
+            ? [focus({ selector: '.p-input' })]
+            : [],
       }),
       PressedVariantArrow: ({ direction }) => {
-        const index = VARIANTS.findIndex(item => item.key === variant)
-        const next =
-          VARIANTS[(index + direction + VARIANTS.length) % VARIANTS.length]!
+        const set = VARIANTS.filter(item => item.round === roundOf(variant))
+        const index = set.findIndex(item => item.key === variant)
+        const next = set[(index + direction + set.length) % set.length]!
         return {
           model,
           commands: [go({ url: variantUrl(next.key, model.question) })],
+        }
+      },
+      SelectedText: ({ text, x, y }) => ({
+        model: {
+          ...model,
+          ui: { ...model.ui, sel: text, selX: String(x), selY: String(y) },
+        },
+      }),
+      AddedAnchor: () => {
+        const text = (model.ui.sel ?? '').trim()
+        if (text === '') return { model }
+        const anchor = { id: `n${model.nextId}`, text }
+        const key = threadKey(
+          `${model.question}#${anchor.id}`,
+          question(model.question).asker,
+        )
+        return {
+          model: open(
+            {
+              ...model,
+              nextId: model.nextId + 1,
+              ui: { ...model.ui, sel: '' },
+              anchors: {
+                ...model.anchors,
+                [model.question]: [
+                  ...(model.anchors[model.question] ?? []),
+                  anchor,
+                ],
+              },
+            },
+            key,
+          ),
         }
       },
       Ignored: () => ({ model }),
@@ -236,8 +362,100 @@ export const unreadCount = (model: Model, key: string) =>
 export const threadLabel = (key: string) => {
   const about = threadAbout(key)
   const who = session(threadWith(key))
-  return about === '-' ? who.name : `${who.name} · about ${about}`
+  return about === '-'
+    ? who.name
+    : anchorOf(key) !== undefined
+      ? `${who.name} · passage in ${questionOf(key)}`
+      : `${who.name} · about ${about}`
 }
+
+export const anchorText = (model: Model, key: string) =>
+  (model.anchors[questionOf(key)] ?? []).find(item => item.id === anchorOf(key))
+    ?.text ?? ''
+
+/** Threads quoting a passage of the question, in the order the passages appear. */
+export const passageThreads = (model: Model, questionKey: string) =>
+  (model.anchors[questionKey] ?? []).flatMap(anchor =>
+    Object.keys(model.threads)
+      .concat(model.active)
+      .filter(
+        (key, index, all) =>
+          all.indexOf(key) === index &&
+          threadAbout(key) === `${questionKey}#${anchor.id}`,
+      )
+      .map(key => ({ key, anchor })),
+  )
+
+/** The question's reasoning with quoted passages marked; a mark opens its thread. */
+export const proseView = (
+  model: Model,
+  questionKey: string,
+  h: H,
+  open: (key: string) => Message = key => Message.OpenedThread({ key }),
+): ReadonlyArray<Html> => {
+  const paragraphs = longProse[questionKey] ?? [question(questionKey).why]
+  const anchors: ReadonlyArray<Anchor> = model.anchors[questionKey] ?? []
+  const threads = passageThreads(model, questionKey)
+  return paragraphs.map(text => {
+    const pieces: Array<Html | string> = []
+    let rest = text
+    for (;;) {
+      const hit = anchors
+        .map(anchor => ({ anchor, at: rest.indexOf(anchor.text) }))
+        .filter(item => item.at >= 0)
+        .sort((a, b) => a.at - b.at)[0]
+      if (hit === undefined) break
+      const thread = threads.find(item => item.anchor.id === hit.anchor.id)
+      const key =
+        thread?.key ??
+        threadKey(
+          `${questionKey}#${hit.anchor.id}`,
+          question(questionKey).asker,
+        )
+      pieces.push(rest.slice(0, hit.at))
+      pieces.push(
+        h.mark(
+          [
+            h.Class(
+              `passage${model.active === key ? ' is-active' : ''}${unreadCount(model, key) > 0 ? ' is-unread' : ''}`,
+            ),
+            h.Title('Open the thread on this passage'),
+            h.OnClick(open(key)),
+          ],
+          [
+            hit.anchor.text,
+            h.sup([], [String((model.threads[key] ?? []).length || '•')]),
+          ],
+        ),
+      )
+      rest = rest.slice(hit.at + hit.anchor.text.length)
+    }
+    pieces.push(rest)
+    return h.p([h.Class('q-prose')], pieces)
+  })
+}
+
+/** The quote-reply popover: selecting reasoning text offers a thread on that passage. */
+export const selectionPopover = (model: Model, h: H): Html =>
+  (model.ui.sel ?? '') === ''
+    ? h.empty
+    : h.div(
+        [
+          h.Class('sel-pop'),
+          h.Style({
+            left: `${model.ui.selX ?? 0}px`,
+            top: `${Number(model.ui.selY ?? 0) + 6}px`,
+          }),
+        ],
+        [
+          h.button(
+            [h.OnClick(Message.AddedAnchor())],
+            [
+              `Reply to this passage → ${session(question(model.question).asker).name}`,
+            ],
+          ),
+        ],
+      )
 
 export const dot = (color: string, h: H): Html =>
   h.span([h.Class('who-dot'), h.Style({ background: color })], [])
@@ -308,14 +526,14 @@ export const composeBox = (
     ),
   ])
 
-const sidebar = (model: Model, h: H): Html =>
+export const sidebar = (model: Model, h: H): Html =>
   h.nav(
     [h.Class('shell-sidebar'), h.AriaLabel('Questions')],
     [
       h.h2([], ['Squad · efficiency']),
       ...questions.map(item => {
         const unread = Object.keys(model.threads)
-          .filter(key => threadAbout(key) === item.key)
+          .filter(key => questionOf(key) === item.key)
           .reduce((sum, key) => sum + unreadCount(model, key), 0)
         return h.button(
           [
@@ -338,7 +556,7 @@ const sidebar = (model: Model, h: H): Html =>
     ],
   )
 
-const questionCard = (model: Model, h: H): Html => {
+export const questionCard = (model: Model, h: H): Html => {
   const item = question(model.question)
   return h.main(
     [h.Class('shell-question')],
@@ -394,7 +612,7 @@ const switcher = (variant: string, model: Model, h: H): Html =>
         ],
         ['←'],
       ),
-      ...VARIANTS.map(item =>
+      ...VARIANTS.filter(item => item.round === roundOf(variant)).map(item =>
         h.a(
           [
             h.Class(item.key === variant ? 'active' : ''),
@@ -416,9 +634,11 @@ const switcher = (variant: string, model: Model, h: H): Html =>
 export const start = (config: {
   variant: string
   description: string
-  panel: (model: Model, h: H) => Html
+  panel?: (model: Model, h: H) => Html
+  body?: (model: Model, h: H) => Html
   panelClass?: string
 }) => {
+  const round2 = roundOf(config.variant) === 2
   const initialQuestion = new URLSearchParams(window.location.search).get('q')
   const first = questions.some(item => item.key === initialQuestion)
     ? initialQuestion!
@@ -432,10 +652,11 @@ export const start = (config: {
           {
             question: first,
             active: askerThread(first),
-            threads: seedThreads,
+            threads: round2 ? seedThreads2 : seedThreads,
             remembered: {},
             drafts: {},
             ui: {},
+            anchors: round2 ? seedAnchors : {},
             nextId: 100,
           },
           askerThread(first),
@@ -461,20 +682,84 @@ export const start = (config: {
                 h.span([], [config.description]),
               ],
             ),
-            h.div(
-              [h.Class('shell-body')],
-              [
-                sidebar(model, h),
-                questionCard(model, h),
-                config.panel(model, h),
-              ],
-            ),
+            config.body === undefined
+              ? h.div(
+                  [h.Class('shell-body')],
+                  [
+                    sidebar(model, h),
+                    questionCard(model, h),
+                    config.panel?.(model, h) ?? h.empty,
+                  ],
+                )
+              : config.body(model, h),
+            selectionPopover(model, h),
             stateReadout(model, h),
             switcher(config.variant, model, h),
           ],
         ),
       }),
       subscriptions: Subscription.make<Model, Message>()(entry => ({
+        selection: entry(
+          {},
+          {
+            modelToDependencies: () => ({}),
+            dependenciesToStream: () =>
+              Dom.streamFromEventFilterMap({
+                target: document,
+                type: 'mouseup',
+                filterMapEvent: event => {
+                  if (
+                    event.target instanceof Element &&
+                    event.target.closest('.sel-pop')
+                  )
+                    return Option.none()
+                  const selection = window.getSelection()
+                  const text = selection?.toString().trim() ?? ''
+                  const node = selection?.anchorNode
+                  const inProse =
+                    node !== null &&
+                    node !== undefined &&
+                    (node instanceof Element
+                      ? node
+                      : node.parentElement
+                    )?.closest('.q-prose') != null
+                  if (text === '' || !inProse || selection === null)
+                    return Option.some(
+                      Message.SelectedText({ text: '', x: 0, y: 0 }),
+                    )
+                  const rect = selection.getRangeAt(0).getBoundingClientRect()
+                  return Option.some(
+                    Message.SelectedText({
+                      text,
+                      x: rect.left,
+                      y: rect.bottom,
+                    }),
+                  )
+                },
+              }),
+          },
+        ),
+        palette: entry(
+          {},
+          {
+            modelToDependencies: () => ({}),
+            dependenciesToStream: () =>
+              Dom.streamFromEventFilterMapPreventDefault({
+                target: document,
+                type: 'keydown',
+                filterMapEvent: event =>
+                  (event.metaKey || event.ctrlKey) && event.key === 'k'
+                    ? Option.some(
+                        Message.SetUi({ name: 'palette', value: 'open' }),
+                      )
+                    : event.key === 'Escape'
+                      ? Option.some(
+                          Message.SetUi({ name: 'palette', value: '' }),
+                        )
+                      : Option.none(),
+              }),
+          },
+        ),
         arrows: entry(
           {},
           {

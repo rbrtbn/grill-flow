@@ -1,0 +1,173 @@
+.g-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 340px;
+}
+.g-page {
+  overflow: auto;
+  min-height: 0;
+  padding: 0 40px;
+  display: flex;
+  flex-direction: column;
+}
+.g-page > * {
+  max-width: 760px;
+  width: 100%;
+}
+.g-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f5f6f3f5;
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--rule);
+  padding: 14px 0 12px;
+}
+.g-header h1 {
+  font: 700 24px/1.25 var(--read);
+  margin: 4px 0 6px;
+}
+.g-ask {
+  font: 15px/1.5 var(--read);
+  margin: 0 0 10px;
+}
+.g-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.g-option {
+  border: 1px solid var(--rule);
+  background: white;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.g-background {
+  padding-top: 18px;
+}
+.g-background h2,
+.g-timeline h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.g-link {
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+.g-timeline {
+  margin-top: 24px;
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: 20px;
+}
+.g-nested {
+  border-left: 3px solid;
+  margin-left: 22px;
+  padding: 6px 0 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.g-nested.is-open {
+  background: #fbfbf8;
+  border-radius: 0 6px 6px 0;
+  padding-right: 10px;
+}
+.g-nested-title {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.g-nested-title em {
+  font: italic 14px var(--read);
+  color: var(--ink);
+}
+.g-quote-mark {
+  color: #e2b84a;
+  font-size: 18px;
+  margin-right: 4px;
+}
+.g-inline-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.g-bring {
+  margin-top: 8px;
+}
+.g-bring-list {
+  background: white;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  padding: 4px;
+  max-width: 360px;
+}
+.g-bring-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.g-bring-item:hover {
+  background: var(--wash);
+}
+.g-bring-item small {
+  margin-left: auto;
+}
+.g-compose {
+  border-top: 4px solid;
+  padding: 10px 0 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.g-compose-to {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+.g-compose-to span:first-child {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.g-issue {
+  border-radius: 7px;
+  padding: 2px 0 4px;
+}
+.g-issue.is-here {
+  background: #eef2fb;
+}
+.g-issue-title {
+  margin: 6px 8px 2px;
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.g-here {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--link);
+  font-weight: 700;
+}
+.g-panel {
+  padding-bottom: 80px;
+}

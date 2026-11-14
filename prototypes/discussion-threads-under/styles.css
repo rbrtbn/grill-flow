@@ -1,0 +1,128 @@
+.e-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 340px;
+}
+.e-page {
+  overflow: auto;
+  padding: 0 44px 160px;
+  font-family: var(--read);
+  scroll-behavior: smooth;
+}
+.e-page > * {
+  max-width: 760px;
+}
+.e-jump {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f5f6f3f2;
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--rule);
+  margin: 0 -44px 18px;
+  padding: 9px 44px;
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  font: 13px var(--label);
+  max-width: none;
+}
+.e-jump strong {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+.e-jump span {
+  color: var(--muted);
+}
+.e-page h1 {
+  font-size: 28px;
+  line-height: 1.25;
+  margin: 8px 0 18px;
+}
+.e-passage {
+  margin: -4px 0 14px 18px;
+  border-left: 3px solid #e2b84a;
+  background: #fffaf0;
+  border-radius: 0 6px 6px 0;
+  font-family: var(--label);
+}
+.e-passage.is-open {
+  box-shadow: 0 4px 16px #1a29181a;
+}
+.e-passage-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+}
+.e-quote {
+  font: italic 14px var(--read);
+}
+.e-passage-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.e-tip {
+  font-family: var(--label);
+}
+.e-conversation {
+  margin-top: 30px;
+  border-top: 4px solid;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--label);
+}
+.e-conversation h2 {
+  font-size: 17px;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.e-conversation h2 small {
+  font-weight: 400;
+}
+.e-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+}
+.e-add {
+  margin-top: 18px;
+  color: var(--link);
+  font: 600 14px var(--label);
+}
+.e-bring {
+  margin-top: 6px;
+  background: white;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  padding: 4px;
+  max-width: 360px;
+  font-family: var(--label);
+}
+.e-bring-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.e-bring-item:hover {
+  background: var(--wash);
+}
+.e-bring-item small {
+  margin-left: auto;
+}
+.e-messages {
+  padding-bottom: 80px;
+}

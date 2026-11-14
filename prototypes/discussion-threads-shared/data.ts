@@ -36,7 +36,8 @@ export const sessions: ReadonlyArray<Session> = [
 ]
 
 export const session = (address: string): Session =>
-  sessions.find(item => item.address === address) ?? {
+  sessions.find(item => item.address === address) ??
+  roster.find(item => item.address === address) ?? {
     address,
     name: address,
     role: 'Agent',
@@ -261,4 +262,200 @@ export const cannedReply = (key: string): string => {
   return about === GENERAL
     ? `${name} here. Got it; I'll look and reply in this thread.`
     : `On ${about}: noted. I'll check and answer here, next to the question.`
+}
+
+// ── Round 2 (ask 9656 follow-up): a bigger roster, a long question, passage threads ──────
+
+export type Member = Session &
+  Readonly<{
+    squad: string
+    work: string
+    issue: string
+    state: 'working' | 'idle' | 'waiting'
+  }>
+
+export const roster: ReadonlyArray<Member> = [
+  {
+    address: 't2cr',
+    name: 'Squad lead',
+    role: 'Lead',
+    color: '#8a5a00',
+    lead: true,
+    squad: 'Efficiency',
+    issue: 'LAB-1400',
+    work: 'Night-run plan',
+    state: 'working',
+  },
+  {
+    address: 't2j6',
+    name: 'Token efficiency',
+    role: 'Builder',
+    color: '#2c4c9c',
+    squad: 'Efficiency',
+    issue: 'LAB-1412',
+    work: 'Prompt-cache budget',
+    state: 'waiting',
+  },
+  {
+    address: 't2k1',
+    name: 'Grant checks',
+    role: 'Builder',
+    color: '#6b3f8f',
+    squad: 'Efficiency',
+    issue: 'LAB-1398',
+    work: 'Night merge grants',
+    state: 'working',
+  },
+  {
+    address: 't2m4',
+    name: 'Homelab lanes',
+    role: 'Builder',
+    color: '#1f6f5c',
+    squad: 'Efficiency',
+    issue: 'LAB-1405',
+    work: 'Backup rotation on hl',
+    state: 'idle',
+  },
+  {
+    address: 't2p9',
+    name: 'Release notes',
+    role: 'Builder',
+    color: '#5b6b2a',
+    squad: 'Efficiency',
+    issue: 'LAB-1420',
+    work: 'Weekly release notes',
+    state: 'working',
+  },
+  {
+    address: 't2r3',
+    name: 'Reviewer · round 4',
+    role: 'Reviewer',
+    color: '#7a4a2a',
+    squad: 'Efficiency',
+    issue: 'LAB-1412',
+    work: 'Reviews PR #18',
+    state: 'working',
+  },
+  {
+    address: 't2s5',
+    name: 'Docs sweep',
+    role: 'Builder',
+    color: '#3d6470',
+    squad: 'Efficiency',
+    issue: 'LAB-1422',
+    work: 'ADR index clean-up',
+    state: 'idle',
+  },
+  {
+    address: 't2v8',
+    name: 'Codex builder',
+    role: 'Builder',
+    color: '#4f4f8f',
+    squad: 'Efficiency',
+    issue: 'LAB-1398',
+    work: 'Grant hook tests',
+    state: 'working',
+  },
+  {
+    address: 't3a1',
+    name: 'Briefings lead',
+    role: 'Lead',
+    color: '#8f3f5f',
+    lead: true,
+    squad: 'Briefings',
+    issue: 'PDE-2210',
+    work: 'Briefings phase 1',
+    state: 'working',
+  },
+  {
+    address: 't3a4',
+    name: 'PDF render',
+    role: 'Builder',
+    color: '#5f6f2f',
+    squad: 'Briefings',
+    issue: 'PDE-2214',
+    work: 'Render briefings to PDF',
+    state: 'waiting',
+  },
+  {
+    address: 't3a7',
+    name: 'Slides storage',
+    role: 'Builder',
+    color: '#2f5f6f',
+    squad: 'Briefings',
+    issue: 'PDE-2217',
+    work: 'Store slide decks',
+    state: 'idle',
+  },
+  {
+    address: 't2hw',
+    name: 'Grill-flow',
+    role: 'Maintainer',
+    color: '#a03c2c',
+    maintainer: true,
+    squad: 'Tools',
+    issue: '',
+    work: 'Builds grill-flow',
+    state: 'working',
+  },
+]
+
+/** The long version of cache-budget's reasoning, with passages to quote. */
+export const longProse: Record<string, ReadonlyArray<string>> = {
+  'cache-budget': [
+    'Night runs re-read the same repository context on every question. Last week the three night runs spent 41% of their tokens re-reading context they had already cached once, mostly the ADR index and the grill schema.',
+    'The prompt cache keeps recently sent context for five minutes. A run that pauses longer than that, for example while a reviewer works, pays to send the whole context again. Two of last week’s runs paused for over an hour at a time.',
+    'A cap per run keeps a runaway run from evicting everyone else. Without one, the longest run decides what stays cached, and the short runs pay full price for every question.',
+    'The lead can rebalance a shared pool between rounds, but only if it checks the pool’s use after each round. That adds one step to every round the lead runs tonight.',
+  ],
+}
+
+export type Anchor = Readonly<{ id: string; text: string }>
+
+export const seedAnchors: Record<string, ReadonlyArray<Anchor>> = {
+  'cache-budget': [
+    { id: 'p1', text: 'mostly the ADR index and the grill schema' },
+    {
+      id: 'p2',
+      text: 'Two of last week’s runs paused for over an hour at a time',
+    },
+  ],
+}
+
+/** A passage thread is `<question>#<anchor>|<address>`. */
+export const questionOf = (key: string) =>
+  threadAbout(key).split('#')[0] ?? GENERAL
+export const anchorOf = (key: string): string | undefined =>
+  threadAbout(key).split('#')[1]
+
+export const seedThreads2: Record<string, ReadonlyArray<Line>> = {
+  ...seedThreads,
+  [threadKey('cache-budget#p1', 't2j6')]: [
+    rob(13, '21:12', 'Why the grill schema? It hardly changes.'),
+    agent(
+      14,
+      't2j6',
+      '21:13',
+      'That’s why it’s cheap to cache: it’s 9k tokens sent with every question, unchanged. Caching it alone saves about a fifth.',
+    ),
+  ],
+  [threadKey('cache-budget#p2', 't2j6')]: [
+    rob(15, '21:15', 'Which runs, and what were they waiting on?'),
+    agent(
+      16,
+      't2j6',
+      '21:17',
+      'The grants run and the homelab run, both waiting on reviewer rounds. The reviewer was busy with PR #18.',
+      true,
+    ),
+  ],
+  [threadKey(GENERAL, 't2cr')]: [
+    rob(17, '20:30', 'What’s left before tonight’s runs start?'),
+    agent(
+      18,
+      't2cr',
+      '20:31',
+      'Two answers from you: cache-budget and night-grant. Everything else is queued.',
+    ),
+  ],
 }

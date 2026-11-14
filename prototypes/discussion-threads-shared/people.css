@@ -1,0 +1,135 @@
+/* PROTOTYPE round 2: session rows and the side conversation. */
+.people-head {
+  padding: 14px 16px 6px;
+  display: flex;
+  flex-direction: column;
+}
+.people-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.people-search {
+  margin: 4px 12px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: white;
+  font-size: 14px;
+}
+.people-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.people-title {
+  margin: 12px 6px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.people-fold {
+  text-align: left;
+}
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  min-width: 0;
+}
+.person:hover {
+  background: #eef1ea;
+}
+.person.is-active {
+  background: var(--wash);
+}
+.person-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+.person.is-unread strong {
+  color: var(--link);
+}
+.person-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.person-avatar.big {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+}
+.person-addr {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  margin-left: auto;
+}
+.person-badge {
+  background: var(--link);
+  color: white;
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 0 5px;
+}
+.person-sub {
+  padding-left: 29px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-thread {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.side-back {
+  padding: 10px 14px 4px;
+  color: var(--link);
+  font-weight: 600;
+  font-size: 13px;
+}
+.side-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 4px solid;
+  border-bottom: 1px solid var(--rule);
+}
+.side-who div {
+  display: flex;
+  flex-direction: column;
+}
+.side-who strong {
+  font-size: 17px;
+}
+.side-compose {
+  border-top: 1px solid var(--rule);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.send-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}

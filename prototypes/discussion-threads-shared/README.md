@@ -15,6 +15,14 @@ prototypes/discussion-threads-shared/serve.sh   # from the repo root; starts all
 - C · Thread list beside the panel: http://127.0.0.1:4363/prototypes/discussion-threads-inbox/
 - D · Thread cards on the question: http://127.0.0.1:4364/prototypes/discussion-threads-stack/
 
+Round 2 moves conversations about a question onto the question page (selecting reasoning
+text offers "Reply to this passage", which starts a thread on it) and keeps the side for
+sessions outside a question:
+
+- E · Conversation under the question: http://127.0.0.1:4365/prototypes/discussion-threads-under/
+- F · Margin threads + message palette (⌘K): http://127.0.0.1:4367/prototypes/discussion-threads-margin/
+- G · Question as an issue page: http://127.0.0.1:4368/prototypes/discussion-threads-issue/
+
 Try: talk to Grill-flow on `cache-budget`, switch to another question, switch back; ask the
 lead about `cache-budget`; open the unread reply on `night-grant`. The comparison and
 recommendation are in `docs/research/2026-11-14-discussion-threads.md`.

@@ -67,3 +67,30 @@ Pick **D** instead if seeing every conversation about a question at once matters
 compactness: its in-card reply box is the hardest design to misaddress. B is the most
 original but the riskiest for goal 5; C is the best global overview but costs panel width the
 question needs, and the Conversations page already plays that role.
+
+## Round 2: conversations on the question page
+
+Rob's reply (2026-11-14): conversations about a question belong on the question page, since
+the question is their context; quote-reply on selected text should start a thread on that
+passage; the side should keep only Grill-flow, the lead and sessions he opens; tabs wrap and
+grow out of hand, and C's list makes a specific session hard to find. Three more prototypes,
+each pairing a question-page layout with a way to find sessions:
+
+| | E · Conversation under the question | F · Margin threads + palette | G · Question as an issue page |
+|---|---|---|---|
+| Question page | Passage threads open under their paragraph; the asker conversation and side threads run under the answers; a sticky bar jumps to them | Question in one column, conversations in a margin beside it like document comments: the asker's card pinned, one card per quoted passage | Compact sticky header with the answers, background collapsed to its first paragraph, then one timeline where passage and side threads nest where they started |
+| Long questions | Gets longer with every open passage thread | Reading flow untouched; margin scrolls on its own | Best: background folds away, answers stay in view |
+| Finding a session | Directory: pinned, recent, then each squad with role and work; search | No sidebar: ⌘K palette searches name, issue, work, squad; the chat opens as a window that stays across questions | Board by work: this question's issue first, then who waits on you, then every issue with its sessions; search |
+| Weak spots | Conversation is far below a long question | Needs about 1,300px; the chat window can cover the margin | Sticky header costs height on short screens |
+| Front-end size | ~350 lines | ~450 | ~400 |
+
+Shared server work for any of them: an ask can carry a quoted passage (its text and where it
+sits in the question) so a passage thread survives reloads and `gf revise` replies land in it,
+plus the side-thread target from round 1 for "the lead about this question". Finding sessions
+by work needs a source for each session's issue and work: today Herdr gives only the terminal
+name and program, so the squad's state (claimed issues) has to feed it.
+
+Recommendation: **G's question page with G's board by work.** It handles long questions,
+keeps the whole conversation about a question in one readable order, and lets Rob find a
+session by what it's doing rather than by its terminal name. F's ⌘K palette can be added
+later as a shortcut to the same search.
