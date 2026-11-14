@@ -108,14 +108,25 @@ this", which costs a round trip and blocks whatever waits on the answer. Follow 
    here, or order the questions so the one it relies on comes first.
 5. **Define every term the page hasn't.** Spell out acronyms and internal names (stage, gate
    and tool names) on first use, as "service level objective (SLO)", or add them to `terms`.
-6. **Options state their consequence.** Each option's `effect` says what changes if the user
-   picks it: what gets built, what is blocked, what it costs. The recommendation says why in
-   one sentence.
+6. **Short answers, consequences beside them.** Each option's `label` is the answer itself in
+   two to five words, clear enough to pick without reading further. Its `effect` is one line
+   on what changes if the user picks it: what gets built, what is blocked, what it costs. The
+   recommendation says why in one sentence.
 7. **One decision per question.** Split a question that bundles two choices.
 8. **Plain words.** Short sentences, active voice, no jargon a newcomer wouldn't know.
+9. **Summary first.** The step's first `prose` paragraph is a one-paragraph summary that builds
+   on `context` without repeating it: what you recommend and why, plus what the user needs to
+   pick. Write it so the user can answer from the context, this paragraph and the option labels
+   alone; the page may show only these until the user asks for more.
+10. **Trade-offs after the summary.** The rest of `prose` explains the trade-offs between the
+    options: what each one gains and costs, and what would change your recommendation. Every
+    question with two or more options carries a `compare` table (Diagrams, below) with one row
+    per trade-off that differs between them, so the user can compare the answers at a glance.
+    The lint does not check rules 9 and 10 yet; read for them before loading.
 
 Before loading, read each question as if it were the first thing you saw today: does it make
-sense on its own, and can you name each option's consequence without scrolling?
+sense on its own, can you answer it from the summary and the labels, and does the rest show
+how the options trade off?
 
 Every write lints the questions it adds or changes and prints each finding on stderr, all at
 once, as `lint: <pointer>: <finding>`: a bare Q number (with the key to use instead), a forward
@@ -170,7 +181,8 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
       "part": "decision",
       "heading": "Choose the next step",
       "prose": [
-        "The example change reduces a repeated manual step. Approving it starts implementation; declining leaves the process as it is. Inspect squad#107 and LAB-1388 for the supplied evidence."
+        "Implementing it is recommended: it pays back within a week and removes a step people forget. Inspect squad#107 and LAB-1388 for the supplied evidence.",
+        "Implementing costs a day of work and a review now; keeping the process costs nothing now and ten minutes on every run until it changes."
       ],
       "question": {
         "id": "Q1",
@@ -196,7 +208,20 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
         "dependsOn": [],
         "when": [],
         "round": 1,
-        "urgency": "wait"
+        "urgency": "wait",
+        "compare": {
+          "now": "Today",
+          "rows": [
+            {
+              "label": "Cost per run",
+              "cells": { "now": "Ten minutes", "a": "None", "b": "Ten minutes" }
+            },
+            {
+              "label": "Work this week",
+              "cells": { "now": "None", "a": "A day and a review", "b": "None" }
+            }
+          ]
+        }
       }
     }
   ],
@@ -469,8 +494,9 @@ well:
 - Every question has a `key`, a `context` and a `scope`: the key names it everywhere, the
   context says what is decided and why now (Write questions the user can answer cold,
   above), and the scope is one line on when or where it applies. `ask` is worded so yes takes
-  the recommendation. Each option's `effect` is one line on what that choice changes later;
-  mark one `recommended`.
+  the recommendation. Each option has a short `label` and a one-line `effect` on what that
+  choice changes later; mark one `recommended`. The first `prose` paragraph is the summary
+  and a `compare` table sets the options side by side (rules 9 and 10, above).
 - `dependsOn` greys a question until those are answered. `when` marks it not
   needed when an upstream answer falls outside `oneOf`.
 - `terms` is a short glossary of words the reasoning leans on, underlined
