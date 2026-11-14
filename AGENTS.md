@@ -30,12 +30,13 @@ by version, so an unbumped change never reaches agents.
 
 `bun run dev` serves the page and rebuilds it whenever `src/` changes; an open page sees the new
 build on its next poll (4 s) and reloads itself, keeping unsent drafts. `bun run serve` serves the
-last build without watching. It binds 127.0.0.1:4317 and keeps
-everything in `data/grill-flow.sqlite` (gitignored), one row per answer, note, ask, revision and
-send, so how pages get used can be mined later. Every load also keeps the whole grill as a
-numbered revision, read only by `gf history` and `gf export`. Discussions stay in the
+last build without watching. It binds 127.0.0.1:4317 and keeps everything in one SQLite
+database: the service's `~/.local/share/grill-flow/data/grill-flow.sqlite` once it exists,
+else the checkout's `data/grill-flow.sqlite` (gitignored), one row per answer, note, ask,
+revision and send, so how pages get used can be mined later. Every load also keeps the whole
+grill as a numbered revision, read only by `gf history` and `gf export`. Discussions stay in the
 database; served snapshots carry only `discussions` references to them. The server copies the
-database to `data/backups/` an hour apart with `VACUUM INTO`, keeping the newest 48;
+database to `backups/` beside it an hour apart with `VACUUM INTO`, keeping the newest 48;
 `GF_BACKUPS=0` or `GF_PREVIEW=1` skips them. Writes need the page's HttpOnly, SameSite=Strict
 cookie, a same-origin request and a JSON body. Other local processes can still reach it, as they
 can reach `hc` itself.
@@ -44,13 +45,20 @@ Not vendoring the Foldkit repo for now (decided 2026-11-02); read the installed 
 
 ### Delivery
 
-Work directly on `main`. Commit and push verified changes, then update the local app on
-127.0.0.1:4317 as each change lands. Preserve unrelated working files and live grill data.
+Work directly on `main`. Commit and push verified changes. Preserve unrelated working files and
+live grill data.
+
+The page on 127.0.0.1:4317 is a launchd service serving the latest GitHub release, not this
+checkout; an updater moves it to a new release within about ten minutes (docs/adr/0035). To
+release, bump `version` in `package.json`: CI tags `v<version>` and publishes the release when
+that push to `main` passes its tests. Unreleased work never reaches the running page. Try a
+change on a second server instead (`GF_PORT=<spare> GF_DB=<scratch> bun run serve`).
 
 ### Discussion routing
 
-Set `GF_MAINTAINER_SESSION` to this app's active builder session (a Herdr address) to expose
-the **Grill-flow** discussion tab. It uses the `grill-flow` ask target and the normal
+Run `gf maintainer set <address>` with this app's active builder session (a Herdr address) to
+expose the **Grill-flow** discussion tab; the running server picks it up without a restart, and
+`GF_MAINTAINER_SESSION` only seeds it when none is stored. It uses the `grill-flow` ask target and the normal
 `gf revise <grill> grill-flow --ask <id> --kind comment --file <path>` reply path.
 Each question's optional `session` routes answers and discussion to its asker; blank or
 absent falls back to the grill's session.

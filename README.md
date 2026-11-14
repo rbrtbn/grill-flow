@@ -156,17 +156,37 @@ bun run gf up          # builds the page and starts the server at http://127.0.0
 bun run gf load examples/decision-sample.json
 ```
 
-When starting a maintainer-enabled server, run
-`GF_MAINTAINER_SESSION=<builder-address> bun run gf up`. `gf up` forwards explicitly supplied
+The page's **Grill-flow** discussion goes to a maintainer session: `bun run gf maintainer set
+<builder-address>` stores it beside the database, and a running server uses it on its next
+poll, without a restart (`gf maintainer` shows it, `gf maintainer clear` drops it).
+`GF_MAINTAINER_SESSION` seeds it when none is stored. `gf up` forwards explicitly supplied
 `GF_*` server settings through Herdr's `env` command; it does not infer the maintainer from the
-terminal that starts it. An already-running server keeps its configured maintainer until restart.
+terminal that starts it.
 
 Open `http://127.0.0.1:4317/g/decision-sample` to see a made-up grill, or `http://127.0.0.1:4317/`
 for every grill the server holds, grouped by the machine it came from; a grill page's title links
 back there. An agent on another machine can keep its grills there and still have them served here:
 it sets `GF_OUTBOX` and this server pulls that folder over hc (`gf remote add <machine> <outbox>`;
 docs/adr/0002). `GF_PORT` and `GF_DB`
-move the server and its database elsewhere, say for a second copy.
+move the server and its database elsewhere, say for a second copy. The page token, the outboxes
+it pulls (`remotes.json`), the maintainer and the hourly backups live in the database's folder.
+
+### Run it as a service
+
+A checkout's server keeps its database in `data/`. Once
+`~/.local/share/grill-flow/data/grill-flow.sqlite` exists, every checkout's `gf` uses that one
+instead, so a long-running service can serve a release copy while agents keep running `gf` from
+their checkout (docs/adr/0035). A launchd service loaded as `local.personal.grill-flow`
+(`GF_SERVICE_LABEL` names another) owns port 4317: `gf up` then reports it and never starts a
+second server. The dotfiles repo installs that service and an updater that moves it to each new
+release.
+
+### Releases
+
+Bump `version` in `package.json` on `main` to release. CI tests every pull request and push; on
+`main`, when `v<version>` is not yet a tag, it tags the commit and publishes a GitHub release
+with generated notes. `GET /api/version` reports the running server's version and the authoring
+guide revision.
 
 ### Retire a finished grill
 

@@ -39,6 +39,12 @@ import {
   questionLines,
   revisionLines,
 } from './history'
+import {
+  ADDRESS,
+  clearMaintainer,
+  readMaintainer,
+  writeMaintainer,
+} from './maintainer'
 import { newsSince, runOutbox } from './outbox'
 import { lintLines } from './questionLint'
 import { readRemotes, writeRemotes } from './remote'
@@ -69,7 +75,12 @@ const usage = `gf: grill-flow's agent-side commands
   GF_REQUIRE_CONTEXT=1 refuses a question without context. A question's key works wherever
   its id does.
 
-  gf up                                start the server unless it already answers
+  gf up                                start the server unless it already answers; where the
+                                       launchd service (GF_SERVICE_LABEL) is loaded, it never
+                                       starts a second server and names the restart command
+  gf maintainer [set <address> | clear]
+                                       show, set or drop the session that gets the page's
+                                       Grill-flow discussion; a running server uses it at once
   gf load <grill.json> [--solo] [--expect-rev <rev>]
                                        load or replace a grill; without a squad field it joins
                                        the GF_SQUAD page, and --solo keeps it a page of its own.
@@ -130,8 +141,6 @@ const fail = (message: string, code = 2): never => {
   console.error(message)
   process.exit(code)
 }
-
-const ADDRESS = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)?$/
 
 // The Herdr space this session runs in; squad spaces are named `squad.<...>`.
 const herdrSpace = (): string => {
@@ -247,6 +256,19 @@ const answers = (): Promise<boolean> =>
     () => false,
   )
 
+// A loaded launchd service owns the page's port and restarts its own server, so gf up never
+// starts a second one beside it (docs/adr/0035).
+const SERVICE_LABEL =
+  process.env.GF_SERVICE_LABEL ?? 'local.personal.grill-flow'
+const serviceTarget = `gui/${process.getuid?.() ?? ''}/${SERVICE_LABEL}`
+const serviceOwnsPort = (): boolean =>
+  process.platform === 'darwin' &&
+  (process.env.GF_PORT ?? '4317') === '4317' &&
+  Bun.spawnSync(['launchctl', 'print', serviceTarget], {
+    stdout: 'ignore',
+    stderr: 'ignore',
+  }).exitCode === 0
+
 switch (command) {
   case 'draw': {
     const grill =
@@ -325,9 +347,18 @@ switch (command) {
     break
   }
   case 'up': {
+    const service = serviceOwnsPort()
     if (await answers()) {
-      console.log(`grill-flow is up at ${BASE}`)
+      console.log(
+        `grill-flow is up at ${BASE}${service ? ` (service ${SERVICE_LABEL})` : ''}`,
+      )
       break
+    }
+    if (service) {
+      fail(
+        `grill-flow runs as the service ${SERVICE_LABEL}, which restarts its server by itself, but nothing answers at ${BASE} yet. Restart it with: launchctl kickstart -k ${serviceTarget}`,
+        1,
+      )
     }
     if (!existsSync(join(ROOT, 'dist', 'index.html'))) {
       Bun.spawnSync(['bunx', 'vite', 'build', '--logLevel', 'warn'], {
@@ -498,6 +529,35 @@ switch (command) {
       console.log(
         `revision ${result.id} on ${stepId} (${kind}); the open page picks it up within a few seconds`,
       )
+    }
+    break
+  }
+  case 'maintainer': {
+    const [action, session] = args
+    if (action === 'set' && session !== undefined) {
+      guarded(() => writeMaintainer(session))
+      if (
+        Bun.spawnSync(['hc', 'get', session], {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        }).exitCode !== 0
+      ) {
+        console.warn(
+          `${session} is not a running Herdr terminal; Grill-flow messages wait until it is`,
+        )
+      }
+      console.log(
+        `Grill-flow discussions go to ${session}; open pages show it on their next poll`,
+      )
+    } else if (action === 'clear') {
+      clearMaintainer()
+      console.log(
+        'no Grill-flow maintainer: pages hide the Grill-flow discussion until one is set',
+      )
+    } else if (action === undefined) {
+      console.log(readMaintainer() ?? 'no Grill-flow maintainer')
+    } else {
+      fail(usage)
     }
     break
   }

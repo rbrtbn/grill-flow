@@ -321,6 +321,40 @@ describe('HTTP delivery routing', () => {
     expect(await read()).toBe('live')
   })
 
+  it('routes Grill-flow asks to a maintainer set while the server runs', async () => {
+    const maintainer = async (...args: Array<string>) => {
+      const child = Bun.spawn(
+        [process.execPath, 'server/cli.ts', 'maintainer', ...args],
+        { env: environment, stdout: 'pipe', stderr: 'pipe' },
+      )
+      expect(await child.exited).toBe(0)
+      return (await new Response(child.stdout).text()).trim()
+    }
+    expect(await maintainer()).toBe('maintainer')
+    await maintainer('set', 'successor')
+    try {
+      const state = await request('events', {
+        kind: 'asked',
+        stepId: 'grill-flow',
+        text: 'Who reads this now?',
+      })
+      expect(received().at(-1)?.[1]).toBe('successor')
+      expect(state.maintainerSession).toBe('successor')
+    } finally {
+      await maintainer('set', 'maintainer')
+    }
+  })
+
+  it('reports its release version and skill revision', async () => {
+    const response = await fetch(`${base}/api/version`)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.version).toBe(
+      JSON.parse(readFileSync('package.json', 'utf8')).version,
+    )
+    expect(body.skillRevision).toBe(SKILL_REVISION)
+  })
+
   it.each([
     { size: 'short', text: 'Short page text.' },
     { size: 'long', text: 'Long page text. '.repeat(230) },
