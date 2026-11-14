@@ -2,9 +2,11 @@ import { Schema } from 'effect'
 
 import {
   type Snapshot,
+  TEXT_LIMIT,
   groupedAnswerText,
   replyText,
   sendableLines,
+  textLimitError,
 } from '../src/domain'
 
 export const SendRequest = Schema.Struct({
@@ -36,7 +38,14 @@ export const selectSend = (
     return { ok: false, status: 400, error: 'Invalid send request' }
   }
   const request = decoded.success
-  const message = (request.message ?? '').trim().slice(0, 4000)
+  const message = (request.message ?? '').trim()
+  if (message.length > TEXT_LIMIT) {
+    return {
+      ok: false,
+      status: 400,
+      error: textLimitError('The message', message),
+    }
+  }
   const grill = snapshot.grill
   const all = sendableLines(
     grill,

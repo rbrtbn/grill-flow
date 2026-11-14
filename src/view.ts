@@ -11,7 +11,7 @@ import {
   proseView,
   stateLabelFor,
 } from './diagramView'
-import { roundLabel, roundOf } from './domain'
+import { isOverTextLimit, roundLabel, roundOf } from './domain'
 import {
   type AgentMessage,
   type Ask,
@@ -95,6 +95,7 @@ import {
   visibleToastsOf,
 } from './main'
 import { splitQuote } from './quote'
+import { textLimitCount } from './textLimitView'
 import { isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
 
@@ -1136,6 +1137,7 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 : Option.none(),
             ),
           ]),
+          textLimitCount(model.sendMessage, h),
           h.details(
             [h.Class('send-review send-preview')],
             [
@@ -1175,7 +1177,9 @@ const sendDialogView = (model: Model, snapshot: Snapshot, h: H): Html => {
                 [
                   h.Class('send-button'),
                   h.Disabled(
-                    isSending || freshAnswerCount(model, snapshot) === 0,
+                    isSending ||
+                      freshAnswerCount(model, snapshot) === 0 ||
+                      isOverTextLimit(model.sendMessage),
                   ),
                   h.Title(
                     freshAnswerCount(model, snapshot) === 0 ? NOTHING_NEW : '',
@@ -3567,6 +3571,13 @@ const threadBox = (model: Model, step: Step, h: H): Html =>
         ),
       ]),
       h.button([h.Type('submit'), h.Class('quiet-button')], ['Send']),
+      textLimitCount(
+        Option.getOrElse(
+          Record.get(model.talkDrafts, threadDraftKey(step.id)),
+          () => '',
+        ),
+        h,
+      ),
     ],
   )
 
@@ -3726,6 +3737,7 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                 : Option.none(),
             ),
           ]),
+          textLimitCount(draft, h),
           h.div(
             [h.Class('composer-foot')],
             [
@@ -3735,7 +3747,14 @@ const talkView = (model: Model, snapshot: Snapshot, part: Part, h: H): Html => {
                   `Enter sends, Shift+Enter for a new line. ${grill.session === '' ? 'The agent picks it up from here' : `Goes to ${grill.session}`}; the reply lands here.`,
                 ],
               ),
-              h.button([h.Type('submit'), h.Class('send-button')], ['Send']),
+              h.button(
+                [
+                  h.Type('submit'),
+                  h.Class('send-button'),
+                  h.Disabled(isOverTextLimit(draft.trim())),
+                ],
+                ['Send'],
+              ),
             ],
           ),
         ],

@@ -6,9 +6,11 @@ import { dirname, join, normalize } from 'node:path'
 import {
   GRILL_FLOW_TARGET,
   type Grill,
+  TEXT_LIMIT,
   hasTarget,
   questionSession,
   roundOf,
+  textLimitError,
 } from '../src/domain'
 import { activityFeed } from './activity'
 import {
@@ -409,22 +411,25 @@ const handleEvent = async (
       }
       appendEvent(db, grillId, 'cleared', { question })
       break
-    case 'noted':
+    case 'noted': {
+      const text = String(body.text ?? '')
       if (!questionIds.has(question)) {
         return json({ error: 'unknown question' }, 400)
       }
-      appendEvent(db, grillId, 'noted', {
-        question,
-        text: String(body.text ?? '').slice(0, 4000),
-      })
+      if (text.length > TEXT_LIMIT) {
+        return json({ error: textLimitError('The note', text) }, 400)
+      }
+      appendEvent(db, grillId, 'noted', { question, text })
       break
+    }
     case 'asked': {
       const stepId = String(body.stepId ?? '')
-      const text = String(body.text ?? '')
-        .trim()
-        .slice(0, 4000)
+      const text = String(body.text ?? '').trim()
       if (!hasTarget(grill, stepId) || text === '') {
         return json({ error: 'unknown step or empty ask' }, 400)
+      }
+      if (text.length > TEXT_LIMIT) {
+        return json({ error: textLimitError('The message', text) }, 400)
       }
       const recipient = askRecipient(grill, stepId, 'own')
       if (recipient === undefined) {

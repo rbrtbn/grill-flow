@@ -6,6 +6,7 @@ import {
   RecordedAnswer,
   SubmissionAnswer,
   OWN,
+  TEXT_LIMIT,
   type Grill,
   type Question,
   type Step,
@@ -13,6 +14,7 @@ import {
   questionSession,
   roundOf,
   sendableLines,
+  textLimitError,
 } from '../src/domain'
 import { DeliveryReceipt } from './delivery'
 import { SendRequest, type SendSelection } from './sendSelection'
@@ -106,8 +108,15 @@ export const recordAnswer = (
         'The question wording changed. Reload and review the wording before answering again.',
     }
   }
+  const own = request.key === OWN ? (request.text ?? '') : ''
+  if (own.length > TEXT_LIMIT) {
+    return {
+      ok: false,
+      status: 400,
+      error: textLimitError('Your own answer', own),
+    }
+  }
   const state = snapshot(db, grill)
-  const own = request.key === OWN ? (request.text ?? '').slice(0, 4000) : ''
   const context = request.contextRevision === undefined ? null : captured
   return {
     ok: true,
@@ -132,7 +141,7 @@ export const sendRequestIdentity = (body: unknown) => {
   return {
     requestId: request.requestId ?? null,
     requestDigest: digest({
-      message: (request.message ?? '').trim().slice(0, 4000),
+      message: (request.message ?? '').trim(),
       questions:
         request.questions === undefined ? null : [...request.questions].sort(),
       expectedLines:

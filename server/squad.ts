@@ -212,6 +212,12 @@ export const readPage = (db: Database, id: string): Page | undefined => {
             value,
           ]),
         ),
+        questionTimes: Object.fromEntries(
+          Object.entries(state.questionTimes ?? {}).map(([key, value]) => [
+            questions[key],
+            value,
+          ]),
+        ),
         sent: Object.fromEntries(
           Object.entries(state.sent ?? {}).map(([key, value]) => [
             questions[key],
@@ -314,6 +320,7 @@ export const readPage = (db: Database, id: string): Page | undefined => {
       answers: merge(sections.map(section => section.answers)),
       notes: merge(sections.map(section => section.notes)),
       own: merge(sections.map(section => section.own)),
+      questionTimes: merge(sections.map(section => section.questionTimes)),
       sent: merge(sections.map(section => section.sent)),
       asks: [...root.asks, ...sections.flatMap(section => section.asks)].sort(
         (a, b) => a.id - b.id,
