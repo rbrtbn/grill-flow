@@ -778,7 +778,13 @@ const workspaceHeaderView = (
               ),
             ],
             [
-              `${NAMES.questions}${inbox.questions.length > 0 ? ` · ${inbox.questions.length}` : ''}`,
+              NAMES.questions,
+              inbox.questions.length > 0
+                ? h.span(
+                    [h.Class('f-nav-count')],
+                    [String(inbox.questions.length)],
+                  )
+                : h.empty,
             ],
           ),
           h.button(

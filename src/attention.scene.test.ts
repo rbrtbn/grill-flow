@@ -361,7 +361,7 @@ it('counts owner work even without unanswered questions and keeps its grill out 
   scene(
     { update, view },
     given({ ...loaded, page: PageData.Success({ data: incoming }) }),
-    expect(role('button', { name: 'Inbox · 1' })).toHaveAttr(
+    expect(role('button', { name: 'Inbox1' })).toHaveAttr(
       'title',
       '1 tasks and 0 questions in Now and Next',
     ),

@@ -8,6 +8,11 @@
   --rule: #d3d7d1;
   --link: #2c4c9c;
   --link-wash: #e3e9f6;
+  /* Ink carries active and selected states; blue (--link) is only for links. */
+  --accent: #1c1e1d;
+  --accent-ink: #f5f6f3;
+  --accent-hover: #3a3e3b;
+  --accent-wash: #e2e5df;
   --u-blocking: #bd2c22;
   --u-soon: #9f6000;
   --u-wait: #5b8050;
@@ -43,6 +48,10 @@
     --rule: #2e3236;
     --link: #9cb4f2;
     --link-wash: #1f2a44;
+    --accent: #e3e4df;
+    --accent-ink: #141618;
+    --accent-hover: #c9cbc5;
+    --accent-wash: #2a2e32;
     --u-blocking: #ff8276;
     --u-soon: #f4bd50;
     --u-wait: #a3c796;
@@ -85,7 +94,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 ::selection {
-  background: var(--link-wash);
+  background: var(--accent-wash);
   color: var(--ink);
 }
 a {
@@ -95,7 +104,7 @@ a {
   overflow-wrap: anywhere;
 }
 :focus-visible {
-  outline: 2px solid var(--link);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -274,14 +283,14 @@ button {
   border-color: var(--ink);
 }
 .quiet-button.is-active {
-  border-color: var(--link);
-  color: var(--link);
-  background: var(--link-wash);
+  border-color: var(--accent);
+  color: var(--ink);
+  background: var(--accent-wash);
 }
 .send-button {
-  background: var(--link);
+  background: var(--accent);
   color: var(--paper);
-  border: 1px solid var(--link);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   padding: 6px 14px;
 }
@@ -292,7 +301,7 @@ button {
 .ref {
   font: 700 0.86em var(--label);
   color: var(--link);
-  background: var(--link-wash);
+  background: var(--accent-wash);
   border: 0;
   border-radius: 3px;
   padding: 0 0.35em;
@@ -370,9 +379,9 @@ button {
   display: none;
 }
 .preview[open] summary {
-  border-color: var(--link);
+  border-color: var(--accent);
   color: var(--link);
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .preview pre {
   position: absolute;
@@ -437,7 +446,7 @@ button {
 .resize-handle:hover::after,
 .resize-handle:focus-visible::after,
 .is-resizing .resize-handle::after {
-  background: var(--link);
+  background: var(--accent);
 }
 .resize-handle:focus-visible {
   outline: none;
@@ -472,7 +481,7 @@ button {
   background: var(--panel);
 }
 .concept.is-current {
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .concept-name {
   font: 700 0.98rem var(--label);
@@ -493,18 +502,18 @@ button {
   border: 1px solid var(--muted);
 }
 .dot.is-answered {
-  background: var(--link);
-  border-color: var(--link);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .dot.is-open {
-  border-color: var(--link);
+  border-color: var(--accent);
   border-width: 1.5px;
 }
 .dot.is-waiting {
   border-style: dashed;
 }
 .dot.is-skipped {
-  border: 2px dotted var(--link);
+  border: 2px dotted var(--ink);
 }
 /* Not needed: the circle crossed through, so it reads as struck off, not open. */
 .dot.is-moot {
@@ -601,7 +610,7 @@ button {
   cursor: pointer;
 }
 .lane.is-current {
-  fill: var(--link);
+  fill: var(--ink);
   font-weight: 700;
 }
 .lane:hover {
@@ -621,7 +630,7 @@ button {
   stroke-opacity: 0.12;
 }
 .edge.is-lit {
-  stroke: var(--link);
+  stroke: var(--ink);
   stroke-opacity: 1;
   stroke-width: 2.2;
 }
@@ -643,11 +652,11 @@ button {
   font-weight: 700;
 }
 .node.is-open rect {
-  stroke: var(--link);
+  stroke: var(--ink);
   stroke-width: 1.8;
 }
 .node.is-answered rect {
-  fill: var(--link);
+  fill: var(--ink);
   stroke: var(--link);
 }
 .node.is-answered text {
@@ -658,7 +667,7 @@ button {
   stroke-dasharray: 3 3;
 }
 .node.is-skipped rect {
-  stroke: var(--link);
+  stroke: var(--ink);
   stroke-dasharray: 1 3;
   stroke-width: 2;
 }
@@ -705,17 +714,17 @@ button {
   background: var(--paper);
 }
 .legend-item.is-answered .swatch {
-  background: var(--link);
-  border-color: var(--link);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .legend-item.is-open .swatch {
-  border: 2px solid var(--link);
+  border: 2px solid var(--accent);
 }
 .legend-item.is-waiting .swatch {
   border-style: dashed;
 }
 .legend-item.is-skipped .swatch {
-  border: 2px dotted var(--link);
+  border: 2px dotted var(--ink);
 }
 .legend-item.is-moot .swatch {
   opacity: 0.4;
@@ -749,7 +758,7 @@ button {
 }
 .row-id {
   font: 700 1rem var(--label);
-  color: var(--link);
+  color: var(--ink);
 }
 .question.is-waiting .row-id,
 .question.is-moot .row-id {
@@ -782,7 +791,7 @@ button {
   max-width: 22rem;
 }
 .row-state b {
-  color: var(--link);
+  color: var(--ink);
 }
 /* Sent before and unchanged: the agent has it, so it steps back and Send leaves it out. */
 .question.is-sent > .row {
@@ -826,11 +835,11 @@ button {
   text-align: left;
 }
 .chip b {
-  color: var(--link);
+  color: var(--ink);
 }
 .chip.is-on {
-  border-color: var(--link);
-  background: var(--link-wash);
+  border-color: var(--accent);
+  background: var(--accent-wash);
 }
 .outside .chips {
   align-items: stretch;
@@ -868,7 +877,7 @@ button {
   color: var(--muted);
 }
 .peek-answer b {
-  color: var(--link);
+  color: var(--ink);
 }
 .why-link {
   justify-self: start;
@@ -1025,7 +1034,7 @@ button.why-card:hover .why-head,
 }
 .question-id {
   font: 700 1rem var(--label);
-  color: var(--link);
+  color: var(--ink);
 }
 /* One bordered list, a row per option, so the choices read as one block. */
 .options {
@@ -1064,14 +1073,14 @@ button.why-card:hover .why-head,
   border-radius: 0 0 4px 4px;
 }
 .option:has(.option-pick:hover:not(:disabled)) {
-  background: color-mix(in srgb, var(--link-wash) 50%, var(--paper));
+  background: color-mix(in srgb, var(--accent-wash) 50%, var(--paper));
 }
 .option-pick:disabled {
   cursor: default;
   opacity: 0.55;
 }
 .option.is-selected {
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .option-key {
   display: grid;
@@ -1083,8 +1092,8 @@ button.why-card:hover .why-head,
   font: 700 0.82rem var(--label);
 }
 .option.is-selected .option-key {
-  background: var(--link);
-  border-color: var(--link);
+  background: var(--accent);
+  border-color: var(--accent);
   color: var(--paper);
 }
 .option-body {
@@ -1105,7 +1114,7 @@ button.why-card:hover .why-head,
   font: 600 0.74rem var(--label);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--link);
+  color: var(--olive);
   white-space: nowrap;
 }
 .option.own .option-key {
@@ -1126,7 +1135,7 @@ textarea {
 }
 textarea:focus {
   outline: none;
-  border-color: var(--link);
+  border-color: var(--accent);
 }
 textarea::placeholder {
   color: var(--muted);
@@ -1231,10 +1240,10 @@ textarea::placeholder {
   border-left: 1px solid var(--rule);
 }
 .side-choice:hover:not(:disabled) {
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .side-choice.is-active {
-  background: var(--link);
+  background: var(--accent);
   color: var(--paper);
 }
 .side-choice:disabled {
@@ -1258,7 +1267,7 @@ textarea::placeholder {
 }
 .message.from-you {
   justify-self: end;
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .message.from-agent {
   background: var(--paper);
@@ -1564,7 +1573,7 @@ a.ref-link:hover {
   text-align: right;
 }
 .send-row.is-answered .send-answer {
-  color: var(--link);
+  color: var(--ink);
 }
 .send-dialog textarea {
   width: 100%;
@@ -1765,8 +1774,8 @@ button.plan-title:hover {
   background: var(--teal);
 }
 .ph-ready {
-  color: var(--link);
-  box-shadow: inset 0 0 0 1.5px var(--link);
+  color: var(--olive);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 .ph-you {
   color: var(--paper);
@@ -1890,11 +1899,11 @@ button.plan-title:hover {
   cursor: pointer;
 }
 .agent-line:hover {
-  border-color: var(--link);
+  border-color: var(--accent);
 }
 .agent-line.is-unread {
-  background: var(--link-wash);
-  border-color: color-mix(in srgb, var(--link) 40%, transparent);
+  background: var(--accent-wash);
+  border-color: color-mix(in srgb, var(--ink) 40%, transparent);
   color: var(--ink);
 }
 /* Inside the pill's right end, but its own button: the line itself opens Replies. */
@@ -1927,7 +1936,7 @@ button.plan-title:hover {
   background: var(--rule);
 }
 .agent-line.is-unread .agent-line-dot {
-  background: var(--link);
+  background: var(--accent);
 }
 .agent-line-text {
   overflow: hidden;
@@ -1958,7 +1967,7 @@ button.plan-title:hover {
 .toast {
   position: relative;
   background: var(--paper);
-  border: 1px solid color-mix(in srgb, var(--link) 30%, var(--rule));
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, var(--rule));
   border-radius: 8px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
   animation: toast-in 180ms ease-out;
@@ -1969,12 +1978,12 @@ button.plan-title:hover {
   height: 3px;
   border-radius: 0 0 7px 7px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--link) 15%, transparent);
+  background: color-mix(in srgb, var(--ink) 15%, transparent);
 }
 .toast-progress {
   display: block;
   height: 100%;
-  background: var(--link);
+  background: var(--accent);
   transform-origin: left;
   animation: toast-countdown var(--toast-lifetime) linear forwards;
 }
@@ -2010,14 +2019,14 @@ button.plan-title:hover {
   font: 600 0.74rem var(--label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--link);
+  color: var(--ink);
 }
 .toast-who::before {
   content: '';
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--link);
+  background: var(--accent);
 }
 .toast-text {
   font-size: 0.93rem;
@@ -2059,13 +2068,13 @@ button.plan-title:hover {
   cursor: pointer;
 }
 .notification-tray-toggle:hover {
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .notification-count {
   min-width: 1.5em;
   padding: 1px 5px;
   border-radius: 999px;
-  background: var(--link);
+  background: var(--accent);
   color: var(--paper);
   font-variant-numeric: tabular-nums;
 }
@@ -2100,7 +2109,7 @@ button.plan-title:hover {
   height: 7px;
   margin-right: 7px;
   border-radius: 50%;
-  background: var(--link);
+  background: var(--accent);
   vertical-align: 1px;
 }
 .reply-entry.is-answer .message-body {
@@ -2203,7 +2212,7 @@ button.plan-title:hover {
   );
 }
 .compare-table td.is-changed:not([class*='has-']) {
-  background: color-mix(in srgb, var(--link-wash) 75%, transparent);
+  background: color-mix(in srgb, var(--accent-wash) 75%, transparent);
 }
 .compare.has-pick td:not(.is-picked),
 .compare.has-pick thead th:not(.is-picked, .row-head) {
@@ -2211,8 +2220,8 @@ button.plan-title:hover {
 }
 .compare-table .is-picked {
   box-shadow:
-    inset 2px 0 0 var(--link),
-    inset -2px 0 0 var(--link);
+    inset 2px 0 0 var(--ink),
+    inset -2px 0 0 var(--ink);
 }
 /* Hovering option N lights column N; column 0 is today. */
 .question:has(.option:nth-child(1) .option-pick:hover)
@@ -2235,8 +2244,8 @@ button.plan-title:hover {
   [data-col='6'] {
   opacity: 1;
   box-shadow:
-    inset 2px 0 0 var(--link),
-    inset -2px 0 0 var(--link);
+    inset 2px 0 0 var(--ink),
+    inset -2px 0 0 var(--ink);
 }
 .holder {
   display: inline-block;
@@ -2302,8 +2311,8 @@ button.plan-title:hover {
   height: 10px;
   margin-right: 5px;
   border-radius: 3px;
-  background: var(--link-wash);
-  border: 1px solid color-mix(in srgb, var(--link) 30%, transparent);
+  background: var(--accent-wash);
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 /* A compare drawn as a diagram already sits in the diagram's frame. */
@@ -2336,7 +2345,7 @@ button.plan-title:hover {
   color: var(--muted);
 }
 .diagram-following {
-  color: var(--link);
+  color: var(--ink);
 }
 /* One pill per state, so a switch of long option labels wraps cleanly. */
 .diagram-switch {
@@ -2354,11 +2363,11 @@ button.plan-title:hover {
   cursor: pointer;
 }
 .diagram-switch button:hover {
-  color: var(--link);
+  color: var(--ink);
 }
 .diagram-switch button.is-active {
-  border-color: var(--link);
-  background: var(--link);
+  border-color: var(--accent);
+  background: var(--accent);
   color: var(--paper);
 }
 /* Every state in one cell: the diagram is as tall as its tallest state, whichever shows. */
@@ -2531,7 +2540,7 @@ button.plan-title:hover {
   left: 50%;
   transform: translateX(-50%);
   font: 700 1rem var(--label);
-  color: var(--link);
+  color: var(--ink);
 }
 .lane-cell.is-dimmed .node {
   opacity: 0.35;
@@ -2626,7 +2635,7 @@ button.plan-title:hover {
   font: 600 0.7rem var(--label);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--link);
+  color: var(--ink);
   opacity: 0;
   transition: opacity 160ms;
 }
@@ -2635,7 +2644,7 @@ button.plan-title:hover {
   opacity: 1;
 }
 .titled.is-followed {
-  border-left-color: var(--link);
+  border-left-color: var(--ink);
 }
 .titled > p,
 .titled > .list-block {
@@ -2668,8 +2677,8 @@ button.plan-title:hover {
 }
 
 .unsent-tag {
-  color: var(--link);
-  border-color: var(--link);
+  color: var(--ochre);
+  border-color: var(--accent);
 }
 .send-round {
   display: block;

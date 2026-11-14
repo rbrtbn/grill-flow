@@ -14,33 +14,53 @@
 .f-inbox-split {
   display: inline-flex;
   align-items: center;
-  border-radius: 4px;
+  border-radius: 6px;
 }
-.f-topbar nav .f-inbox-split > .text-button {
-  min-height: 38px;
-  padding: 8px 6px 8px 10px;
-  color: var(--ink);
-  font-size: 13px;
-  white-space: nowrap;
+.f-inbox-split:hover,
+.f-inbox-split.is-active {
+  background: var(--accent-wash);
 }
-.f-topbar nav .f-inbox-split > .f-quick-look-caret {
-  padding: 8px 8px 8px 2px;
-  text-decoration: none;
+.f-topbar-a .f-primary-nav .f-inbox-split > .text-button,
+.f-topbar-a .f-primary-nav .f-inbox-split > .text-button:hover,
+.f-topbar-a .f-primary-nav .f-inbox-split > .text-button.is-active {
+  background: none;
+}
+.f-topbar-a .f-primary-nav .f-inbox-split > .text-button:first-child {
+  padding-right: 4px;
+}
+.f-topbar-a .f-primary-nav .f-inbox-split > .f-quick-look-caret {
+  padding: 5px 8px 5px 4px;
   color: var(--muted);
 }
-.f-topbar nav .f-inbox-split > .f-quick-look-caret[aria-expanded='true'] {
-  color: var(--link);
+.f-topbar-a .f-primary-nav .f-inbox-split > .f-quick-look-caret[aria-expanded='true'] {
+  color: var(--ink);
 }
 .f-freeze-pill {
   margin: 0;
-  padding: 5px 10px;
-  border: 1px solid var(--ochre);
+  padding: 4px 10px;
+  border: 0;
   border-radius: 999px;
-  background: var(--ochre-wash);
-  color: var(--ochre);
+  background: var(--rust-wash);
+  color: var(--rust);
   font: 600 12px/1.2 var(--label);
   white-space: nowrap;
   cursor: pointer;
+}
+
+.f-nav-count {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 12px/1.6 var(--label);
+  text-align: center;
+}
+.f-nav-count.is-hot {
+  background: var(--ochre);
+  color: var(--paper);
 }
 
 /* Quick look */
@@ -181,7 +201,7 @@
 .f-message-preview {
   margin: 0;
   padding: 8px 10px;
-  border-left: 3px solid var(--rule);
+  border-radius: 4px;
   background: var(--panel);
   font: 400 13px/1.5 var(--code);
 }
@@ -210,10 +230,10 @@
 .f-freeze {
   margin: 14px 0;
   padding: 10px 14px;
-  border: 1px solid var(--ochre);
-  border-left-width: 4px;
-  border-radius: 4px;
-  background: var(--ochre-wash);
+  border: 1px solid var(--rust);
+  border-radius: 6px;
+  background: var(--rust-wash);
+  color: var(--ink);
   font: 400 14px/1.5 var(--label);
 }
 .f-freeze p {
@@ -272,9 +292,13 @@
 }
 .f-pill.is-on,
 .f-view.is-on {
-  border-color: var(--link);
-  background: var(--link-wash);
-  color: var(--link);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.f-pill.is-on .f-count {
+  color: inherit;
+  opacity: 0.75;
 }
 .f-view.is-add {
   border-style: dashed;
@@ -285,7 +309,7 @@
   cursor: default;
 }
 .f-filter-chip {
-  border-color: var(--link);
+  border-color: var(--accent);
   color: var(--link);
 }
 .f-count {
@@ -312,8 +336,8 @@
   border-right: 0;
 }
 .f-segmented > button.is-on {
-  background: var(--link-wash);
-  color: var(--link);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .f-active-filters {
   display: flex;
@@ -337,7 +361,13 @@
 }
 .f-page .f-inbox-group-head h2 {
   margin: 0 0 6px;
-  font-size: 19px;
+  font: 600 12px/1.4 var(--label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.f-page .f-inbox-group-head h2 .f-count {
+  color: var(--muted);
 }
 .f-group-sub {
   color: var(--muted);
@@ -370,7 +400,7 @@
   border: 0;
   background: none;
   color: var(--ink);
-  font: 600 15px/1.4 var(--label);
+  font: 600 16px/1.4 var(--read);
   text-align: left;
   cursor: pointer;
 }
@@ -398,8 +428,8 @@
 }
 .f-task-origin {
   padding: 6px 10px;
-  border-left: 3px solid var(--violet);
-  background: var(--violet-wash);
+  border-radius: 4px;
+  background: var(--panel);
 }
 .f-task-origin blockquote {
   margin: 4px 0 0;
@@ -407,7 +437,7 @@
 }
 .f-origin-k {
   margin-right: 6px;
-  color: var(--violet);
+  color: var(--muted);
   font-weight: 600;
 }
 .f-origin-q {
@@ -476,13 +506,14 @@
   margin: 4px 0;
 }
 
-/* Chips */
+/* Chips: outlined, one hue per meaning */
 .f-inbox-urgency,
 .f-inbox-state,
 .f-type-badge,
 .f-question-badge {
   display: inline-block;
-  padding: 1px 8px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
   border-radius: 3px;
   font: 600 11px/1.6 var(--label);
   letter-spacing: 0.05em;
@@ -490,94 +521,87 @@
   white-space: nowrap;
 }
 .f-inbox-urgency.is-now {
-  background: var(--rust-wash);
-  color: var(--u-blocking);
+  color: var(--u-soon);
 }
 .f-inbox-urgency.is-next {
-  background: var(--olive-wash);
-  color: var(--olive);
+  color: var(--u-wait);
 }
 .f-inbox-urgency.is-later {
-  background: var(--teal-wash);
-  color: var(--teal);
+  color: var(--u-fyi);
 }
 .f-inbox-state.is-open {
-  background: var(--link-wash);
-  color: var(--link);
+  color: var(--ochre);
 }
 .f-inbox-state.is-promised {
-  border: 1px dashed var(--violet);
+  border-style: dashed;
   color: var(--violet);
 }
 .f-inbox-state.is-reported {
-  background: var(--ochre-wash);
-  color: var(--ochre);
+  color: var(--teal);
 }
 .f-inbox-state.is-done {
-  background: var(--ins-bg);
-  color: var(--ins-ink);
+  color: var(--olive);
 }
 .f-inbox-state.is-skip {
-  background: var(--panel);
   color: var(--muted);
 }
 .f-inbox-state.is-held {
-  background: var(--ochre-wash);
-  color: var(--ochre);
-  text-transform: none;
+  border-color: transparent;
+  background: var(--rust-wash);
+  color: var(--rust);
 }
 .f-question-badge {
-  background: var(--scope-wash);
-  color: var(--scope);
+  border: 0;
+  padding: 0;
+  color: var(--ochre);
+  font-size: 13px;
+  text-transform: none;
 }
 .f-session-tag {
   margin: 0;
-  padding: 1px 8px;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--paper);
-  color: var(--ink);
-  font: 500 12px/1.5 var(--code);
+  padding: 0 6px;
+  border: 1px solid var(--teal);
+  border-radius: 3px;
+  background: none;
+  color: var(--teal);
+  font: 500 12px/1.5 var(--label);
   cursor: pointer;
 }
 .f-session-tag.is-interactive {
   border-style: dashed;
+  border-color: var(--violet);
+  color: var(--violet);
 }
 .f-session-tag.is-ended {
+  border-color: var(--rule);
   color: var(--muted);
   text-decoration: line-through;
 }
 .f-type-badge {
   margin-left: 6px;
-  background: var(--panel);
-  color: var(--ink);
+  color: var(--muted);
 }
 .f-type-badge.is-orchestrated {
-  background: var(--link-wash);
-  color: var(--link);
+  color: var(--ink);
 }
 .f-type-badge.is-lead {
-  background: var(--violet-wash);
-  color: var(--violet);
+  color: var(--ochre);
 }
 .f-type-badge.is-helper {
-  background: var(--teal-wash);
   color: var(--teal);
 }
 .f-type-badge.is-interactive {
-  border: 1px dashed var(--muted);
-  background: none;
-  color: var(--muted);
+  border-style: dashed;
+  color: var(--violet);
 }
 .f-type-badge.is-ended {
-  background: var(--panel);
   color: var(--muted);
   text-decoration: line-through;
 }
 
 /* Question line */
 .f-question-line {
-  background: color-mix(in srgb, var(--scope-wash) 35%, transparent);
+  background: none;
 }
 .f-answer-link {
   margin-left: auto;
@@ -704,7 +728,7 @@
 .f-lane.is-interactive {
   border-style: dashed;
   border-top-style: solid;
-  border-top-color: var(--muted);
+  border-top-color: var(--violet);
 }
 .f-lane.is-ended {
   opacity: 0.65;
@@ -763,7 +787,7 @@
 }
 .f-lane-node.is-questions {
   cursor: default;
-  background: color-mix(in srgb, var(--scope-wash) 35%, transparent);
+  background: none;
 }
 
 /* Item page */
@@ -850,7 +874,7 @@
 }
 .f-thread-message.is-you {
   margin-left: 24px;
-  background: var(--link-wash);
+  background: var(--accent-wash);
 }
 .f-thread-who {
   display: block;

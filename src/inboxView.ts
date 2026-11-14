@@ -450,7 +450,12 @@ export const inboxNavView = (model: Model, data: InboxData, h: H): Html => {
           ),
           h.OnClick(go(INBOX)),
         ],
-        [`${NAMES.inbox}${due > 0 ? ` · ${due}` : ''}`],
+        [
+          NAMES.inbox,
+          due > 0
+            ? h.span([h.Class('f-nav-count is-hot')], [String(due)])
+            : h.empty,
+        ],
       ),
       h.button(
         [
