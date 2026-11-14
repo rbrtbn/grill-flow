@@ -1,4 +1,8 @@
-# grill-flow
+# Squad Board (grill-flow)
+
+Squad Board, "the board", is the page where agents' grills, tasks and status reach Rob
+(ADR 0038). The repo, plugin, skill, `gf` CLI and `GF_*` variables keep the grill-flow name
+until LAB-1458.
 
 Agents read `bun run gf --skill` at session start or after context loss, then
 `bun run gf --skill --if-newer-than <revision-read>` before each authoring write. Loads, items,

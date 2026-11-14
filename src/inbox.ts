@@ -16,6 +16,7 @@ import { inboxFixture } from './inboxFixture'
 // NAMES: Inbox, Questions, Runs and Conversations are Rob's; the rest are prototype F's picks,
 // pending owner-actions-names-rest on /g/squad. A rename is one edit here.
 export const NAMES = {
+  product: 'Squad Board',
   inbox: 'Inbox',
   questions: 'Questions',
   runs: 'Runs',
@@ -829,4 +830,4 @@ export const requestMessage = (
   pageId: string,
   scope: ReadonlyArray<UpdateScope>,
 ): string =>
-  `[grill-flow] Rob asks for an up-to-date version of your ${scope.map(value => SCOPE_LABELS[value].toLowerCase()).join(', ') || 'items'} on page ${pageId}. Check each against the current state: revise what changed, withdraw what is done or no longer needed, add what is missing, then reply on the page.`
+  `[Squad Board] Rob asks for an up-to-date version of your ${scope.map(value => SCOPE_LABELS[value].toLowerCase()).join(', ') || 'items'} on page ${pageId}. Check each against the current state: revise what changed, withdraw what is done or no longer needed, add what is missing, then reply on the page.`

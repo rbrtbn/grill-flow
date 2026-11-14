@@ -38,3 +38,4 @@
 | [0034](0034-stable-question-keys-context-and-clarity-lint.md) | Stable question keys, context and a clarity lint | accepted |
 | [0035](0035-send-from-the-question-and-an-unsent-tray.md) | Send from the question and an unsent tray | accepted |
 | [0037](0037-summary-first-questions-with-a-comparison.md) | Summary-first questions with a comparison | accepted |
+| [0038](0038-name-the-product-squad-board.md) | Name the product Squad Board | accepted |

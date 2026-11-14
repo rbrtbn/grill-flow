@@ -66,6 +66,7 @@ import {
   withRefs,
   withTerms,
 } from './domain'
+import { INBOX, ITEM_PAGE, NAMES, RUNS, RUN_PAGE } from './inbox'
 import type {
   Message as MessageType,
   Model,
@@ -104,10 +105,10 @@ type H = HtmlBuilder<MessageType>
 
 export const view = (model: Model, h: H): Document =>
   AsyncData.match(model.page, {
-    onIdle: () => shell('Grill', notice('Loading the grill…', h), h),
-    onLoading: () => shell('Grill', notice('Loading the grill…', h), h),
+    onIdle: () => shell('Squad Board', notice('Loading the grill…', h), h),
+    onLoading: () => shell('Squad Board', notice('Loading the grill…', h), h),
     onFailure: error =>
-      shell('Grill', notice(`The grill didn't load. ${error}`, h), h),
+      shell('Squad Board', notice(`The grill didn't load. ${error}`, h), h),
     onStale: ({ data }) =>
       shell(documentTitle(model, data), pageView(model, data, h), h),
     onRefreshing: data =>
@@ -116,10 +117,29 @@ export const view = (model: Model, h: H): Document =>
       shell(documentTitle(model, data), pageView(model, data, h), h),
   })
 
+const PAGE_TITLES: ReadonlyArray<readonly [string, string]> = [
+  [INBOX, NAMES.inbox],
+  [RUNS, NAMES.runs],
+  [RUN_PAGE, NAMES.runs],
+  [ITEM_PAGE, NAMES.task],
+  ['conversations', NAMES.conversations],
+]
+
 const documentTitle = (model: Model, snapshot: Snapshot): string => {
   const step = snapshot.grill.steps.find(
     item => model.currentPart === `question:${item.question.id}`,
   )
+  const page = PAGE_TITLES.find(([part]) =>
+    part.endsWith(':')
+      ? model.currentPart.startsWith(part)
+      : model.currentPart === part,
+  )
+  if (page !== undefined) {
+    return `${NAMES.product} · ${page[1]}`
+  }
+  if (step !== undefined && isWorkspacePage(model.currentPart)) {
+    return `${NAMES.product} · ${step.question.id} ${step.question.title}`
+  }
   const location =
     step === undefined && snapshot.grill.squad?.id === snapshot.grill.id
       ? 'Squad'
@@ -2048,7 +2068,7 @@ const overviewView = (model: Model, snapshot: Snapshot, h: H): Html => {
         ? h.p(
             [h.Class('hint')],
             [
-              `This grill uses format ${grill.version}; this page reads up to ${FORMAT_VERSION}, so some parts may not show. Pull grill-flow to see them.`,
+              `This grill uses format ${grill.version}; this page reads up to ${FORMAT_VERSION}, so some parts may not show. Update Squad Board to see them.`,
             ],
           )
         : h.empty,

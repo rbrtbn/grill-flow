@@ -349,8 +349,8 @@ const pinnedGrillFlow = (snapshot: Snapshot, h: H): Html =>
           h.span(
             [h.Class('f-session-top')],
             [
-              avatar('Grill-flow', h),
-              h.b([], ['Grill-flow']),
+              avatar('Squad Board', h),
+              h.b([], ['Squad Board']),
               h.span([
                 h.Class(
                   `f-state-dot${snapshot.maintainerState === 'live' ? ' is-live' : ''}`,
@@ -366,8 +366,8 @@ const pinnedGrillFlow = (snapshot: Snapshot, h: H): Html =>
             [h.Class('f-session-sub')],
             [
               snapshot.maintainerSession === undefined
-                ? 'Set GF_MAINTAINER_SESSION to talk to the grill-flow builder'
-                : 'Maintainer · builds grill-flow',
+                ? 'Set GF_MAINTAINER_SESSION to talk to the session building the board'
+                : 'Maintainer · builds the board',
             ],
           ),
         ],

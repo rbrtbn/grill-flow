@@ -424,7 +424,7 @@ const browserNoticeSettings = (model: Model, h: H): Html => {
       h.p(
         [h.Class('hint')],
         [
-          'Alerts for new or newly urgent Blocking/Soon questions and owner actions while a grill-flow page is open. Enabling starts with future changes. Alerts open the item in a new tab.',
+          'Alerts for new or newly urgent Blocking/Soon questions and owner actions while a Squad Board page is open. Enabling starts with future changes. Alerts open the item in a new tab.',
         ],
       ),
       h.p([h.Class('f-notification-status'), h.Role('status')], [status]),
@@ -633,7 +633,7 @@ export const workspaceView = (
                         ? h.p(
                             [h.Class('f-version hint')],
                             [
-                              'This grill uses a newer format. Update grill-flow if some content is missing.',
+                              'This grill uses a newer format. Update Squad Board if some content is missing.',
                             ],
                           )
                         : h.empty,
@@ -734,10 +734,10 @@ const workspaceHeaderView = (
             [
               h.Type('button'),
               h.Class('f-wordmark'),
-              h.AriaLabel('grill-flow home'),
+              h.AriaLabel(`${NAMES.product} home`),
               h.OnClick(Message.ClickedWorkspacePage({ page: GRILLS })),
             ],
-            ['grill-flow'],
+            [NAMES.product],
           ),
           h.button(
             [
@@ -2122,7 +2122,7 @@ const questionConversationView = (
 
 const quoteDestinationLabel = (snapshot: Snapshot, target: string): string =>
   target === GRILL_FLOW_TARGET
-    ? 'Grill-flow'
+    ? 'Squad Board'
     : target === RUN_TARGET
       ? 'the run'
       : (snapshot.grill.steps.find(item => item.id === target)?.question.id ??
@@ -2841,7 +2841,7 @@ const discussionView = (
               [],
               [
                 isMaintainer
-                  ? 'Improving grill-flow'
+                  ? 'Improving the board'
                   : agentAddressOf(target) !== undefined
                     ? `Direct message · ${agentLabel(snapshot, agentAddressOf(target)!)}`
                     : snapshot.grill.title,
@@ -2861,7 +2861,7 @@ const discussionView = (
                     h.p(
                       [],
                       [
-                        'Ask about the interface, report a problem, or discuss an improvement. This conversation goes directly to the session building grill-flow.',
+                        'Ask about the interface, report a problem, or discuss an improvement. This conversation goes directly to the session building Squad Board.',
                       ],
                     ),
                   ]
@@ -2906,7 +2906,7 @@ const discussionView = (
             [h.Class('hint')],
             [
               isMaintainer
-                ? `Grill-flow · ${maintainerLabel(snapshot)}`
+                ? `Squad Board · ${maintainerLabel(snapshot)}`
                 : agentAddressOf(target) !== undefined
                   ? agentLabel(snapshot, agentAddressOf(target)!)
                   : questionAgent(snapshot.grill, step?.question),
@@ -3018,7 +3018,7 @@ const discussionView = (
                 [h.For('talk-box')],
                 [
                   isMaintainer
-                    ? 'Ask about grill-flow'
+                    ? 'Ask about the board'
                     : agentAddressOf(target) !== undefined
                       ? `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
                       : step === undefined
@@ -3141,11 +3141,11 @@ const recipientGroups = (
       ? []
       : [
           {
-            label: 'Grill-flow',
+            label: 'Squad Board',
             recipients: [
               {
                 target: GRILL_FLOW_TARGET,
-                label: `Grill-flow · ${maintainerLabel(snapshot)}`,
+                label: `Squad Board · ${maintainerLabel(snapshot)}`,
               },
             ],
           },
@@ -3207,7 +3207,7 @@ const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
         [
           `${snapshot.maintainerSession} is ${snapshot.maintainerState === 'missing' ? 'no longer in Herdr' : 'not running'}, so messages here will not reach it.`,
           snapshot.grill.session === ''
-            ? ' Restart grill-flow with GF_MAINTAINER_SESSION set to a running session.'
+            ? ' Restart the board’s server with GF_MAINTAINER_SESSION set to a running session.'
             : ` Each undelivered message offers to go to ${snapshot.grill.session} instead.`,
         ],
       )
@@ -3287,7 +3287,7 @@ const conversationPage = (
                   ),
                 ],
                 [
-                  'Grill-flow',
+                  'Squad Board',
                   h.small(
                     [],
                     [`Interface & improvements · ${maintainerLabel(snapshot)}`],

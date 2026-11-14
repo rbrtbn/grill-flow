@@ -139,7 +139,7 @@ const page = (): Response => {
   const content = PREVIEW
     ? readFileSync(index, 'utf8').replace(
         '<body>',
-        '<body data-gf-preview="true"><div class="f-preview-notice" role="status">Working preview · copied data · sends stay local</div>',
+        '<body data-gf-preview="true"><div class="f-preview-notice" role="status">Squad Board · working preview · copied data · sends stay local</div>',
       )
     : Bun.file(index)
   return new Response(content, {
@@ -485,7 +485,7 @@ const handleEvent = async (
       const recipient = askRecipient(grill, stepId, 'own')
       if (recipient === undefined) {
         return json(
-          { error: 'The grill-flow discussion session is not configured.' },
+          { error: 'The Squad Board maintainer session is not configured.' },
           400,
         )
       }

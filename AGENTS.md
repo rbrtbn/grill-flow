@@ -12,7 +12,8 @@ subtree_prompted: true
 
 Domain vocabulary, deployment steps, local conventions that differ from Foldkit's defaults: write them here.
 
-grill-flow renders a grill (an agent's structured interview about a decision) as one reading page:
+Squad Board ("the board"; this repo, plugin and CLI are still named grill-flow, ADR 0038)
+renders a grill (an agent's structured interview about a decision) as one reading page:
 reasoning in thinking order, a question at each decision point, options that state their
 consequence, and questions greyed until what they depend on is answered.
 

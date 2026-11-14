@@ -287,7 +287,7 @@ export const syncBrowserNotices = async (
         for (const job of jobs) {
           liveNotices.get(job.key)?.close()
           const notice = new Notification(
-            `Grill-flow · ${job.urgency === 'blocking' ? 'Blocking' : 'Soon'}`,
+            `Squad Board · ${job.urgency === 'blocking' ? 'Blocking' : 'Soon'}`,
             {
               body: job.title.slice(0, 180),
               tag: `grill-flow:${job.key}:${job.cycle}`,

@@ -87,7 +87,7 @@ describe('ask delivery', () => {
       ),
       mounted,
       expect(selector('.f-discussion-head .hint')).toHaveText(
-        'Grill-flow · t18v · not in Herdr',
+        'Squad Board · t18v · not in Herdr',
       ),
       expect(selector('.f-maintainer-warning')).toContainText(
         't18v is no longer in Herdr',
@@ -135,7 +135,7 @@ describe('ask delivery', () => {
       ),
       mounted,
       expect(selector('.f-discussion-head .hint')).toHaveText(
-        'Grill-flow · t18v',
+        'Squad Board · t18v',
       ),
       expect(selector('.f-maintainer-warning')).not.toExist(),
       expect(selector('.f-discussion-messages')).toContainText(

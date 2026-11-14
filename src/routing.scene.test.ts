@@ -137,7 +137,7 @@ describe('asking agents in the workspace', () => {
       ),
       Command.resolve(FocusTalkBox, Message.CompletedFocus()),
       expect(selector('.f-discussion-head')).toContainText(
-        'Grill-flow · builder',
+        'Squad Board · builder',
       ),
       expect(role('textbox', { name: 'Ask about grill-flow' })).toExist(),
       expect(role('combobox', { name: 'To' })).toHaveValue('grill-flow'),
