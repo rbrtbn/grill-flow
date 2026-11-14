@@ -109,6 +109,7 @@ import {
   questionOnPage,
   questionSortFrom,
   questionUrgencyFilterFrom,
+  rememberedTarget,
   revealQuestion,
   roundIsCollapsed,
   roundScopesFrom,
@@ -283,6 +284,7 @@ export const DiscussionState = Schema.Struct({
   expanded: Schema.Boolean,
   target: Schema.String,
   scroll: Schema.Record(Schema.String, Schema.Number),
+  targets: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 })
 const closedDiscussion: typeof DiscussionState.Type = {
   open: false,
@@ -1411,6 +1413,7 @@ export const update = (model: Model, message: Message) =>
             maybeDiscussionTarget: () =>
               state.target === '' ? Option.none() : Option.some(state.target),
             discussionScroll: () => state.scroll,
+            discussionTargets: () => state.targets ?? {},
           }),
       }),
     }),
@@ -1479,6 +1482,11 @@ export const update = (model: Model, message: Message) =>
         workspace: value =>
           modifyFields(value, {
             maybeDiscussionTarget: () => Option.some(target),
+            discussionTargets: targets =>
+              Option.match(discussedQuestion(model), {
+                onNone: () => targets,
+                onSome: step => Record.set(targets, step.id, target),
+              }),
           }),
       }),
       commands: [
@@ -2214,9 +2222,8 @@ export const update = (model: Model, message: Message) =>
                     }),
                     {
                       maybeDiscussionTarget: () =>
-                        Option.map(
-                          questionOnPage(snapshot, page),
-                          step => step.id,
+                        Option.map(questionOnPage(snapshot, page), step =>
+                          rememberedTarget(value, step.id),
                         ),
                     },
                   ),
@@ -3094,6 +3101,17 @@ const saveSidebarWidths = (model: Model) =>
     }),
   })
 
+// The question the open discussion belongs to: the one on this page, or on the page the
+// reader came from when the full conversation view is open.
+const discussedQuestion = (model: Model) =>
+  Option.flatMap(AsyncData.getData(model.page), snapshot =>
+    Option.orElse(questionOnPage(snapshot, model.currentPart), () =>
+      Option.flatMap(model.maybePrevious, page =>
+        questionOnPage(snapshot, page),
+      ),
+    ),
+  )
+
 const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
   withSnapshot(model, snapshot => {
     const moved = goTo(model, snapshot.grill, page)
@@ -3122,7 +3140,9 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
                     step => step.id,
                   ),
                 )
-              : Option.map(question, step => step.id),
+              : Option.map(question, step =>
+                  rememberedTarget(workspace, step.id),
+                ),
         }),
     })
     return {
@@ -4931,6 +4951,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
             () => '',
           ),
           scroll: model.workspace.discussionScroll,
+          targets: model.workspace.discussionTargets,
         },
       }),
       dependenciesToStream: ({ ready, grillId, state }) =>
