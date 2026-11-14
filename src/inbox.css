@@ -712,23 +712,11 @@
 .f-lane {
   padding: 12px 14px;
   border: 1px solid var(--rule);
-  border-top: 4px solid var(--rule);
   border-radius: 6px;
   font: 400 14px/1.45 var(--label);
 }
-.f-lane.is-orchestrated {
-  border-top-color: var(--link);
-}
-.f-lane.is-lead {
-  border-top-color: var(--violet);
-}
-.f-lane.is-helper {
-  border-top-color: var(--teal);
-}
 .f-lane.is-interactive {
   border-style: dashed;
-  border-top-style: solid;
-  border-top-color: var(--violet);
 }
 .f-lane.is-ended {
   opacity: 0.65;
