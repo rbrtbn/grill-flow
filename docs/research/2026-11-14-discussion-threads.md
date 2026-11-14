@@ -1,0 +1,69 @@
+# Discussion threads: four prototypes and a recommendation (2026-11-14)
+
+Rob's ask 9656 (page `squad`, part 2): the Discussion panel's "To" dropdown makes it easy to
+send to the wrong session after switching questions, and messaging the asker, the lead or
+grill-flow about one question doesn't feel like one set of threads. The "remember the last
+recipient per question" bug is fixed separately (`fix/remember-discussion-recipient`); this
+note compares new panel designs.
+
+Prototypes: branch `prototype/discussion-threads`, `prototypes/discussion-threads-*`, served
+by `prototypes/discussion-threads-shared/serve.sh` on 4361-4364. Sample data: four squad
+questions from four askers, a side thread with the lead about `cache-budget`, a grill-flow
+maintainer thread, a direct thread with another builder and an unread reply on `night-grant`.
+
+## What Rob needs from the panel
+
+1. Ask about *this question* with one click, defaulting to whoever asked it.
+2. Reach sessions he already talked to with one click; anyone else may take more.
+3. Come back to a question and find the conversation he left, with the same recipient.
+4. Keep "the lead about this question" or "grill-flow about this question" attached to the
+   question, as its own thread.
+5. Never be unsure who a message goes to before pressing send.
+
+All four variants share one thread model: a thread is **one session, optionally about one
+question**. Each question remembers the thread you last used on it (the dashed box in the
+prototypes shows this) and reopens it, whatever you opened elsewhere.
+
+## The variants
+
+| | A · Thread tabs | B · One addressed timeline | C · Thread list beside the panel | D · Thread cards on the question |
+|---|---|---|---|---|
+| Shape | Tab row over the thread: asker, others about this question, recent direct threads, `+` | One merged conversation per question; each message names its recipient; chips pick the next one | Wider panel: inbox of threads (this question, direct, other questions) beside the open thread | Stacked cards under the question, one open at a time, each with its own reply box; direct threads in a dock |
+| Goal 1 (ask this question) | Asker tab first and default | Asker chip default | Top row of the list | Asker card first |
+| Goal 2 (known sessions) | One click: their tab is always in the row | One click about this question; direct threads behind a second tab | One click, everything visible | One click via cards or dock |
+| Goal 3 (come back) | Reopens the remembered tab | Reopens the remembered recipient chip | Reopens the remembered row | Reopens the remembered card (or the direct drawer) |
+| Goal 4 (side threads on the question) | Yes, as tabs | Strongest: everything about the question reads in one order | Yes, grouped under "This question" | Strong: the cards *are* the question's threads |
+| Goal 5 (recipient obvious) | Strong: coloured "To" bar plus "Send to Squad lead" | Medium: chips and button name the recipient, but the timeline mixes speakers and recipients | Strong: large recipient header plus button | Strongest: you type inside that person's card; "Reply to Squad lead" |
+| Weak spots | Tab row grows; needs a cap on direct tabs | Easy to misread who answered whom; a reply to the lead looks like part of the asker's thread | Needs about 640px; squeezes the question on a laptop and duplicates the Conversations page | Tall with three or more cards; direct threads feel secondary |
+| Front-end size | ~150 lines (replaces `recipientPicker`, adds a tab row and "To" bar) | ~300 (merged timeline, chips, reply-to) | ~350 (new split layout; could replace the Conversations page) | ~300 (cards, inline composers, dock and drawer) |
+
+## What every variant needs on the server
+
+Today's targets are a question's step id (its asker), `run`, `agent:<address>`,
+`grill-flow`, `part:…` and `card:…`. None of them means "the lead about this question", so
+every variant needs one new kind, a **side thread**, e.g. `<step-id>@<address>`:
+
+- Recipient: the address, accepted only from the same list as `agent:` targets plus the
+  maintainer (ADR 0029's rule that the page never relays to arbitrary terminals still holds).
+- The ask carries the question's context, as a step ask does today; replies use
+  `gf revise <grill> <step-id>@<address> --ask <id> --kind comment`.
+- Squad pages scope it like a step id; `discussions` references (ADR 0033) count it per
+  question so the "N messages" link includes side threads.
+- About 200-300 lines with tests, the same for every variant. Remembering the last thread per
+  question is client state (it builds on `fix/remember-discussion-recipient`).
+
+Migration maps today's threads unchanged: step id → the asker's thread about that question;
+`agent:<address>` and `grill-flow` → direct threads; `run` → the direct thread with the page
+session (the lead on a squad page); `part:`/`card:` stay as they are. No stored thread moves.
+
+## Recommendation
+
+**A · Thread tabs**. It meets all
+five goals, is the smallest change from today's panel, keeps the panel's current width, and
+maps one tab to one existing thread, so delivery state, quote-reply and discussion refs keep
+working per tab. Cap direct tabs at the three most recent and leave the rest behind `+`.
+
+Pick **D** instead if seeing every conversation about a question at once matters more than
+compactness: its in-card reply box is the hardest design to misaddress. B is the most
+original but the riskiest for goal 5; C is the best global overview but costs panel width the
+question needs, and the Conversations page already plays that role.

@@ -1,0 +1,119 @@
+.tabs-head {
+  padding: 14px 16px 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.tabs-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px 8px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: -1px;
+  position: relative;
+  color: var(--muted);
+}
+.tab.is-active {
+  background: var(--card);
+  border-color: var(--rule);
+  border-top-width: 3px;
+}
+.tab.is-direct small {
+  font-weight: 400;
+  font-size: 11px;
+}
+.tab-badge {
+  background: var(--link);
+  color: white;
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 1px 5px;
+}
+.tab-add {
+  font-size: 18px;
+  padding: 3px 12px;
+}
+.panel {
+  position: relative;
+}
+.add-menu {
+  position: absolute;
+  top: 92px;
+  right: 12px;
+  width: 320px;
+  max-height: 60vh;
+  overflow: auto;
+  z-index: 5;
+  background: white;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px #1a29182b;
+  padding: 6px;
+}
+.add-title {
+  margin: 8px 8px 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.add-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.add-item:hover {
+  background: var(--wash);
+}
+.add-item small {
+  margin-left: auto;
+}
+.compose {
+  border-top: 3px solid;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.to-bar {
+  margin: 0 -14px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.to-word {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.to-about {
+  color: var(--muted);
+  font-size: 13px;
+}
+.send-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

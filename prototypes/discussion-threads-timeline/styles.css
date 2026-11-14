@@ -1,0 +1,147 @@
+.t-head {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.seg {
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+.seg.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.t-sub {
+  margin: 8px 16px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.t-lines .lines-inner {
+  gap: 10px;
+}
+.t-line {
+  border-left: 3px solid;
+  padding-left: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.t-line .line {
+  max-width: 100%;
+  align-self: stretch;
+}
+.t-line.is-mine .line {
+  background: var(--wash);
+}
+.line-to {
+  font-weight: 600;
+}
+.t-reply {
+  font-size: 12px;
+  color: var(--link);
+  padding: 1px 2px;
+}
+.t-reply.is-current {
+  color: var(--muted);
+  font-style: italic;
+}
+.t-compose {
+  border-top: 1px solid var(--rule);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.to-word {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  background: white;
+}
+.chip.is-active {
+  color: white;
+  box-shadow: 0 2px 8px #1a291826;
+}
+.chip.is-active:hover {
+  color: white;
+}
+.chip-badge {
+  background: var(--link);
+  color: white;
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 0 5px;
+}
+.chip-more {
+  border-style: dashed;
+  border-color: #a6aea4;
+  color: var(--muted);
+}
+.else {
+  position: relative;
+}
+.else-menu {
+  position: absolute;
+  bottom: 34px;
+  left: 0;
+  width: 290px;
+  z-index: 5;
+  background: white;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px #1a29182b;
+  padding: 6px;
+}
+.else-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.else-item:hover {
+  background: var(--wash);
+}
+.else-item small {
+  margin-left: auto;
+}
+.t-box {
+  border-left: 4px solid;
+  border-radius: 6px;
+}
+.t-box .compose-box {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.send-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

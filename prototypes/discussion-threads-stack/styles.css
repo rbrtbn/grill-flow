@@ -1,0 +1,186 @@
+.panel {
+  position: relative;
+}
+.d-head {
+  padding: 14px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--rule);
+}
+.d-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.cards {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card {
+  border: 1px solid var(--rule);
+  border-left: 4px solid;
+  border-radius: 7px;
+  background: white;
+  flex: none;
+}
+.card.is-open {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 18px #1a29181a;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.card-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+.card-badge {
+  background: var(--link);
+  color: white;
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 1px 6px;
+  font-weight: 700;
+}
+.card-peek {
+  display: block;
+  width: 100%;
+  padding: 0 12px 10px 28px;
+  font: 13px/1.4 var(--read);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--rule);
+}
+.card-lines {
+  max-height: 46vh;
+  padding: 10px 12px;
+}
+.card-reply {
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: #f7f8f5;
+  border-top: 1px dashed var(--rule);
+  border-radius: 0 0 7px 0;
+}
+.send-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.add-card {
+  flex: none;
+  border: 1.5px dashed #a6aea4;
+  border-radius: 7px;
+  padding: 10px 12px;
+  color: var(--link);
+  font-weight: 600;
+  font-size: 14px;
+}
+.chooser {
+  flex: none;
+  background: white;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  padding: 4px;
+  box-shadow: 0 8px 24px #1a29181f;
+}
+.chooser-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.chooser-item:hover {
+  background: var(--wash);
+}
+.chooser-item small {
+  margin-left: auto;
+}
+.dock {
+  position: relative;
+  border-top: 1px solid var(--rule);
+  background: #f2f3ef;
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.dock-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted);
+}
+.dock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--rule);
+  background: white;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dock-new {
+  color: var(--link);
+}
+.dock-chooser {
+  position: absolute;
+  bottom: 44px;
+  right: 12px;
+  width: 260px;
+  z-index: 5;
+}
+.drawer {
+  position: absolute;
+  inset: 52px 0 96px 0;
+  background: var(--card);
+  border-top: 1px solid var(--rule);
+  box-shadow: 0 -10px 30px #1a29182e;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 4;
+}
+.drawer-back {
+  color: var(--link);
+  font-weight: 600;
+  font-size: 14px;
+}
+.drawer .card.is-open {
+  flex: 1;
+  min-height: 0;
+}
+.drawer .card-lines {
+  max-height: none;
+}
