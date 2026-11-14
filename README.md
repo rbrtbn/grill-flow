@@ -4,7 +4,10 @@ Agents read `bun run gf --skill` at session start or after context loss, then
 `bun run gf --skill --if-newer-than <revision-read>` before each authoring write. Loads, items,
 revisions/comments, replies and drawings take `--skill-revision <revision-read>`. Missing/stale
 revisions warn with the full guide on stderr; successful writes keep their normal output and
-remain published as submitted. Objective validation failures still reject.
+remain published as submitted. Objective validation failures still reject. Loads, items,
+drawings, rewrites and restores also take `--reason <why>` (missing reasons warn;
+`GF_REQUIRE_REASON=1` refuses them), and `bun run gf history <id> [question-id]` reads every
+load back with its time, author and reason.
 
 The canonical instructions and examples live in [the authoring
 guide](server/authoring-guide.md). The installed [grill skill](plugin/skills/grill/SKILL.md)

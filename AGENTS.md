@@ -32,7 +32,10 @@ by version, so an unbumped change never reaches agents.
 build on its next poll (4 s) and reloads itself, keeping unsent drafts. `bun run serve` serves the
 last build without watching. It binds 127.0.0.1:4317 and keeps
 everything in `data/grill-flow.sqlite` (gitignored), one row per answer, note, ask, revision and
-send, so how pages get used can be mined later. Writes need the page's HttpOnly, SameSite=Strict
+send, so how pages get used can be mined later. Every load also keeps the whole grill as a
+numbered revision, read only by `gf history`. The server copies the database to `data/backups/`
+an hour apart with `VACUUM INTO`, keeping the newest 48; `GF_BACKUPS=0` or `GF_PREVIEW=1` skips
+them. Writes need the page's HttpOnly, SameSite=Strict
 cookie, a same-origin request and a JSON body. Other local processes can still reach it, as they
 can reach `hc` itself.
 
