@@ -462,12 +462,15 @@
 }
 .f-task-quick {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 .f-task-quick .f-copy-box {
-  flex: 1 1 320px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.f-task-quick > :not(.f-copy-box) {
+  flex: none;
 }
 .f-done-line {
   margin: 4px 0;

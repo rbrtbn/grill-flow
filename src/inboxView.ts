@@ -278,7 +278,12 @@ const doneLine = (model: Model, task: Task, h: H): Html =>
   )
 
 /** The one move a task leads with: a page answer when its agent accepts one, else typing it. */
-const leadAction = (model: Model, task: Task, h: H): Html => {
+const leadAction = (
+  model: Model,
+  task: Task,
+  isCompact: boolean,
+  h: H,
+): Html => {
   const source = Option.getOrUndefined(task.maybeSource)
   const destination = task.destination
   if (task.pageAnswer !== undefined) {
@@ -304,7 +309,7 @@ const leadAction = (model: Model, task: Task, h: H): Html => {
   return h.span(
     [h.Class('f-type-route')],
     [
-      h.b([], [`Type it in ${destination.address}.`]),
+      isCompact ? h.empty : h.b([], [`Type it in ${destination.address}.`]),
       h.button(
         [
           h.Type('button'),
@@ -327,7 +332,13 @@ const leadAction = (model: Model, task: Task, h: H): Html => {
                 }),
           ),
         ],
-        [copyLabel(model, copyKey, `Copy & focus ${destination.address}`)],
+        [
+          copyLabel(
+            model,
+            copyKey,
+            isCompact ? 'Copy & focus' : `Copy & focus ${destination.address}`,
+          ),
+        ],
       ),
     ],
   )
@@ -342,7 +353,7 @@ const taskButtons = (model: Model, task: Task, h: H): Html => {
   return h.div(
     [h.Class('f-actions f-task-buttons')],
     [
-      leadAction(model, task, h),
+      leadAction(model, task, false, h),
       destination._tag === 'Link'
         ? h.a(
             [
@@ -779,7 +790,7 @@ const taskRow = (model: Model, data: InboxData, task: Task, h: H): Html => {
             [h.Class('f-task-quick')],
             [
               copyBox(model, `inbox:${task.id}`, task.copy, 'Copy', h),
-              leadAction(model, task, h),
+              leadAction(model, task, true, h),
             ],
           )
         : h.empty,

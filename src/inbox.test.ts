@@ -9,6 +9,7 @@ import {
   filtersFrom,
   inboxData,
   passes,
+  placeOf,
   queryOf,
   questionQueryFrom,
   questionQueryString,
@@ -109,5 +110,25 @@ describe('Inbox entries', () => {
     expect(fixture.tasks.some(task => task.state._tag === 'Promised')).toBe(
       true,
     )
+  })
+})
+
+describe('Where a task is done', () => {
+  it('reads PR and issue links as their place, other links by host', () => {
+    const tasks = inboxData(snapshot, {}, 0, false).tasks
+    const merge = tasks[0]
+    expect(merge === undefined ? '' : placeOf(merge)).toBe('github')
+    expect(
+      merge === undefined
+        ? ''
+        : placeOf({
+            ...merge,
+            host: 'rob-mbp',
+            destination: {
+              _tag: 'Link',
+              url: 'https://github.com/o/r/blob/main/docs/setup.md',
+            },
+          }),
+    ).toBe('host:rob-mbp')
   })
 })

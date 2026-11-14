@@ -501,35 +501,43 @@ export const isLive = (session: SessionInfo): boolean =>
 
 // ENTRIES AND FILTERS
 
-export type Kind = 'question' | 'merge' | 'type' | 'edit' | 'page'
+export type Kind = 'question' | 'merge' | 'type' | 'edit' | 'page' | 'setup'
 export const KINDS: ReadonlyArray<readonly [Kind, string]> = [
   ['question', 'Questions'],
   ['merge', 'Merges'],
   ['type', 'Lines to type'],
   ['edit', 'Edits'],
   ['page', 'In the browser'],
+  ['setup', 'Setup'],
 ]
 
+// Where a task is done. A PR, issue or Linear issue link names its place; any other link (a doc
+// to read, a setup guide) is reference, so the step's host names the place instead.
 export const placeOf = (task: Task): string => {
   if (task.destination._tag === 'Terminal') {
     return `terminal:${task.destination.address}`
   }
   const url = task.destination.url
-  return url.includes('github.com')
+  return /github\.com\/[^/]+\/[^/]+\/(pull|issues)\/\d+/.test(url)
     ? 'github'
-    : url.includes('linear.app')
+    : /linear\.app\/[^/]+\/issue\//.test(url)
       ? 'linear'
-      : 'here'
+      : /^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(url) ||
+          task.host === 'this browser'
+        ? 'here'
+        : `host:${task.host}`
 }
 export const placeLabel = (place: string): string =>
   place.startsWith('terminal:')
     ? `In ${place.slice('terminal:'.length)}`
-    : ({
-        questions: 'On the Questions page',
-        github: 'On GitHub',
-        linear: 'In Linear',
-        here: 'In this browser',
-      }[place] ?? place)
+    : place.startsWith('host:')
+      ? `On ${place.slice('host:'.length)}`
+      : ({
+          questions: 'On the Questions page',
+          github: 'On GitHub',
+          linear: 'In Linear',
+          here: 'In this browser',
+        }[place] ?? place)
 
 export const kindOf = (task: Task): Kind =>
   /\/pull\/\d+/.test(
@@ -540,7 +548,9 @@ export const kindOf = (task: Task): Kind =>
       ? 'type'
       : placeOf(task) === 'linear'
         ? 'edit'
-        : 'page'
+        : placeOf(task) === 'here'
+          ? 'page'
+          : 'setup'
 
 export type Entry =
   | Readonly<{
