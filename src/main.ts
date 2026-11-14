@@ -1503,7 +1503,8 @@ export const update = (model: Model, message: Message) =>
     }),
     ClickedOpenSession: ({ target }) => ({
       model: modifyFields(model, {
-        side: () => 'Talk',
+        // The Conversations page shows the conversation in its own middle pane.
+        side: side => (model.currentPart === CONVERSATIONS ? side : 'Talk'),
         workspace: value =>
           modifyFields(value, {
             maybeDiscussionTarget: () => Option.some(target),

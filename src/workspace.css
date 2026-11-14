@@ -1797,77 +1797,6 @@ body[data-gf-preview] .f-workspace {
   gap: 12px;
   margin-top: 20px;
 }
-.f-conversation-layout {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  min-height: 100%;
-  max-width: 1220px;
-  margin: 0 auto;
-  padding: 30px 20px 80px;
-  gap: 25px;
-}
-.f-conversation-list {
-  border-right: 1px solid var(--rule);
-  padding-right: 20px;
-  min-width: 0;
-}
-.f-workspace .f-conversation-list h2 {
-  margin: 0 0 20px;
-  font-size: 20px;
-}
-.f-conversation-item {
-  display: block;
-  width: 100%;
-  margin: 2px 0;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 4px;
-  text-align: left;
-  background: transparent;
-  color: var(--ink);
-  font: 600 14px/1.5 var(--label) !important;
-}
-.f-conversation-item:hover {
-  background: var(--panel);
-}
-.f-conversation-item.is-active {
-  background: var(--accent-wash);
-  color: var(--ink);
-}
-.f-conversation-item small {
-  display: block;
-  margin-top: 5px;
-  color: var(--muted);
-  font: 400 12px/1.4 var(--label);
-}
-.f-conversation-list > .hint {
-  margin-top: 25px;
-  font: 400 13px/1.5 var(--label);
-}
-.f-conversation-layout > .f-discussion {
-  grid-column: 2;
-  height: auto;
-  overflow: visible;
-  display: block;
-  border: 0;
-  background: var(--paper);
-}
-.f-conversation-layout .f-discussion-head {
-  padding: 0;
-}
-.f-conversation-layout .f-discussion-messages {
-  overflow: visible;
-  padding: 0;
-}
-.f-conversation-layout .f-discussion-compose {
-  padding: 25px 0 0;
-}
-.f-conversation-layout .f-discussion-scope {
-  margin-inline: 0;
-}
-.f-conversation-layout .f-context {
-  margin-top: 26px;
-}
 .f-context > h2 {
   margin: 0 0 18px;
   font-size: 18px;
@@ -1883,21 +1812,6 @@ body[data-gf-preview] .f-workspace {
   color: var(--ink);
   font: 600 16px/1.5 var(--read);
 }
-@media (max-width: 700px) {
-  .f-conversation-layout {
-    display: block;
-    padding: 22px 20px 60px;
-  }
-  .f-conversation-list {
-    border-right: 0;
-    border-bottom: 1px solid var(--rule);
-    padding: 0 0 18px;
-    margin-bottom: 24px;
-    max-height: 200px;
-    overflow: auto;
-  }
-}
-
 .f-round-toggle .hint.is-complete {
   color: #477043;
 }

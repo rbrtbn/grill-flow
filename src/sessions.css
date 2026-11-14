@@ -87,6 +87,9 @@
 .f-session-recent:hover {
   background: var(--panel);
 }
+.f-session-row.is-current {
+  background: var(--accent-wash);
+}
 .f-session-row.is-closed,
 .f-session-row.is-done {
   opacity: 0.6;
@@ -289,5 +292,55 @@
   }
   .f-parked-toggle .is-short {
     display: inline;
+  }
+}
+
+/* Conversations: the same panel docked left, the opened conversation in the middle. */
+.f-page-scroller.is-conversation {
+  overflow: hidden;
+}
+.f-conversations-page {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  height: 100%;
+}
+.f-sessions.is-docked {
+  position: static;
+  width: auto;
+  min-height: 0;
+  border-right: 1px solid var(--rule);
+  border-left: 0;
+}
+.f-sessions.is-docked .f-sessions-head h1 {
+  margin: 0;
+  font: 600 22px/1.25 var(--read);
+}
+.f-conversation-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.f-conversation-pane > .f-discussion {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 760px) {
+  .f-page-scroller.is-conversation {
+    overflow-y: auto;
+  }
+  .f-conversations-page {
+    display: block;
+    height: auto;
+  }
+  .f-sessions.is-docked {
+    max-height: 50dvh;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
   }
 }

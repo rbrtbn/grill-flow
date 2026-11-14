@@ -364,6 +364,8 @@ export const workspaceView = (
     model.now === 0 ? (snapshot.channelNow ?? 0) : model.now,
     model.inbox.isFixture,
   )
+  const panelConversation = (closedNote: Option.Option<string>) =>
+    discussionView(model, snapshot, reading, false, h, Option.some(closedNote))
   const content =
     model.currentPart === INBOX
       ? inboxPage(model, snapshot, inbox, h)
@@ -407,7 +409,14 @@ export const workspaceView = (
                             : model.currentPart === 'decided'
                               ? reading.decided(h)
                               : model.currentPart === CONVERSATIONS
-                                ? conversationPage(model, snapshot, reading, h)
+                                ? sessionsPanelView(
+                                    model,
+                                    snapshot,
+                                    inbox,
+                                    panelConversation,
+                                    'Page',
+                                    h,
+                                  )
                                 : Option.match(question, {
                                     onSome: step =>
                                       questionView(
@@ -511,15 +520,8 @@ export const workspaceView = (
             model,
             snapshot,
             inbox,
-            closedNote =>
-              discussionView(
-                model,
-                snapshot,
-                reading,
-                false,
-                h,
-                Option.some(closedNote),
-              ),
+            panelConversation,
+            'Sidebar',
             h,
           )
         : h.empty,
@@ -2646,100 +2648,6 @@ const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
         ],
       )
     : h.empty
-
-const conversationPage = (
-  model: Model,
-  snapshot: Snapshot,
-  reading: Reading,
-  h: H,
-): Html => {
-  const current = Option.getOrElse(
-    model.workspace.maybeDiscussionTarget,
-    () => RUN_TARGET,
-  )
-  const targets = Array.dedupe([
-    current,
-    ...snapshot.asks.map(ask => ask.stepId),
-  ]).filter(target => target !== RUN_TARGET && target !== GRILL_FLOW_TARGET)
-  return h.div(
-    [h.Class('f-conversation-layout')],
-    [
-      h.nav(
-        [h.Class('f-conversation-list'), h.AriaLabel('Conversations')],
-        [
-          h.h2([], ['Conversations']),
-          ...targets.map(target => {
-            const step = snapshot.grill.steps.find(item => item.id === target)
-            return h.keyed('button')(
-              target,
-              [
-                h.Class(
-                  `f-conversation-item${current === target ? ' is-active' : ''}`,
-                ),
-                h.OnClick(Message.SelectedDiscussionTarget({ target })),
-              ],
-              [
-                step === undefined
-                  ? agentAddressOf(target) !== undefined
-                    ? agentLabel(snapshot, agentAddressOf(target)!)
-                    : target.startsWith('part:')
-                      ? (snapshot.grill.parts.find(
-                          part => `part:${part.id}` === target,
-                        )?.title ?? target)
-                      : target
-                  : `About ${step.question.id}`,
-                step === undefined
-                  ? h.empty
-                  : h.small([], [step.question.title]),
-              ],
-            )
-          }),
-          h.button(
-            [
-              h.Class(
-                `f-conversation-item${current === RUN_TARGET ? ' is-active' : ''}`,
-              ),
-              h.OnClick(
-                Message.SelectedDiscussionTarget({ target: RUN_TARGET }),
-              ),
-            ],
-            [
-              `Run coordination${snapshot.grill.session === '' ? '' : ` · ${snapshot.grill.session}`}`,
-            ],
-          ),
-          snapshot.maintainerSession === undefined
-            ? h.empty
-            : h.button(
-                [
-                  h.Class(
-                    `f-conversation-item${current === GRILL_FLOW_TARGET ? ' is-active' : ''}`,
-                  ),
-                  h.OnClick(
-                    Message.SelectedDiscussionTarget({
-                      target: GRILL_FLOW_TARGET,
-                    }),
-                  ),
-                ],
-                [
-                  NAMES.brand,
-                  h.small(
-                    [],
-                    [`Interface & improvements · ${maintainerLabel(snapshot)}`],
-                  ),
-                ],
-              ),
-          h.p(
-            [h.Class('hint')],
-            [
-              'A conversation is the same thread here and beside its question. Moving between views keeps its draft and replies.',
-            ],
-          ),
-        ],
-      ),
-      discussionView(model, snapshot, reading, true, h),
-    ],
-  )
-}
 
 const catalogSnapshots = (
   model: Model,

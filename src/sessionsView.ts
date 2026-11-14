@@ -16,7 +16,7 @@ import { QUESTION_PAGE, RUN_TARGET } from './workspace'
 
 type H = HtmlBuilder<Message>
 
-// The sessions panel (variant I): pinned lead and Grill-flow, recent conversations, then every
+// The sessions panel (variant I): pinned lead and Board, recent conversations, then every
 // session grouped and ordered as Rob picks. A session whose issue is done or whose terminal
 // closed stays, dimmed, for a day; after that its conversations live on the Conversations page.
 
@@ -41,7 +41,12 @@ export type SessionRow = Readonly<{
   isDone: boolean
   lastAt: number
   work: Work
+  // Closed or finished more than a day ago: off the sidebar, under Finished on Conversations.
+  hasLeft: boolean
 }>
+
+// Where the panel shows: the right sidebar, or docked left on the Conversations page.
+export type Placement = 'Sidebar' | 'Page'
 
 // Preview-only work state until sessions publish it (t2j6's business-logic phase).
 const FIXTURE_WORK: Readonly<Record<string, Work>> = {
@@ -77,6 +82,24 @@ const FIXTURE_CLOSED: SessionRow = {
     work: 'Reshape tests/run.sh',
     closedAt: Date.parse('2026-11-14T02:10:00Z'),
   },
+  hasLeft: false,
+}
+const FIXTURE_FINISHED: SessionRow = {
+  address: 't2gx',
+  name: 'Plugin cache fix',
+  role: 'Orchestrated run',
+  squad: 'Squad',
+  isLive: false,
+  isClosed: false,
+  isDone: true,
+  lastAt: Date.parse('2026-11-12T18:20:00Z'),
+  work: {
+    issue: { id: 'LAB-1431', isDone: true },
+    work: 'Plugin cache fix',
+    pr: { number: 151, state: 'merged' },
+    doneAt: Date.parse('2026-11-12T18:20:00Z'),
+  },
+  hasLeft: false,
 }
 
 const realWork = (snapshot: Snapshot, address: string): Work => {
@@ -91,7 +114,8 @@ const realWork = (snapshot: Snapshot, address: string): Work => {
       }
 }
 
-export const sessionRows = (
+/** Every session the page knows, the ones that left the sidebar flagged. */
+const everySessionRow = (
   model: Model,
   snapshot: Snapshot,
   inbox: InboxData,
@@ -115,21 +139,33 @@ export const sessionRows = (
       isDone: false,
       lastAt: 0,
       work: {},
+      hasLeft: false,
     }))
   const rows = [
     ...fromSessions,
     ...agentsOnly,
-    ...(model.inbox.isFixture ? [FIXTURE_CLOSED] : []),
+    ...(model.inbox.isFixture ? [FIXTURE_CLOSED, FIXTURE_FINISHED] : []),
   ]
   const now = model.now === 0 ? (snapshot.channelNow ?? 0) : model.now
-  return rows.filter(row => {
+  return rows.map(row => {
     const gone =
       row.work.closedAt ??
       row.work.doneAt ??
       (row.isClosed ? row.lastAt : undefined)
-    return gone === undefined || now === 0 || now - gone < DAY
+    return {
+      ...row,
+      hasLeft: gone !== undefined && now !== 0 && now - gone >= DAY,
+    }
   })
 }
+
+/** The sessions the sidebar lists. */
+export const sessionRows = (
+  model: Model,
+  snapshot: Snapshot,
+  inbox: InboxData,
+): ReadonlyArray<SessionRow> =>
+  everySessionRow(model, snapshot, inbox).filter(row => !row.hasLeft)
 
 const rowOf = (
   model: Model,
@@ -167,6 +203,7 @@ const rowOf = (
       }),
     ),
     work,
+    hasLeft: false,
   }
 }
 
@@ -234,11 +271,16 @@ const rowView = (
   isPinnedRow = false,
 ): Html => {
   const isPinned = model.inbox.pinned.includes(row.address)
+  const isCurrent =
+    Option.getOrElse(
+      model.workspace.maybeDiscussionTarget,
+      () => RUN_TARGET,
+    ) === targetOf(snapshot, row)
   return h.keyed('div')(
     `${isPinnedRow ? 'pin:' : ''}${row.address}`,
     [
       h.Class(
-        `f-session-row${row.isClosed ? ' is-closed' : ''}${row.isDone ? ' is-done' : ''}`,
+        `f-session-row${row.isClosed ? ' is-closed' : ''}${row.isDone ? ' is-done' : ''}${isCurrent ? ' is-current' : ''}`,
       ),
     ],
     [
@@ -379,9 +421,17 @@ const pinnedGrillFlow = (snapshot: Snapshot, h: H): Html =>
 const directoryView = (
   model: Model,
   snapshot: Snapshot,
-  rows: ReadonlyArray<SessionRow>,
+  everyRow: ReadonlyArray<SessionRow>,
+  placement: Placement,
   h: H,
 ): ReadonlyArray<Html> => {
+  const rows = everyRow.filter(row => !row.hasLeft)
+  const finished = Array.sort(
+    everyRow.filter(
+      row => row.hasLeft && matches(row, model.inbox.sessionSearch),
+    ),
+    ORDERS.Recent,
+  )
   const lead = rows.find(row => row.address === snapshot.grill.session)
   const pinned = rows.filter(
     row => model.inbox.pinned.includes(row.address) && row !== lead,
@@ -538,21 +588,37 @@ const directoryView = (
     Array.isReadonlyArrayEmpty(shown)
       ? h.p([h.Class('hint')], ['No session matches.'])
       : h.empty,
-    h.p(
-      [h.Class('hint f-sessions-foot')],
-      [
-        'Closed and finished sessions leave this list a day after; their conversations stay on ',
-        h.button(
+    ...(placement === 'Sidebar' || Array.isReadonlyArrayEmpty(finished)
+      ? []
+      : [
+          h.h3(
+            [h.Class('f-sessions-heading')],
+            [
+              'Finished ',
+              h.span([h.Class('f-count')], [String(finished.length)]),
+            ],
+          ),
+          ...finished.map(row => rowView(model, snapshot, row, h)),
+        ]),
+    placement === 'Page'
+      ? h.empty
+      : h.p(
+          [h.Class('hint f-sessions-foot')],
           [
-            h.Type('button'),
-            h.Class('text-button'),
-            h.OnClick(Message.ClickedWorkspacePage({ page: 'conversations' })),
+            'Closed and finished sessions leave this list a day after; their conversations stay on ',
+            h.button(
+              [
+                h.Type('button'),
+                h.Class('text-button'),
+                h.OnClick(
+                  Message.ClickedWorkspacePage({ page: 'conversations' }),
+                ),
+              ],
+              ['Conversations'],
+            ),
+            '.',
           ],
-          ['Conversations'],
         ),
-        '.',
-      ],
-    ),
   ]
 }
 
@@ -561,15 +627,19 @@ const groupOf = (value: string): SessionGroup =>
 const orderOf = (value: string): SessionOrder =>
   value === 'Waiting' || value === 'Name' ? value : 'Recent'
 
-/** The right sidebar: the directory, or the conversation a row opened. */
+/**
+ * The sessions panel. As the right sidebar it shows the directory or the conversation a row
+ * opened; on the Conversations page it docks left and the conversation fills the middle.
+ */
 export const sessionsPanelView = (
   model: Model,
   snapshot: Snapshot,
   inbox: InboxData,
   conversation: (closedNote: Option.Option<string>) => Html,
+  placement: Placement,
   h: H,
 ): Html => {
-  const rows = sessionRows(model, snapshot, inbox)
+  const rows = everySessionRow(model, snapshot, inbox)
   const target = Option.getOrElse(
     model.workspace.maybeDiscussionTarget,
     () => RUN_TARGET,
@@ -578,53 +648,84 @@ export const sessionsPanelView = (
     ? target.slice(AGENT_TARGET_PREFIX.length)
     : undefined
   const closed = rows.find(row => row.address === address && row.isClosed)
-  return h.aside(
-    [h.Class('f-sessions'), h.AriaLabel('Sessions')],
-    [
-      h.header(
-        [h.Class('f-sessions-head')],
+  const opened = conversation(
+    closed === undefined
+      ? Option.none()
+      : Option.some(
+          `${closed.address} is closed, so it can't receive messages. Message the lead, ${snapshot.grill.session}, instead.`,
+        ),
+  )
+  const directory = h.div(
+    [h.Class('f-sessions-body')],
+    directoryView(model, snapshot, rows, placement, h),
+  )
+  return placement === 'Page'
+    ? h.div(
+        [h.Class('f-conversations-page')],
         [
-          model.inbox.isSessionDirectory
-            ? h.div(
-                [],
+          h.aside(
+            [h.Class('f-sessions is-docked'), h.AriaLabel('Sessions')],
+            [
+              h.header(
+                [h.Class('f-sessions-head')],
                 [
-                  h.h2([], ['Sessions']),
-                  h.p([h.Class('hint')], ['Pinned, then grouped your way']),
+                  h.div(
+                    [],
+                    [
+                      h.h1([], ['Conversations']),
+                      h.p(
+                        [h.Class('hint')],
+                        ['Every session thread; finished ones last'],
+                      ),
+                    ],
+                  ),
                 ],
-              )
-            : h.button(
+              ),
+              directory,
+            ],
+          ),
+          h.section(
+            [h.Class('f-conversation-pane'), h.AriaLabel('Conversation')],
+            [opened],
+          ),
+        ],
+      )
+    : h.aside(
+        [h.Class('f-sessions'), h.AriaLabel('Sessions')],
+        [
+          h.header(
+            [h.Class('f-sessions-head')],
+            [
+              model.inbox.isSessionDirectory
+                ? h.div(
+                    [],
+                    [
+                      h.h2([], ['Sessions']),
+                      h.p([h.Class('hint')], ['Pinned, then grouped your way']),
+                    ],
+                  )
+                : h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-button'),
+                      h.OnClick(Message.ClickedSessionsBack()),
+                    ],
+                    ['‹ Sessions'],
+                  ),
+              h.button(
                 [
                   h.Type('button'),
                   h.Class('text-button'),
-                  h.OnClick(Message.ClickedSessionsBack()),
+                  h.AriaKeyshortcuts('Escape'),
+                  h.OnClick(Message.ClickedCloseDiscussion()),
                 ],
-                ['‹ Sessions'],
+                ['Close'],
               ),
-          h.button(
-            [
-              h.Type('button'),
-              h.Class('text-button'),
-              h.AriaKeyshortcuts('Escape'),
-              h.OnClick(Message.ClickedCloseDiscussion()),
             ],
-            ['Close'],
           ),
+          model.inbox.isSessionDirectory ? directory : opened,
         ],
-      ),
-      model.inbox.isSessionDirectory
-        ? h.div(
-            [h.Class('f-sessions-body')],
-            directoryView(model, snapshot, rows, h),
-          )
-        : conversation(
-            closed === undefined
-              ? Option.none()
-              : Option.some(
-                  `${closed.address} is closed, so it can't receive messages. Message the lead, ${snapshot.grill.session}, instead.`,
-                ),
-          ),
-    ],
-  )
+      )
 }
 
 export const sessionsBadge = (

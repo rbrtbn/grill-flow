@@ -98,3 +98,31 @@ it('walks only the questions the address filters keep', () => {
     expect(selector('.f-question-title')).toHaveText('Title Q3'),
   )
 })
+
+it('opens a conversation in the middle of the Conversations page, beside the same panel', () => {
+  scene(
+    { update, view },
+    given(loaded('/g/fixture/inbox')),
+    click(role('button', { name: 'Conversations' })),
+    Command.resolve(PushPage, Message.CompletedNavigate()),
+    Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    Mount.resolveAll(
+      [FillBox, Message.CompletedFillBox()],
+      [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
+    ),
+    expect(selector('.f-sessions.is-docked')).toContainText('Pinned'),
+    click(role('button', { name: /Even builder/ })),
+    Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+    expect(role('region', { name: 'Conversation' })).toContainText(
+      'Message Even builder · t-even',
+    ),
+    expect(selector('.f-sessions:not(.is-docked)')).not.toExist(),
+    expect(selector('.f-session-row.is-current')).toContainText('Even builder'),
+    click(role('button', { name: /^Inbox/ })),
+    Command.resolve(PushPage, Message.CompletedNavigate()),
+    Command.resolve(ScrollToTop, Message.CompletedScroll()),
+    Mount.expectEnded(FillBox),
+    Mount.expectEnded(RestoreDiscussionScroll),
+    expect(role('complementary', { name: 'Sessions' })).not.toExist(),
+  )
+})
