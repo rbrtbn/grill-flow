@@ -1032,3 +1032,16 @@
 .f-decision-title {
   font: 500 14px/1.4 var(--label);
 }
+.f-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.f-status-row > .f-status-line {
+  flex: 1 1 auto;
+  width: auto;
+}
+.f-status-question {
+  flex: none;
+  font-size: 13px;
+}

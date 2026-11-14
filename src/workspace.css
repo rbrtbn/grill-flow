@@ -2118,31 +2118,6 @@ body[data-gf-preview] .f-workspace {
   margin-top: 14px;
 }
 
-.f-roster {
-  margin-top: 36px;
-  padding-top: 24px;
-  border-top: 1px solid var(--rule);
-}
-.f-roster > p {
-  margin-top: 10px;
-  max-width: 75ch;
-}
-.f-roster-table {
-  margin-top: 18px;
-  min-width: 720px;
-}
-.f-roster-work a {
-  display: block;
-}
-.f-roster-ended {
-  margin-top: 18px;
-}
-.f-roster-ended summary {
-  color: var(--link);
-  cursor: pointer;
-  font: 500 13px/1.5 var(--label);
-}
-
 .f-activity-tools,
 .f-activity-tools [role='group'] {
   display: flex;
@@ -3096,4 +3071,42 @@ body[data-gf-preview] .f-workspace {
   .f-retiring-table td:nth-child(4) {
     grid-column: 1 / -1;
   }
+}
+
+/* Runs › one session: Earlier status, Activity, Work, Dependencies and Brief as folds. */
+.f-run-detail {
+  display: grid;
+  gap: 6px;
+  margin-top: 24px;
+}
+.f-run-fold {
+  border-top: 1px solid var(--rule);
+}
+.f-run-fold > summary {
+  padding: 10px 0;
+  font: 600 15px/1.4 var(--label);
+  cursor: pointer;
+}
+.f-run-fold[open] > summary {
+  padding-bottom: 6px;
+}
+.f-earlier-status {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.f-run-activity {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 10px;
+  list-style: none;
+  font: 400 13px/1.45 var(--label);
+}
+.f-run-activity li {
+  display: grid;
+  grid-template-columns: 130px max-content minmax(0, 1fr);
+  gap: 10px;
+}
+.f-runs-table-section {
+  margin-top: 28px;
 }

@@ -136,3 +136,20 @@ it('opens a conversation in the middle of the Conversations page, beside the sam
     expect(role('complementary', { name: 'Sessions' })).not.toExist(),
   )
 })
+
+it('gives a session its own Runs page with Earlier status and Activity folds', () => {
+  scene(
+    { update, view },
+    given(loaded('/g/fixture/runs/t-even')),
+    expect(selector('.f-run-detail')).toContainText('Earlier status'),
+    expect(selector('.f-run-detail')).toContainText('Activity'),
+  )
+})
+
+it('shows the squad runs table on Runs', () => {
+  scene(
+    { update, view },
+    given(loaded('/g/fixture/runs')),
+    expect(role('region', { name: 'Active runs' })).toContainText('Refresh'),
+  )
+})

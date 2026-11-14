@@ -228,6 +228,8 @@ export type StatusLine = Readonly<{
   title: string
   body: string
   at: number
+  // The question the update is about, in its source's board.
+  about?: Readonly<{ source: string; question: string }>
 }>
 
 export type InboxBase = Readonly<{
@@ -486,6 +488,9 @@ const statusesOf = (snapshot: Snapshot): ReadonlyArray<StatusLine> =>
         title: entry.item.title ?? 'Status',
         body: entry.displayBody ?? entry.item.body,
         at: entry.at,
+        ...(entry.item.question === undefined
+          ? {}
+          : { about: { source: entry.source, question: entry.item.question } }),
       })),
     Order.flip(Order.mapInput(Order.Number, (line: StatusLine) => line.at)),
   )

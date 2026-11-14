@@ -27,6 +27,7 @@ import {
   SESSION_TYPES,
   SESSION_TYPE_ORDER,
   type SessionInfo,
+  type StatusLine,
   type Task,
   type TaskStep,
   bucketLabel,
@@ -55,6 +56,7 @@ import {
 import { Message, type Model, PAGE_LINK_COPY } from './main'
 import { refView } from './refCard'
 import { roundCard, sessionCard } from './refCards'
+import { sourceQuestionHref } from './sourceLinks'
 import { QUESTION_PAGE } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -1244,6 +1246,7 @@ const viewName = (data: InboxData, filters: Filters): string => {
 
 const statusSection = (
   model: Model,
+  snapshot: Snapshot,
   data: InboxData,
   filters: Filters,
   h: H,
@@ -1265,30 +1268,58 @@ const statusSection = (
           const status = data.statuses.find(
             line => line.session === session.address,
           )
-          return h.keyed('button')(
+          return h.keyed('div')(
             session.address,
+            [h.Class('f-status-row')],
             [
-              h.Type('button'),
-              h.Class(`f-status-line${isLive(session) ? '' : ' is-stale'}`),
-              h.OnClick(go(`${RUN_PAGE}${session.address}`)),
-            ],
-            [
-              h.b([], [session.address]),
-              typeBadge(session, h),
-              h.span([h.Class('f-status-label')], [session.label]),
-              h.span(
-                [h.Class('hint')],
+              h.button(
                 [
-                  status === undefined
-                    ? lastActiveLine(model, session)
-                    : `${status.title} · ${ago(model.now, status.at)}`,
+                  h.Type('button'),
+                  h.Class(`f-status-line${isLive(session) ? '' : ' is-stale'}`),
+                  h.OnClick(go(`${RUN_PAGE}${session.address}`)),
+                ],
+                [
+                  h.b([], [session.address]),
+                  typeBadge(session, h),
+                  h.span([h.Class('f-status-label')], [session.label]),
+                  h.span(
+                    [h.Class('hint')],
+                    [
+                      status === undefined
+                        ? lastActiveLine(model, session)
+                        : `${status.title} · ${ago(model.now, status.at)}`,
+                    ],
+                  ),
                 ],
               ),
+              statusQuestionLink(snapshot, status, h),
             ],
           )
         }),
     ],
   )
+
+/** The question a status update is about, linked where it was asked. */
+const statusQuestionLink = (
+  snapshot: Snapshot,
+  status: StatusLine | undefined,
+  h: H,
+): Html =>
+  status?.about === undefined
+    ? h.empty
+    : h.a(
+        [
+          h.Class('text-link f-status-question'),
+          h.Href(
+            sourceQuestionHref(
+              snapshot.grill.id,
+              status.about.source,
+              status.about.question,
+            ),
+          ),
+        ],
+        [`About ${status.about.question} ›`],
+      )
 
 const lastActiveLine = (model: Model, session: SessionInfo): string =>
   Option.match(session.maybeLastActive, {
@@ -1542,7 +1573,7 @@ export const inboxPage = (
             ],
           )
         : h.empty,
-      statusSection(model, data, filters, h),
+      statusSection(model, snapshot, data, filters, h),
       h.section(
         [h.Class('f-done-zone')],
         [
@@ -1615,6 +1646,7 @@ export const inboxPage = (
 
 const laneView = (
   model: Model,
+  snapshot: Snapshot,
   data: InboxData,
   session: SessionInfo,
   isFocus: boolean,
@@ -1730,6 +1762,7 @@ const laneView = (
                 ],
               ),
               h.p([], [status.body]),
+              statusQuestionLink(snapshot, status, h),
             ],
           ),
       ...tasks.map(task =>
@@ -1795,6 +1828,8 @@ export const runsPage = (
   data: InboxData,
   maybeFocus: Option.Option<string>,
   h: H,
+  // The runs table on Runs, or a session's folds on its own page.
+  extra: Html = h.empty,
 ): Html => {
   const focus = Option.flatMap(maybeFocus, address => sessionOf(data, address))
   const ordered = SESSION_TYPE_ORDER.flatMap(type =>
@@ -1861,10 +1896,13 @@ export const runsPage = (
         onNone: () =>
           h.div(
             [h.Class('f-board')],
-            ordered.map(session => laneView(model, data, session, false, h)),
+            ordered.map(session =>
+              laneView(model, snapshot, data, session, false, h),
+            ),
           ),
-        onSome: session => laneView(model, data, session, true, h),
+        onSome: session => laneView(model, snapshot, data, session, true, h),
       }),
+      extra,
       Option.isSome(maybeFocus) && Option.isNone(focus)
         ? h.p([h.Class('hint')], ['No session with that address on this page.'])
         : h.empty,

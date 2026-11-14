@@ -3926,7 +3926,8 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
       RestoreRead({ grillId: snapshot.grill.id }),
       RestoreClosedLine({ grillId: snapshot.grill.id }),
       RestoreKeptBack({ grillId: snapshot.grill.id }),
-      ...([SQUAD, GRILLS].includes(next.currentPart)
+      ...([SQUAD, GRILLS, RUNS].includes(next.currentPart) ||
+      next.currentPart.startsWith(RUN_PAGE)
         ? [LoadWorkspaceCatalog()]
         : []),
     ],
@@ -4015,7 +4016,8 @@ const workspaceNavigate = (model: Model, page: string): UpdateReturn =>
       commands: [
         ...pushIfMoved(model, next, snapshot.grill),
         ScrollToTop(),
-        ...([SQUAD, GRILLS].includes(page) &&
+        ...(([SQUAD, GRILLS, RUNS].includes(page) ||
+          page.startsWith(RUN_PAGE)) &&
         !AsyncData.hasData(model.workspace.catalog)
           ? [LoadWorkspaceCatalog()]
           : []),

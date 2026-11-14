@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Order } from 'effect'
 import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
@@ -83,7 +83,6 @@ import {
 import { refView } from './refCard'
 import { linkCard, roundCard, sessionCard } from './refCards'
 import { retirementView } from './retirementView'
-import { rosterView } from './rosterView'
 import {
   heldSendBarView,
   leaveDialogView,
@@ -385,6 +384,15 @@ export const workspaceView = (
               ? Option.some(model.currentPart.slice(RUN_PAGE.length))
               : Option.none(),
             h,
+            model.currentPart.startsWith(RUN_PAGE)
+              ? runDetailView(
+                  model,
+                  snapshot,
+                  reading,
+                  model.currentPart.slice(RUN_PAGE.length),
+                  h,
+                )
+              : runsTableSection(model, snapshot, h),
           )
         : model.currentPart.startsWith(DECISION_PAGE)
           ? decisionPage(
@@ -3243,12 +3251,148 @@ const squadRuns = (
   )
 }
 
-const squadView = (
+// Which session published from a channel source, read off what that source published.
+const sessionOfSource = (
+  snapshot: Snapshot,
+): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    [
+      ...(snapshot.updates ?? []),
+      ...(snapshot.ownerSteps ?? []),
+      ...(snapshot.decisions ?? []),
+      ...(snapshot.blockers ?? []),
+    ].map(entry => [entry.source, entry.item.session]),
+  )
+
+const when = (at: number): string =>
+  new Date(at).toLocaleString('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+
+/** Runs › one session: what used to live on Updates, What changed and Run overview. */
+const runDetailView = (
   model: Model,
   snapshot: Snapshot,
   reading: Reading,
+  address: string,
   h: H,
 ): Html => {
+  const earlier = Array.sort(
+    (snapshot.updates ?? []).filter(
+      entry =>
+        entry.item.session === address && entry.supersededBy !== undefined,
+    ),
+    Order.flip(
+      Order.mapInput(
+        Order.Number,
+        (entry: NonNullable<Snapshot['updates']>[number]) => entry.at,
+      ),
+    ),
+  )
+  const sources = sessionOfSource(snapshot)
+  const activity = (snapshot.activity?.entries ?? []).filter(
+    entry => sources[entry.source] === address,
+  )
+  const run = squadRuns(model, snapshot).find(
+    state => state.grill.session === address,
+  )
+  const planned =
+    run ?? (snapshot.grill.session === address ? snapshot : undefined)
+  const issues =
+    planned?.grill.plan?.issues.filter(
+      issue =>
+        planned !== snapshot ||
+        issue.agent === address ||
+        (issue.agent === undefined && snapshot.grill.session === address),
+    ) ?? []
+  const fold = (title: string, count: number, body: ReadonlyArray<Html>) =>
+    h.details(
+      [h.Class('f-run-fold')],
+      [
+        h.summary(
+          [],
+          [title, ' ', h.span([h.Class('f-count')], [String(count)])],
+        ),
+        ...body,
+      ],
+    )
+  return h.div(
+    [h.Class('f-run-detail')],
+    [
+      fold(
+        'Earlier status',
+        earlier.length,
+        Array.isReadonlyArrayEmpty(earlier)
+          ? [h.p([h.Class('hint')], ['No earlier status from this session.'])]
+          : earlier.map(entry =>
+              h.keyed('article')(
+                `${entry.source}:${entry.event}`,
+                [h.Class('f-earlier-status')],
+                [
+                  h.p(
+                    [h.Class('f-channel-meta')],
+                    [`${entry.item.title ?? 'Status'} · ${when(entry.at)}`],
+                  ),
+                  reading.prose(entry.displayBody ?? entry.item.body, h),
+                ],
+              ),
+            ),
+      ),
+      fold(
+        'Activity',
+        activity.length,
+        Array.isReadonlyArrayEmpty(activity)
+          ? [
+              h.p(
+                [h.Class('hint')],
+                ['No activity from this session in the loaded feed.'],
+              ),
+            ]
+          : [
+              h.ol(
+                [h.Class('f-run-activity')],
+                activity.map(entry =>
+                  h.keyed('li')(
+                    `${entry.source}:${entry.event}`,
+                    [],
+                    [
+                      h.span([h.Class('hint')], [when(entry.at)]),
+                      h.b([], [entry.label]),
+                      h.span([], [entry.summary.replace(/[*#]+/g, '')]),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+      ),
+      planned === undefined || Array.isReadonlyArrayEmpty(issues)
+        ? h.empty
+        : fold('Work', issues.length, [
+            workTable(model, planned, issues, reading, h),
+          ]),
+      planned?.grill.plan === undefined
+        ? h.empty
+        : fold(
+            'Dependencies',
+            planned.grill.plan.issues.filter(
+              issue => (issue.follows ?? []).length > 0,
+            ).length,
+            [dependenciesView(planned, h)],
+          ),
+      planned === undefined || planned.grill.plan === undefined
+        ? h.empty
+        : fold('Brief', planned.grill.intro.length, [
+            ...planned.grill.intro.map(text => reading.prose(text, h)),
+            h.h3([], ['After this round']),
+            ...planned.grill.next.map(text => reading.prose(text, h)),
+          ]),
+    ],
+  )
+}
+
+/** The squad's runs from the loaded boards: active first, the completed ones folded. */
+const runsTableSection = (model: Model, snapshot: Snapshot, h: H): Html => {
   const runs = squadRuns(model, snapshot)
   const active = runs.filter(
     state => workOf(state).current.length > 0 || neededCount(state) > 0,
@@ -3324,10 +3468,20 @@ const squadView = (
                     h.td(
                       [],
                       [
-                        h.a(
+                        h.button(
                           [
-                            h.Href(
-                              `/g/${encodeURIComponent(state.grill.id)}/needs-you`,
+                            h.Type('button'),
+                            h.Class('text-button'),
+                            h.Title(
+                              `Open the Inbox filtered to ${state.grill.session || state.grill.id}`,
+                            ),
+                            h.OnClick(
+                              Message.ClickedWorkspacePage({
+                                page:
+                                  state.grill.session === ''
+                                    ? INBOX
+                                    : `${INBOX}?run=${encodeURIComponent(state.grill.session)}`,
+                              }),
                             ),
                           ],
                           [
@@ -3346,15 +3500,8 @@ const squadView = (
       ],
     )
   return h.section(
-    [h.Class('f-page f-squad-overview')],
+    [h.Class('f-runs-table-section'), h.AriaLabel('Active runs')],
     [
-      h.h1([], [boardName(snapshot.grill)]),
-      h.p(
-        [h.Class('f-lead')],
-        [
-          'Squad overview: active runs, their state, and where your attention is needed.',
-        ],
-      ),
       h.div(
         [h.Class('f-section-heading')],
         [
@@ -3367,7 +3514,7 @@ const squadView = (
       active.length === 0
         ? h.p(
             [h.Class('f-empty hint')],
-            ['No active squad runs in the loaded grills.'],
+            ['No active squad runs in the loaded boards.'],
           )
         : h.empty,
       completed.length > 0
@@ -3379,42 +3526,30 @@ const squadView = (
             ],
           )
         : h.empty,
-      rosterView(snapshot.roster, runs, h),
-      h.section(
-        [h.Class('f-portfolio-next')],
-        [
-          h.h2([], ['Where to go next']),
-          h.p(
-            [],
-            [
-              'Needs you collects decisions and drafts ready to send. Run overview holds the work, future plans, sessions and dependencies.',
-            ],
-          ),
-          h.div(
-            [h.Class('f-actions')],
-            [
-              h.button(
-                [
-                  h.Class('quiet-button'),
-                  h.OnClick(Message.ClickedWorkspacePage({ page: NEEDS })),
-                ],
-                ['Needs you'],
-              ),
-              h.button(
-                [
-                  h.Class('quiet-button'),
-                  h.OnClick(Message.ClickedWorkspacePage({ page: 'plan' })),
-                ],
-                ['Run overview'],
-              ),
-            ],
-          ),
-        ],
-      ),
-      retirementView(h),
     ],
   )
 }
+
+const squadView = (
+  model: Model,
+  snapshot: Snapshot,
+  reading: Reading,
+  h: H,
+): Html =>
+  h.section(
+    [h.Class('f-page f-squad-overview')],
+    [
+      h.h1([], [boardName(snapshot.grill)]),
+      h.p(
+        [h.Class('f-lead')],
+        [
+          'Squad overview: active runs, their state, and where your attention is needed.',
+        ],
+      ),
+      runsTableSection(model, snapshot, h),
+      retirementView(h),
+    ],
+  )
 
 const grillsView = (model: Model, snapshot: Snapshot, h: H): Html => {
   const states = catalogSnapshots(model, snapshot)
