@@ -25,6 +25,7 @@ import {
   printAuthoringWarning,
   readAuthoringWarnings,
   stampAuthoring,
+  writeProvenance,
 } from './authoring'
 import { remoteItemError } from './channel'
 import { DrawingReply, drawingMessage } from './drawings'
@@ -146,7 +147,7 @@ export const runOutbox = async (
     }
     writeAtomic(
       path,
-      `${JSON.stringify(stampAuthoring(payload, flag(args, '--skill-revision')), null, 2)}\n`,
+      `${JSON.stringify(stampAuthoring(payload, flag(args, '--skill-revision'), writeProvenance(args)), null, 2)}\n`,
     )
   }
   const hostWarnings = (state: unknown, since = 0): void => {
@@ -232,7 +233,10 @@ export const runOutbox = async (
       break
     case 'retire':
     case 'restore':
-      fail('Run retire/restore on the serving machine without GF_OUTBOX.')
+    case 'history':
+      fail(
+        `Run ${command} on the serving machine without GF_OUTBOX; it keeps the record.`,
+      )
       break
     case 'load': {
       const grill = decodeGrill(

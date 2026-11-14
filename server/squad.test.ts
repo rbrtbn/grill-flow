@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 import { type Snapshot, type Step, roundSteps } from '../src/domain'
 import { questionRevisions, recordAnswer } from './answerReceipts'
-import { SKILL_REVISION, isAuthoringCommand } from './authoring'
+import { SKILL_REVISION, isAuthoringCommand, needsReason } from './authoring'
 import { publishUpdate } from './channel'
 import { grillOnMachine } from './remote'
 import { selectSend } from './sendSelection'
@@ -102,6 +102,7 @@ const cli = async (...args: ReadonlyArray<string>) => {
       ...(isAuthoringCommand(args[0])
         ? ['--skill-revision', String(SKILL_REVISION)]
         : []),
+      ...(needsReason(args[0], args) ? ['--reason', 'test write'] : []),
     ],
     {
       env: environment,

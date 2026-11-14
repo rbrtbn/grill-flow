@@ -9,6 +9,7 @@ import { attentionSnapshot } from './attention'
 import {
   SKILL_REVISION,
   declaredRevision,
+  queuedProvenance,
   hostGuide,
   revisionMetadata,
   skillRevision,
@@ -210,9 +211,14 @@ const takeGrill = async (
     return false
   }
   try {
+    const provenance = queuedProvenance(raw)
     const grill = loadGrill(
       db,
       grillOnMachine(decodeGrill(raw), remote.machine),
+      {
+        ...provenance,
+        author: remoteSession(remote.machine, provenance.author),
+      },
     )
     db.run(
       'INSERT INTO grill_remotes (grill_id, machine, dir) VALUES (?, ?, ?) ON CONFLICT(grill_id) DO UPDATE SET machine = excluded.machine, dir = excluded.dir',
@@ -253,11 +259,13 @@ const takeRevision = async (
     }
     return replied.ok
   }
+  const { reason } = queuedProvenance(raw)
   const result = reviseGrill(db, grill, {
     stepId: String(raw.stepId ?? ''),
     askId: typeof raw.askId === 'number' ? raw.askId : null,
     kind: raw.kind === 'rewrite' ? 'rewrite' : 'comment',
     text: String(raw.text ?? ''),
+    ...(reason === '' ? {} : { reason }),
   })
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.reason}`)
@@ -285,10 +293,16 @@ const takeItem = async (
     console.error(`remote ${remote.machine}:${path}: ${remoteError}`)
     return false
   }
-  const result = publishItem(db, grill, {
-    ...decoded.success,
-    session: remoteSession(remote.machine, decoded.success.session),
-  })
+  const result = publishItem(
+    db,
+    grill,
+    {
+      ...decoded.success,
+      session: remoteSession(remote.machine, decoded.success.session),
+    },
+    Date.now(),
+    queuedProvenance(raw).reason,
+  )
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.reason}`)
   }
@@ -309,7 +323,7 @@ const takeDrawing = async (
     return false
   }
   const raw = await readRemote(remote.machine, `${root}/${path}`)
-  const result = publishDrawing(db, grill, raw)
+  const result = publishDrawing(db, grill, raw, queuedProvenance(raw).reason)
   if (!result.ok) {
     console.error(`remote ${remote.machine}:${path}: ${result.error}`)
   }
