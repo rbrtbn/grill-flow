@@ -114,13 +114,15 @@ this", which costs a round trip and blocks whatever waits on the answer. Follow 
    recommendation says why in one sentence.
 7. **One decision per question.** Split a question that bundles two choices.
 8. **Plain words.** Short sentences, active voice, no jargon a newcomer wouldn't know.
-9. **Summary first.** The step's first `prose` paragraph is a one-paragraph summary: what is
-   being decided, what you recommend and why. Write it so the user can answer from it and the
-   option labels alone; the page may show only that paragraph until the user asks for more.
+9. **Summary first.** The step's first `prose` paragraph is a one-paragraph summary that builds
+   on `context` without repeating it: what you recommend and why, plus what the user needs to
+   pick. Write it so the user can answer from the context, this paragraph and the option labels
+   alone; the page may show only these until the user asks for more.
 10. **Trade-offs after the summary.** The rest of `prose` explains the trade-offs between the
-   options: what each one gains and costs, and what would change your recommendation. Every
-   question with two or more options carries a `compare` table (Diagrams, below) with one row
-   per trade-off that differs between them, so the user can compare the answers at a glance.
+    options: what each one gains and costs, and what would change your recommendation. Every
+    question with two or more options carries a `compare` table (Diagrams, below) with one row
+    per trade-off that differs between them, so the user can compare the answers at a glance.
+    The lint does not check rules 9 and 10 yet; read for them before loading.
 
 Before loading, read each question as if it were the first thing you saw today: does it make
 sense on its own, can you answer it from the summary and the labels, and does the rest show
@@ -179,7 +181,7 @@ an empty session for a writer that will run `gf wait`; use your actual Herdr add
       "part": "decision",
       "heading": "Choose the next step",
       "prose": [
-        "Decide whether to automate a manual step that costs each run ten minutes. Implementing it is recommended: it pays back within a week. Inspect squad#107 and LAB-1388 for the supplied evidence.",
+        "Implementing it is recommended: it pays back within a week and removes a step people forget. Inspect squad#107 and LAB-1388 for the supplied evidence.",
         "Implementing costs a day of work and a review now; keeping the process costs nothing now and ten minutes on every run until it changes."
       ],
       "question": {
