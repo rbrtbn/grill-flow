@@ -4,9 +4,9 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { AGENT_TARGET_PREFIX, GRILL_FLOW_TARGET, type Snapshot } from './domain'
 import {
   type InboxData,
+  SESSION_TYPES,
   type SessionGroup,
   type SessionInfo,
-  SESSION_TYPES,
   type SessionOrder,
 } from './inbox'
 import { ago } from './inboxView'

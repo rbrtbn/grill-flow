@@ -109,7 +109,6 @@ import {
   SQUAD,
   UPDATES,
   activeQuestionFilters,
-  adjacentQuestion,
   answerLabel,
   draftAnswerIds,
   draftQuestions,
@@ -476,12 +475,8 @@ export const workspaceView = (
           ? `Send${selectedDrafts.length > 0 ? ` · ${selectedDrafts.length}` : ''}`
           : reviewLabel
   const question = questionOnPage(snapshot, model.currentPart)
-  const isDiscussion =
-    model.side === 'Talk' || model.currentPart === CONVERSATIONS
   const hasSessions =
     model.side === 'Talk' && model.currentPart !== CONVERSATIONS
-  const expanded =
-    model.workspace.isDiscussionExpanded || model.currentPart === CONVERSATIONS
   const styles = {
     '--nav-w': `${Option.getOrElse(model.maybeNavWidth, () => 320)}px`,
     '--side-set': `${Option.getOrElse(model.maybeSideWidth, () => 400)}px`,
@@ -2290,23 +2285,6 @@ const messageCount = (ref: DiscussionRef): string => {
   const count = ref.asks + ref.replies
   return `${count} ${count === 1 ? 'message' : 'messages'}`
 }
-
-const messagesLink = (snapshot: Snapshot, step: Step, h: H): Html =>
-  Option.match(Option.fromNullishOr(snapshot.discussions?.[step.question.id]), {
-    onNone: () => h.empty,
-    onSome: ref =>
-      link(
-        messageCount(ref),
-        Message.ClickedDiscussion({ target: ref.target }),
-        h,
-      ),
-  })
-
-const discussLabel = (model: Model): string =>
-  model.currentPart.startsWith(QUESTION_PAGE) ||
-  [REVIEW, REPLIES].includes(model.currentPart)
-    ? 'Discuss'
-    : 'Ask about run'
 
 const answersView = (
   model: Model,
