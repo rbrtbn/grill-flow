@@ -12,6 +12,8 @@ import {
 } from './inbox'
 import { ago } from './inboxView'
 import { Message, type Model } from './main'
+import { refView } from './refCard'
+import { linkCard } from './refCards'
 import { QUESTION_PAGE, RUN_TARGET } from './workspace'
 
 type H = HtmlBuilder<Message>
@@ -338,19 +340,35 @@ const rowView = (
         [
           row.work.issue === undefined
             ? h.empty
-            : h.span(
-                [
-                  h.Class(
-                    `f-session-chip${row.work.issue.isDone ? ' is-struck' : ''}`,
-                  ),
-                ],
-                [row.work.issue.id],
+            : refView(
+                linkCard(snapshot, row.work.issue.id),
+                `panel-${row.address}`,
+                h.span(
+                  [
+                    h.Class(
+                      `f-session-chip${row.work.issue.isDone ? ' is-struck' : ''}`,
+                    ),
+                  ],
+                  [row.work.issue.id],
+                ),
+                h,
               ),
           row.work.pr === undefined
             ? h.empty
-            : h.span(
-                [h.Class(`f-session-chip is-${row.work.pr.state}`)],
-                [`PR #${row.work.pr.number} · ${row.work.pr.state}`],
+            : refView(
+                {
+                  kind: 'PR',
+                  id: String(row.work.pr.number),
+                  title: `PR #${row.work.pr.number}`,
+                  subtitle: row.work.work ?? row.name,
+                  rows: [['State', row.work.pr.state]],
+                },
+                `panel-${row.address}`,
+                h.span(
+                  [h.Class(`f-session-chip is-${row.work.pr.state}`)],
+                  [`PR #${row.work.pr.number} · ${row.work.pr.state}`],
+                ),
+                h,
               ),
           row.work.newOn === undefined
             ? h.empty

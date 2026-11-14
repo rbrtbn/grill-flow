@@ -97,6 +97,7 @@ import {
   visibleToastsOf,
 } from './main'
 import { splitQuote } from './quote'
+import { refView as withRefCard } from './refCard'
 import { textLimitCount } from './textLimitView'
 import { isWorkspacePage } from './workspace'
 import { workspaceView } from './workspaceView'
@@ -329,17 +330,32 @@ const refView = (key: string, ref: Ref, h: H): Html => {
     h.Title(refSummary(key, ref)),
     h.AriaLabel(refSummary(key, ref)),
   ]
-  return ref.url === undefined
-    ? h.span(attributes, body)
-    : h.a(
-        [
-          ...attributes,
-          h.Href(ref.url),
-          h.Target('_blank'),
-          h.Rel('noreferrer'),
-        ],
-        body,
-      )
+  const link =
+    ref.url === undefined
+      ? h.span(attributes, body)
+      : h.a(
+          [
+            ...attributes,
+            h.Href(ref.url),
+            h.Target('_blank'),
+            h.Rel('noreferrer'),
+          ],
+          body,
+        )
+  return withRefCard(
+    {
+      kind: ref.type === 'pr' ? 'PR' : 'Issue',
+      id: key,
+      title: ref.text,
+      subtitle: key,
+      rows: ref.state === undefined ? [] : [['State', ref.state]],
+      ...(ref.url === undefined ? {} : { href: ref.url }),
+    },
+    'prose',
+    link,
+    h,
+    false,
+  )
 }
 
 /** The same reference as a label inside a button, where a link can't go. */

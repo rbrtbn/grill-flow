@@ -5,6 +5,7 @@
   position: relative;
   display: inline-flex;
   anchor-name: var(--ref-anchor);
+  anchor-scope: all;
 }
 .f-ref-trigger {
   display: inline;
