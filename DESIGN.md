@@ -21,9 +21,10 @@ between them. The reading column stays a plain book page.
 - Type: Literata for reading, headings and task titles; Archivo Narrow for labels, numbers and
   controls, with small caps for group headings; JetBrains Mono only for code and lines to
   copy.
-- The header is one 56px bar: the brand, then Inbox · Questions · Runs · Conversations as
-  plain tabs with ink count pills (ochre for the Inbox's count of what is due), then More, the
-  freeze pill and the unsent tray.
+- The header is one 56px bar in three parts. Left: the Board wordmark, then Inbox · Questions ·
+  Runs · More ▾ as plain tabs with ink count pills (ochre for the Inbox's count of what is
+  due); everything that opens a page sits here. Centre: the squad's or session's name.
+  Right: actions only (Sessions, Review & send, the freeze pill, Not in this design yet).
 - The question is the one block set apart, on `--panel`. Options are rows: a lettered disc, the
   label, and a muted consequence line.
 - State is shown by form, not colour alone: filled (answered), outlined (open), dashed (waiting),
