@@ -48,14 +48,20 @@ const quotable = (prose: ReadonlyArray<string>): string | undefined =>
     )
 
 /**
- * Preview-only sample threads for a question (`?fixture=owner-actions`): a passage thread on its
+ * Preview-only sample threads on one sample question (`?fixture=owner-actions`): a passage thread on its
  * second paragraph, a passage the question no longer contains, and a side thread with the lead.
  */
+// The sample question (questionFixture.ts) with a comparison table and long prose to quote.
+const THREADED_SAMPLE = 'Q901'
+
 export const fixtureThreads = (
   snapshot: Snapshot,
   step: Step,
   askerName: string,
 ): ReadonlyArray<NestedThread> => {
+  if (step.question.id !== THREADED_SAMPLE) {
+    return []
+  }
   const asker = step.question.session ?? snapshot.grill.session
   const lead = snapshot.grill.session
   const quoted = quotable(step.prose.slice(1)) ?? quotable(step.prose)

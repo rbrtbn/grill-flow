@@ -88,6 +88,7 @@ import {
   queryOf,
   toggleFacet,
 } from './inbox'
+import { isFixtureQuestion, withFixtureQuestions } from './questionFixture'
 import {
   QUOTE_BOX,
   QUOTE_DRAFT,
@@ -747,6 +748,16 @@ const postEvent = (
   const isDraftEdit = ['answered', 'noted', 'cleared'].includes(
     String(body.kind),
   )
+  if (
+    isFixtureQuestion(question) ||
+    isFixtureQuestion(typeof body.stepId === 'string' ? body.stepId : '')
+  ) {
+    return {
+      model: modifyFields(model, {
+        answerActivity: count => (isDraftEdit ? count + 1 : count),
+      }),
+    }
+  }
   return Option.match(grillIdOf(model), {
     onNone: () => ({ model }),
     onSome: grillId => ({
@@ -778,7 +789,7 @@ const sendDraftAnswers = (model: Model, text: string): UpdateReturn =>
       model.answers,
       model.notes,
       model.own,
-    )
+    ).filter(id => !isFixtureQuestion(id))
     const questions = Option.match(model.maybeSendSubset, {
       onNone: () =>
         drafts.filter(
@@ -1291,11 +1302,20 @@ export const update = (model: Model, message: Message) =>
             part,
           )
     },
-    CompletedDetectFixture: ({ isFixture }) => ({
-      model: modifyFields(model, {
+    CompletedDetectFixture: ({ isFixture }) => {
+      const flagged = modifyFields(model, {
         inbox: inbox => modifyFields(inbox, { isFixture: () => isFixture }),
-      }),
-    }),
+      })
+      return {
+        model: Option.match(AsyncData.getData(model.page), {
+          onNone: () => flagged,
+          onSome: snapshot =>
+            isFixture
+              ? refreshPage(flagged, withFixtureQuestions(snapshot))
+              : flagged,
+        }),
+      }
+    },
     ClickedInboxFacet: ({ facet, value }) =>
       replaceQuery(
         model,
@@ -2263,7 +2283,19 @@ export const update = (model: Model, message: Message) =>
           : { model: chosen }
       }),
 
-    ClickedSendQuestions: ({ questions }) => holdSend(model, questions),
+    ClickedSendQuestions: ({ questions }) => {
+      const real = questions.filter(id => !isFixtureQuestion(id))
+      return Array.isReadonlyArrayEmpty(real)
+        ? {
+            model: modifyFields(model, {
+              maybeSaveError: () =>
+                Option.some(
+                  'Sample questions stay in this browser; the preview does not send them.',
+                ),
+            }),
+          }
+        : holdSend(model, real)
+    },
     TickedHeldSend: () =>
       Option.match(model.maybeHeldSend, {
         onNone: () => ({ model }),
@@ -3803,6 +3835,12 @@ const startingPart = (snapshot: Snapshot): string =>
         () => OVERVIEW,
       )
 
+// Sample-question answers live only in this browser, so a reload from the server keeps them.
+const fixtureAnswers = (
+  local: Readonly<Record<string, string>>,
+): Record<string, string> =>
+  Record.filter(local, (_value, key) => isFixtureQuestion(key))
+
 const mergeRemoteRecord = (
   previous: Readonly<Record<string, string>>,
   local: Readonly<Record<string, string>>,
@@ -3831,7 +3869,9 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
           }),
         }
   }
-  const snapshot = result.success
+  const snapshot = model.inbox.isFixture
+    ? withFixtureQuestions(result.success)
+    : result.success
   if (AsyncData.hasData(model.page)) {
     const previous = Option.getOrThrow(AsyncData.getData(model.page))
     return scheduleBrowserNotices({
@@ -3839,7 +3879,7 @@ const settleLoad = (model: Model, result: SnapshotResult): UpdateReturn => {
         answers: local =>
           model.pendingEvents > 0 || model.failedWrites.length > 0
             ? mergeRemoteRecord(previous.answers, local, snapshot.answers)
-            : snapshot.answers,
+            : { ...snapshot.answers, ...fixtureAnswers(local) },
         notes: local =>
           mergeRemoteRecord(previous.notes, local, snapshot.notes),
         own: local => mergeRemoteRecord(previous.own, local, snapshot.own),

@@ -52,7 +52,7 @@ const FIXTURE_WORK: Readonly<Record<string, Work>> = {
   t2cr: { issue: { id: 'LAB-1400', isDone: false }, work: 'Squad lead' },
   t2j6: {
     work: 'Discussion threads',
-    newOn: { key: 'question-page-conversations', question: 'Q396', count: 1 },
+    newOn: { key: 'session-finder', question: 'Q901', count: 1 },
   },
   t2j8: {
     issue: { id: 'LAB-1446', isDone: true },
