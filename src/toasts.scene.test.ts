@@ -1,6 +1,7 @@
 import { Option, Result, Schema } from 'effect'
 import { Url } from 'foldkit'
 import {
+  Command,
   Mount,
   all,
   click,
@@ -20,6 +21,7 @@ import {
   Message,
   PageData,
   RestoreDiscussionScroll,
+  SaveRead,
   init,
   unreadMessagesOf,
   update,
@@ -59,10 +61,7 @@ const loaded = {
 }
 
 describe('agent toast notifications', () => {
-  it.each([
-    ['question:Q1', '5', fillOne],
-    ['part-1', '5', noMounts],
-  ])(
+  it.each([['part-1', '5', noMounts]])(
     'collapses and reopens without navigating or reading on %s',
     (currentPart, badge, resolveMounts) => {
       const collapsed = update(
@@ -93,32 +92,32 @@ describe('agent toast notifications', () => {
     },
   )
 
-  it('updates the badge without reopening when another unread reply arrives', () => {
-    const collapsed = update(loaded, Message.ClickedNotificationTray()).model
+  it('counts a new reply on the header bell instead of floating it', () => {
     const incoming = update(
-      collapsed,
+      loaded,
       Message.CompletedLoadGrill({
         result: Result.succeed({
           ...snapshot,
           replies: [
             ...(snapshot.replies ?? []),
-            { id: 6, at: 6, text: 'New while collapsed' },
+            { id: 6, at: 6, text: 'New while away' },
           ],
         }),
       }),
     )
     assert(incoming.model.readIds).toEqual([])
-    assert(incoming.commands).toBeUndefined()
     scene(
       { update, view },
       given(incoming.model),
       fillOne,
       expectAll(all.selector('.toast')).toHaveCount(0),
-      expect(role('button', { name: 'Show 6 unread notifications' })).toExist(),
-      expect(selector('.notification-count')).toHaveText('6'),
-      click(role('button', { name: 'Show 6 unread notifications' })),
-      expectAll(all.selector('.toast')).toHaveCount(3),
-      expect(selector('.toast')).toContainText('New while collapsed'),
+      expect(role('button', { name: 'Notifications · 6 unread' })).toExist(),
+      expect(role('dialog', { name: 'Notifications' })).toContainText(
+        'New while away',
+      ),
+      click(role('button', { name: 'Mark all read' })),
+      Command.resolve(SaveRead, Message.CompletedSaveRead()),
+      expect(role('button', { name: 'Notifications' })).toExist(),
     )
   })
 
@@ -142,32 +141,7 @@ describe('agent toast notifications', () => {
     )
   })
 
-  it.each([false, true])(
-    'keeps notifications outside discussion when expanded is %s',
-    isDiscussionExpanded => {
-      scene(
-        { update, view },
-        given({
-          ...loaded,
-          side: 'Talk',
-          inbox: { ...loaded.inbox, isSessionDirectory: false },
-          workspace: { ...loaded.workspace, isDiscussionExpanded },
-        }),
-        Mount.resolveAll(
-          [FillBox, filled],
-          [FillBox, filled],
-          [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
-        ),
-        expect(selector('.f-discussion-compose')).toExist(),
-        expect(selector('.f-frame .toasts')).toExist(),
-        expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
-        expectAll(all.selector('.f-sessions .toasts')).toHaveCount(0),
-        expectAll(all.selector('.f-discussion .toasts')).toHaveCount(0),
-      )
-    },
-  )
-
-  it('floats notifications over the full Conversations page, which has no sidebar', () => {
+  it('keeps the bell in the header over the sessions panel and Conversations', () => {
     scene(
       { update, view },
       given({ ...loaded, currentPart: CONVERSATIONS }),
@@ -175,10 +149,8 @@ describe('agent toast notifications', () => {
         [FillBox, Message.CompletedFillBox()],
         [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
       ),
-      expect(selector('.f-discussion-compose')).toExist(),
-      expect(selector('.f-frame .toasts')).toExist(),
-      expectAll(all.selector('.f-question-pane .toasts')).toHaveCount(0),
-      expectAll(all.selector('.f-main .toasts')).toHaveCount(0),
+      expect(selector('.f-header-actions .f-bell')).toExist(),
+      expectAll(all.selector('.toasts')).toHaveCount(0),
     )
   })
 })

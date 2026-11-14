@@ -64,12 +64,20 @@ it('opens the sessions panel beside the page and a session conversation from it'
     given(loaded('/g/fixture/inbox')),
     expect(role('complementary', { name: 'Sessions' })).not.toExist(),
     click(role('button', { name: 'Sessions' })),
-    expect(role('complementary', { name: 'Sessions' })).toContainText('Pinned'),
+    expect(selector('.f-sessions-pinned')).toContainText('Squad lead'),
+    expect(role('complementary', { name: 'Sessions' })).not.toContainText(
+      'Recent conversations',
+    ),
+    expect(role('complementary', { name: 'Sessions' })).not.toContainText(
+      'Pinned',
+    ),
+    expect(role('group', { name: 'Order' })).toContainText('Recent'),
+    expect(selector('.f-sessions select')).not.toExist(),
+    expect(selector('.f-sessions-list .f-avatar')).toExist(),
     click(role('button', { name: /Even builder/ })),
     Command.resolve(FocusTalkBox, Message.CompletedFocus()),
-    expect(role('complementary', { name: 'Sessions' })).toContainText(
-      'Message Even builder · t-even',
-    ),
+    expect(selector('.f-identity')).toContainText('Even builder'),
+    expect(role('textbox', { name: 'Message t-even' })).toExist(),
     Mount.resolveAll(
       [FillBox, Message.CompletedFillBox()],
       [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
@@ -110,11 +118,13 @@ it('opens a conversation in the middle of the Conversations page, beside the sam
       [FillBox, Message.CompletedFillBox()],
       [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
     ),
-    expect(selector('.f-sessions.is-docked')).toContainText('Pinned'),
+    expect(selector('.f-sessions.is-docked .f-sessions-pinned')).toContainText(
+      'Squad lead',
+    ),
     click(role('button', { name: /Even builder/ })),
     Command.resolve(FocusTalkBox, Message.CompletedFocus()),
     expect(role('region', { name: 'Conversation' })).toContainText(
-      'Message Even builder · t-even',
+      'Even buildert-even · Interactive',
     ),
     expect(selector('.f-sessions:not(.is-docked)')).not.toExist(),
     expect(selector('.f-session-row.is-current')).toContainText('Even builder'),

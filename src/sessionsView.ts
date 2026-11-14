@@ -1,17 +1,22 @@
 import { Array, Option, Order } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { AGENT_TARGET_PREFIX, GRILL_FLOW_TARGET, type Snapshot } from './domain'
+import { sessionAvatar } from './avatar'
+import {
+  AGENT_TARGET_PREFIX,
+  GRILL_FLOW_TARGET,
+  type Snapshot,
+  questionSession,
+} from './domain'
 import {
   type InboxData,
   NAMES,
   SESSION_TYPES,
-  type SessionGroup,
   type SessionInfo,
   type SessionOrder,
 } from './inbox'
-import { ago } from './inboxView'
-import { Message, type Model } from './main'
+import { SESSION_PROFILES } from './inboxFixture'
+import { Message, type Model, unreadMessagesOf } from './main'
 import { refView } from './refCard'
 import { linkCard } from './refCards'
 import { QUESTION_PAGE, RUN_TARGET } from './workspace'
@@ -45,6 +50,8 @@ export type SessionRow = Readonly<{
   work: Work
   // Closed or finished more than a day ago: off the sidebar, under Finished on Conversations.
   hasLeft: boolean
+  // New messages from this session: its unread answers and replies, plus the fixture's.
+  fresh: number
 }>
 
 // Where the panel shows: the right sidebar, or docked left on the Conversations page.
@@ -85,6 +92,7 @@ const FIXTURE_CLOSED: SessionRow = {
     closedAt: Date.parse('2026-11-14T02:10:00Z'),
   },
   hasLeft: false,
+  fresh: 0,
 }
 const FIXTURE_FINISHED: SessionRow = {
   address: 't2gx',
@@ -102,6 +110,7 @@ const FIXTURE_FINISHED: SessionRow = {
     doneAt: Date.parse('2026-11-12T18:20:00Z'),
   },
   hasLeft: false,
+  fresh: 0,
 }
 
 const realWork = (snapshot: Snapshot, address: string): Work => {
@@ -142,6 +151,7 @@ const everySessionRow = (
       lastAt: 0,
       work: {},
       hasLeft: false,
+      fresh: 0,
     }))
   const rows = [
     ...fromSessions,
@@ -149,7 +159,22 @@ const everySessionRow = (
     ...(model.inbox.isFixture ? [FIXTURE_CLOSED, FIXTURE_FINISHED] : []),
   ]
   const now = model.now === 0 ? (snapshot.channelNow ?? 0) : model.now
+  const unread = unreadMessagesOf(model)
+  const askerOf = (stepId: string): string =>
+    stepId.startsWith(AGENT_TARGET_PREFIX)
+      ? stepId.slice(AGENT_TARGET_PREFIX.length)
+      : questionSession(
+          snapshot.grill,
+          snapshot.grill.steps.find(step => step.id === stepId)?.question,
+        )
   return rows.map(row => {
+    const fresh =
+      (row.work.newOn?.count ?? 0) +
+      unread.filter(message =>
+        message.kind === 'reply'
+          ? row.address === snapshot.grill.session
+          : askerOf(message.stepId) === row.address,
+      ).length
     const gone =
       row.work.closedAt ??
       row.work.doneAt ??
@@ -157,6 +182,7 @@ const everySessionRow = (
     return {
       ...row,
       hasLeft: gone !== undefined && now !== 0 && now - gone >= DAY,
+      fresh,
     }
   })
 }
@@ -215,6 +241,7 @@ const rowOf = (
     ),
     work,
     hasLeft: false,
+    fresh: 0,
   }
 }
 
@@ -243,36 +270,24 @@ const ORDERS: Readonly<Record<SessionOrder, Order.Order<SessionRow>>> = {
     Order.mapInput(Order.Number, (row: SessionRow) => row.lastAt),
   ),
   Waiting: Order.flip(
-    Order.mapInput(
-      Order.Number,
-      (row: SessionRow) => row.work.newOn?.count ?? 0,
-    ),
+    Order.mapInput(Order.Number, (row: SessionRow) => row.fresh),
   ),
   Name: Order.mapInput(Order.String, (row: SessionRow) =>
     row.name.toLowerCase(),
   ),
 }
 
-const groupKey = (row: SessionRow, group: SessionGroup): string =>
-  group === 'Squad'
-    ? row.squad
-    : group === 'Issue'
-      ? (row.work.issue?.id ?? 'No issue')
-      : group === 'Status'
-        ? row.isClosed
-          ? 'Closed'
-          : row.isDone
-            ? 'Work done'
-            : row.work.newOn !== undefined
-              ? 'Waiting on you'
-              : 'Working'
-        : 'All sessions'
-
-const avatar = (name: string, h: H): Html =>
-  h.span(
-    [h.Class('f-avatar'), h.AriaHidden(true)],
-    [name.slice(0, 1).toUpperCase()],
-  )
+/** Recency as a chat list shows it: now, 5m, 2h, 3d. */
+const shortAgo = (now: number, at: number): string => {
+  const minutes = Math.max(0, Math.round((now - at) / 60000))
+  return minutes < 1
+    ? 'now'
+    : minutes < 60
+      ? `${minutes}m`
+      : minutes < 1440
+        ? `${Math.round(minutes / 60)}h`
+        : `${Math.round(minutes / 1440)}d`
+}
 
 const rowView = (
   model: Model,
@@ -287,11 +302,12 @@ const rowView = (
       model.workspace.maybeDiscussionTarget,
       () => RUN_TARGET,
     ) === targetOf(snapshot, row)
+  const now = model.now === 0 ? (snapshot.channelNow ?? 0) : model.now
   return h.keyed('div')(
     `${isPinnedRow ? 'pin:' : ''}${row.address}`,
     [
       h.Class(
-        `f-session-row${row.isClosed ? ' is-closed' : ''}${row.isDone ? ' is-done' : ''}${isCurrent ? ' is-current' : ''}`,
+        `f-session-row${row.isClosed ? ' is-closed' : ''}${row.isDone ? ' is-done' : ''}${isCurrent ? ' is-current' : ''}${row.fresh > 0 ? ' has-new' : ''}`,
       ),
     ],
     [
@@ -304,10 +320,10 @@ const rowView = (
           ),
         ],
         [
+          sessionAvatar(row.address, row.name, h),
           h.span(
             [h.Class('f-session-top')],
             [
-              avatar(row.name, h),
               h.b([], [row.name]),
               h.span([
                 h.Class(
@@ -322,13 +338,24 @@ const rowView = (
                 : row.isDone
                   ? h.span([h.Class('f-session-flag')], ['done'])
                   : h.empty,
-              h.small([h.Class('f-session-address')], [row.address]),
+            ],
+          ),
+          h.span(
+            [h.Class('f-session-meta')],
+            [
+              row.fresh > 0
+                ? h.span([h.Class('f-session-new')], [`${row.fresh} new`])
+                : h.empty,
+              h.small(
+                [h.Class('f-session-when')],
+                [row.lastAt === 0 ? '' : shortAgo(now, row.lastAt)],
+              ),
             ],
           ),
           h.small(
             [h.Class('f-session-sub')],
             [
-              [row.role, row.work.issue?.id, row.work.work]
+              [row.address, row.role, row.work.issue?.id, row.work.work]
                 .filter(Boolean)
                 .join(' · '),
             ],
@@ -382,9 +409,9 @@ const rowView = (
                     }),
                   ),
                 ],
-                [`${row.work.newOn.count} new on ${row.work.newOn.key} ›`],
+                [`on ${row.work.newOn.key} ›`],
               ),
-          isPinnedRow
+          isPinnedRow && row.address === snapshot.grill.session
             ? h.empty
             : h.button(
                 [
@@ -396,7 +423,7 @@ const rowView = (
                     Message.ClickedPinSession({ address: row.address }),
                   ),
                 ],
-                [isPinned ? 'Pinned' : 'Pin'],
+                [isPinned ? 'Unpin' : 'Pin'],
               ),
         ],
       ),
@@ -416,10 +443,10 @@ const pinnedGrillFlow = (snapshot: Snapshot, h: H): Html =>
           h.OnClick(Message.ClickedOpenSession({ target: GRILL_FLOW_TARGET })),
         ],
         [
+          sessionAvatar(snapshot.maintainerSession ?? 'board', NAMES.brand, h),
           h.span(
             [h.Class('f-session-top')],
             [
-              avatar(NAMES.brand, h),
               h.b([], [NAMES.brand]),
               h.span([
                 h.Class(
@@ -463,123 +490,42 @@ const directoryView = (
   const pinned = rows.filter(
     row => model.inbox.pinned.includes(row.address) && row !== lead,
   )
-  const recent = Array.take(
-    Array.sort(
-      rows.filter(row => row.lastAt > 0 && row !== lead),
-      ORDERS.Recent,
-    ),
-    3,
-  )
   const shown = Array.sort(
-    rows.filter(row => row !== lead && matches(row, model.inbox.sessionSearch)),
+    rows.filter(
+      row =>
+        row !== lead &&
+        !pinned.includes(row) &&
+        matches(row, model.inbox.sessionSearch),
+    ),
     ORDERS[model.inbox.sessionOrder],
   )
-  const groups = Array.dedupe(
-    shown.map(row => groupKey(row, model.inbox.sessionGroup)),
-  )
-  const now = model.now === 0 ? (snapshot.channelNow ?? 0) : model.now
   return [
-    h.input([
-      h.Type('search'),
-      h.Class('f-sessions-search'),
-      h.Placeholder('Search name, LAB-…, work, t2…'),
-      h.AriaLabel('Search sessions'),
-      h.Value(model.inbox.sessionSearch),
-      h.OnInput(value => Message.UpdatedSessionSearch({ value })),
-    ]),
-    h.h3([h.Class('f-sessions-heading')], ['Pinned']),
-    ...(lead === undefined ? [] : [rowView(model, snapshot, lead, h, true)]),
-    pinnedGrillFlow(snapshot, h),
-    ...pinned.map(row => rowView(model, snapshot, row, h, true)),
-    ...(Array.isReadonlyArrayEmpty(recent)
-      ? []
-      : [
-          h.h3(
-            [h.Class('f-sessions-heading')],
-            [
-              'Recent conversations ',
-              h.span([h.Class('f-count')], [String(recent.length)]),
-            ],
-          ),
-          ...recent.map(row =>
-            h.keyed('div')(
-              `recent:${row.address}`,
-              [h.Class('f-session-recent')],
-              [
-                h.button(
-                  [
-                    h.Type('button'),
-                    h.Class('f-session-main'),
-                    h.OnClick(
-                      Message.ClickedOpenSession({
-                        target: targetOf(snapshot, row),
-                      }),
-                    ),
-                  ],
-                  [
-                    h.span(
-                      [h.Class('f-session-top')],
-                      [
-                        avatar(row.name, h),
-                        h.b([], [row.name]),
-                        h.small(
-                          [h.Class('f-session-address')],
-                          [ago(now, row.lastAt)],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ]),
     h.div(
-      [h.Class('f-sessions-controls')],
+      [h.Class('f-sessions-top')],
       [
-        h.label(
-          [],
+        h.div(
+          [h.Class('f-sessions-pinned'), h.AriaLabel('Pinned sessions')],
           [
-            'Group ',
-            h.select(
-              [
-                h.OnChange(value =>
-                  Message.SelectedSessionGroup({ group: groupOf(value) }),
-                ),
-              ],
-              (
-                [
-                  'Squad',
-                  'Issue',
-                  'Status',
-                  'None',
-                ] satisfies ReadonlyArray<SessionGroup>
-              ).map(group =>
-                h.option(
-                  [
-                    h.Value(group),
-                    h.Selected(model.inbox.sessionGroup === group),
-                  ],
-                  [
-                    group === 'None'
-                      ? 'No grouping'
-                      : `By ${group.toLowerCase()}`,
-                  ],
-                ),
-              ),
-            ),
+            ...(lead === undefined
+              ? []
+              : [rowView(model, snapshot, lead, h, true)]),
+            pinnedGrillFlow(snapshot, h),
+            ...pinned.map(row => rowView(model, snapshot, row, h, true)),
           ],
         ),
-        h.label(
-          [],
+        h.div(
+          [h.Class('f-sessions-controls')],
           [
-            'Order ',
-            h.select(
-              [
-                h.OnChange(value =>
-                  Message.SelectedSessionOrder({ order: orderOf(value) }),
-                ),
-              ],
+            h.input([
+              h.Type('search'),
+              h.Class('f-sessions-search'),
+              h.Placeholder('Search name, LAB-…, work, t2…'),
+              h.AriaLabel('Search sessions'),
+              h.Value(model.inbox.sessionSearch),
+              h.OnInput(value => Message.UpdatedSessionSearch({ value })),
+            ]),
+            h.div(
+              [h.Class('f-segmented'), h.Role('group'), h.AriaLabel('Order')],
               (
                 [
                   'Recent',
@@ -587,12 +533,14 @@ const directoryView = (
                   'Name',
                 ] satisfies ReadonlyArray<SessionOrder>
               ).map(order =>
-                h.option(
+                h.button(
                   [
-                    h.Value(order),
-                    h.Selected(model.inbox.sessionOrder === order),
+                    h.Type('button'),
+                    h.Class(model.inbox.sessionOrder === order ? 'is-on' : ''),
+                    h.AriaPressed(String(model.inbox.sessionOrder === order)),
+                    h.OnClick(Message.SelectedSessionOrder({ order })),
                   ],
-                  [order === 'Waiting' ? 'Waiting first' : order],
+                  [order],
                 ),
               ),
             ),
@@ -600,18 +548,10 @@ const directoryView = (
         ),
       ],
     ),
-    ...groups.flatMap(group => {
-      const inGroup = shown.filter(
-        row => groupKey(row, model.inbox.sessionGroup) === group,
-      )
-      return [
-        h.h3(
-          [h.Class('f-sessions-heading')],
-          [group, ' ', h.span([h.Class('f-count')], [String(inGroup.length)])],
-        ),
-        ...inGroup.map(row => rowView(model, snapshot, row, h)),
-      ]
-    }),
+    h.div(
+      [h.Class('f-sessions-list'), h.Role('list'), h.AriaLabel('Sessions')],
+      shown.map(row => rowView(model, snapshot, row, h)),
+    ),
     Array.isReadonlyArrayEmpty(shown)
       ? h.p([h.Class('hint')], ['No session matches.'])
       : h.empty,
@@ -649,10 +589,136 @@ const directoryView = (
   ]
 }
 
-const groupOf = (value: string): SessionGroup =>
-  value === 'Issue' || value === 'Status' || value === 'None' ? value : 'Squad'
-const orderOf = (value: string): SessionOrder =>
-  value === 'Waiting' || value === 'Name' ? value : 'Recent'
+export const maintainerLabel = (snapshot: Snapshot): string =>
+  snapshot.maintainerSession === undefined
+    ? 'Unavailable'
+    : snapshot.maintainerState === 'missing'
+      ? `${snapshot.maintainerSession} · not in Herdr`
+      : snapshot.maintainerState === 'stopped'
+        ? `${snapshot.maintainerSession} · stopped`
+        : snapshot.maintainerSession
+
+/** Who a thread is with, the same wherever a session's thread opens. */
+export const sessionIdentityView = (
+  model: Model,
+  snapshot: Snapshot,
+  inbox: InboxData,
+  target: string,
+  h: H,
+): Html => {
+  if (target === GRILL_FLOW_TARGET) {
+    return h.header(
+      [h.Class('f-identity')],
+      [
+        sessionAvatar(
+          snapshot.maintainerSession ?? 'board',
+          NAMES.brand,
+          h,
+          'Large',
+        ),
+        h.div(
+          [h.Class('f-identity-text')],
+          [
+            h.b([], [NAMES.brand]),
+            h.span(
+              [h.Class('f-identity-sub')],
+              [`${maintainerLabel(snapshot)} · Maintainer`],
+            ),
+          ],
+        ),
+      ],
+    )
+  }
+  const address =
+    target === RUN_TARGET
+      ? snapshot.grill.session
+      : target.startsWith(AGENT_TARGET_PREFIX)
+        ? target.slice(AGENT_TARGET_PREFIX.length)
+        : undefined
+  const row =
+    address === undefined
+      ? undefined
+      : everySessionRow(model, snapshot, inbox).find(
+          item => item.address === address,
+        )
+  if (row === undefined) {
+    return h.empty
+  }
+  const profile = model.inbox.isFixture
+    ? SESSION_PROFILES[row.address]
+    : undefined
+  const now = model.now === 0 ? (snapshot.channelNow ?? 0) : model.now
+  const state = row.isClosed
+    ? 'Closed'
+    : row.isDone
+      ? 'Done'
+      : row.isLive
+        ? 'Running'
+        : 'Idle'
+  return h.header(
+    [h.Class('f-identity')],
+    [
+      sessionAvatar(row.address, row.name, h, 'Large'),
+      h.div(
+        [h.Class('f-identity-text')],
+        [
+          h.b([], [row.name]),
+          h.span(
+            [h.Class('f-identity-sub')],
+            [
+              h.span([h.Class('f-session-address')], [row.address]),
+              ` · ${row.role}`,
+            ],
+          ),
+          h.span(
+            [h.Class('f-identity-facts')],
+            [
+              h.span(
+                [h.Class(`f-identity-state is-${state.toLowerCase()}`)],
+                [
+                  h.span([
+                    h.Class(
+                      `f-state-dot${row.isClosed ? ' is-closed' : row.isLive ? ' is-live' : ''}`,
+                    ),
+                  ]),
+                  state,
+                  row.lastAt === 0
+                    ? ''
+                    : ` · active ${shortAgo(now, row.lastAt)} ago`,
+                ],
+              ),
+              row.work.issue === undefined
+                ? h.empty
+                : refView(
+                    linkCard(snapshot, row.work.issue.id),
+                    `identity-${row.address}`,
+                    h.span([h.Class('f-session-chip')], [row.work.issue.id]),
+                    h,
+                  ),
+              row.work.pr === undefined
+                ? h.empty
+                : h.span(
+                    [h.Class(`f-session-chip is-${row.work.pr.state}`)],
+                    [`PR #${row.work.pr.number} · ${row.work.pr.state}`],
+                  ),
+              row.work.work === undefined
+                ? h.empty
+                : h.span([h.Class('f-identity-work')], [row.work.work]),
+            ],
+          ),
+          profile === undefined
+            ? h.empty
+            : h.span(
+                [h.Class('f-identity-profile'), h.Title('Preview sample')],
+                [
+                  `${profile.model} · ${profile.effort} effort · ${profile.subagents ? 'uses subagents' : 'no subagents'}`,
+                ],
+              ),
+        ],
+      ),
+    ],
+  )
+}
 
 /**
  * The sessions panel. As the right sidebar it shows the directory or the conversation a row
@@ -682,6 +748,7 @@ export const sessionsPanelView = (
           `${closed.address} is closed, so it can't receive messages. Message the lead, ${snapshot.grill.session}, instead.`,
         ),
   )
+  const identity = sessionIdentityView(model, snapshot, inbox, target, h)
   const directory = h.div(
     [h.Class('f-sessions-body')],
     directoryView(model, snapshot, rows, placement, h),
@@ -713,7 +780,7 @@ export const sessionsPanelView = (
           ),
           h.section(
             [h.Class('f-conversation-pane'), h.AriaLabel('Conversation')],
-            [opened],
+            [identity, opened],
           ),
         ],
       )
@@ -728,7 +795,10 @@ export const sessionsPanelView = (
                     [],
                     [
                       h.h2([], ['Sessions']),
-                      h.p([h.Class('hint')], ['Pinned, then grouped your way']),
+                      h.p(
+                        [h.Class('hint')],
+                        ['Your pins on top, then the rest'],
+                      ),
                     ],
                   )
                 : h.button(
@@ -750,7 +820,9 @@ export const sessionsPanelView = (
               ),
             ],
           ),
-          model.inbox.isSessionDirectory ? directory : opened,
+          ...(model.inbox.isSessionDirectory
+            ? [directory]
+            : [identity, opened]),
         ],
       )
 }

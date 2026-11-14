@@ -44,6 +44,7 @@ export const sessionCard = (
     kind: 'Session',
     id: address,
     title: row.name,
+    avatar: { address: row.address, name: row.name },
     subtitle: `${row.address} · ${row.role}`,
     rows: [
       ...(row.work.issue === undefined && row.work.work === undefined

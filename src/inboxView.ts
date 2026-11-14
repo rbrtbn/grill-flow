@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { sessionAvatar } from './avatar'
 import { channelItemKey } from './channel'
 import type { Snapshot } from './domain'
 import {
@@ -110,7 +111,11 @@ const stateChip = (task: Task, h: H): Html =>
 
 export const sessionTag = (data: InboxData, address: string, h: H): Html =>
   Option.match(sessionOf(data, address), {
-    onNone: () => h.span([h.Class('f-session-tag')], [address]),
+    onNone: () =>
+      h.span(
+        [h.Class('f-session-tag')],
+        [sessionAvatar(address, address, h, 'Small'), address],
+      ),
     onSome: session =>
       h.button(
         [
@@ -122,6 +127,7 @@ export const sessionTag = (data: InboxData, address: string, h: H): Html =>
           h.OnClick(go(`${RUN_PAGE}${address}`)),
         ],
         [
+          sessionAvatar(address, session.label, h, 'Small'),
           address,
           session.type === 'Interactive'
             ? ` · ${NAMES.interactive.toLowerCase()}`
@@ -1082,7 +1088,17 @@ const filterBar = (
                       h.Class(`f-urgency-dot is-${value}`),
                       h.AriaHidden(true),
                     ])
-                  : h.empty,
+                  : name === 'session'
+                    ? sessionAvatar(
+                        value,
+                        Option.match(sessionOf(data, value), {
+                          onNone: () => value,
+                          onSome: session => session.label,
+                        }),
+                        h,
+                        'Small',
+                      )
+                    : h.empty,
                 `${text} `,
                 h.span([h.Class('f-count')], [String(count)]),
               ],
@@ -1506,6 +1522,8 @@ const laneView = (
               h.h2(
                 [],
                 [
+                  sessionAvatar(session.address, session.label, h),
+                  ' ',
                   h.button(
                     [
                       h.Type('button'),
@@ -2076,10 +2094,7 @@ export const questionFilterView = (
                   on,
                   h.span(
                     [],
-                    [
-                      `R${number}`,
-                      h.small([], [inRound[0]?.session ?? '']),
-                    ],
+                    [`R${number}`, h.small([], [inRound[0]?.session ?? ''])],
                   ),
                   inRound.length,
                   {
@@ -2107,7 +2122,21 @@ export const questionFilterView = (
                 'question-filter',
                 pill(
                   query.session.includes(session),
-                  session,
+                  h.span(
+                    [],
+                    [
+                      sessionAvatar(
+                        session,
+                        Option.match(sessionOf(inbox, session), {
+                          onNone: () => session,
+                          onSome: info => info.label,
+                        }),
+                        h,
+                        'Small',
+                      ),
+                      session,
+                    ],
+                  ),
                   all.filter(question => question.session === session).length,
                   { ...query, session: toggle(query.session, session) },
                 ),

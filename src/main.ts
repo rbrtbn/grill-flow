@@ -53,6 +53,7 @@ import {
 import { channelItemKey } from './channel'
 import { DiagramView } from './diagram'
 import {
+  AGENT_TARGET_PREFIX,
   type Grill,
   OWN,
   Snapshot,
@@ -79,7 +80,6 @@ import {
   RUNS,
   RUN_PAGE,
   RequestUpdateState,
-  SessionGroup,
   SessionOrder,
   UpdateScope,
   filtersFrom,
@@ -666,7 +666,6 @@ export const Message = defineMessageUnion({
   ClickedOpenSession: { target: Schema.String },
   ClickedSessionsBack: {},
   UpdatedSessionSearch: { value: Schema.String },
-  SelectedSessionGroup: { group: SessionGroup },
   SelectedSessionOrder: { order: SessionOrder },
   ClickedPinSession: { address: Schema.String },
   ClickedNestedThread: { key: Schema.String },
@@ -1523,11 +1522,6 @@ export const update = (model: Model, message: Message) =>
         inbox: inbox => modifyFields(inbox, { sessionSearch: () => value }),
       }),
     }),
-    SelectedSessionGroup: ({ group }) => ({
-      model: modifyFields(model, {
-        inbox: inbox => modifyFields(inbox, { sessionGroup: () => group }),
-      }),
-    }),
     SelectedSessionOrder: ({ order }) => ({
       model: modifyFields(model, {
         inbox: inbox => modifyFields(inbox, { sessionOrder: () => order }),
@@ -2056,19 +2050,27 @@ export const update = (model: Model, message: Message) =>
           ],
         }
       }),
-    RestoredDiscussionState: ({ state }) => ({
-      model: modifyFields(model, {
-        side: side => (state.open ? 'Talk' : side),
-        workspace: value =>
-          modifyFields(value, {
-            discussionRestored: () => true,
-            isDiscussionExpanded: () => state.expanded,
-            maybeDiscussionTarget: () =>
-              state.target === '' ? Option.none() : Option.some(state.target),
-            discussionScroll: () => state.scroll,
-          }),
-      }),
-    }),
+    RestoredDiscussionState: ({ state }) => {
+      // A `?talk=` link already chose the thread; the remembered one yields to it.
+      const linked = Option.isSome(talkOf(Option.some(model.pageQuery)))
+      return {
+        model: modifyFields(model, {
+          side: side => (state.open || linked ? 'Talk' : side),
+          workspace: value =>
+            modifyFields(value, {
+              discussionRestored: () => true,
+              isDiscussionExpanded: () => state.expanded,
+              maybeDiscussionTarget: current =>
+                linked
+                  ? current
+                  : state.target === ''
+                    ? Option.none()
+                    : Option.some(state.target),
+              discussionScroll: () => state.scroll,
+            }),
+        }),
+      }
+    },
     ChangedDiscussionState: ({ grillId, state }) => ({
       model,
       commands: [SaveDiscussionState({ grillId, json: JSON.stringify(state) })],
@@ -4085,10 +4087,23 @@ const saveWorkspaceSetting = (
 
 // INIT
 
+// `?talk=<address>` opens the sessions panel on that session's thread, so a link can share it.
+const talkOf = (search: Option.Option<string>): Option.Option<string> =>
+  Option.fromNullishOr(
+    new URLSearchParams(queryFromSearch(search)).get('talk') || undefined,
+  )
+
 export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
   model: {
     page: PageData.Loading(),
-    workspace: initialWorkspace,
+    workspace: Option.match(talkOf(url.search), {
+      onNone: () => initialWorkspace,
+      onSome: address =>
+        modifyFields(initialWorkspace, {
+          maybeDiscussionTarget: () =>
+            Option.some(`${AGENT_TARGET_PREFIX}${address}`),
+        }),
+    }),
     pendingEvents: 0,
     failedWrites: [],
     answers: {},
@@ -4139,7 +4154,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeSaveError: Option.none(),
     maybeBuild: Option.none(),
     currentPart: pageOfPath(url.pathname),
-    side: 'None',
+    side: Option.isSome(talkOf(url.search)) ? 'Talk' : 'None',
     maybePrevious: Option.none(),
     now: 0,
     skipped: [],
@@ -4149,7 +4164,9 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => ({
     maybeTalkPart: Option.none(),
     maybeJustAnswered: Option.none(),
     pageQuery: queryFromSearch(url.search),
-    inbox: initialInboxUi,
+    inbox: Option.isSome(talkOf(url.search))
+      ? modifyFields(initialInboxUi, { isSessionDirectory: () => false })
+      : initialInboxUi,
   },
   commands: [
     LoadGrill(),

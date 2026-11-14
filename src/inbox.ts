@@ -82,8 +82,6 @@ export const SavedView = Schema.Struct({
 })
 export type SavedView = typeof SavedView.Type
 
-export const SessionGroup = Schema.Literals(['Squad', 'Issue', 'Status', 'None'])
-export type SessionGroup = typeof SessionGroup.Type
 export const SessionOrder = Schema.Literals(['Recent', 'Waiting', 'Name'])
 export type SessionOrder = typeof SessionOrder.Type
 
@@ -105,7 +103,6 @@ export const InboxUi = Schema.Struct({
   // The sessions panel shows its directory until a row opens a conversation.
   isSessionDirectory: Schema.Boolean,
   sessionSearch: Schema.String,
-  sessionGroup: SessionGroup,
   sessionOrder: SessionOrder,
   pinned: Schema.Array(Schema.String),
 })
@@ -127,7 +124,6 @@ export const initialInboxUi: InboxUi = {
   isSidePickerOpen: false,
   isSessionDirectory: true,
   sessionSearch: '',
-  sessionGroup: 'Squad',
   sessionOrder: 'Recent',
   pinned: [],
 }
@@ -778,7 +774,10 @@ const narrowedCache = new WeakMap<
  * The snapshot the Questions page walks: only the questions the address's filters keep. One
  * narrowed snapshot per query keeps the snapshot-keyed caches downstream warm.
  */
-export const narrowedSnapshot = (snapshot: Snapshot, query: string): Snapshot => {
+export const narrowedSnapshot = (
+  snapshot: Snapshot,
+  query: string,
+): Snapshot => {
   const parsed = questionQueryFrom(query)
   if (isQuestionQueryEmpty(parsed)) {
     return snapshot

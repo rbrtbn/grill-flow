@@ -107,3 +107,8 @@
     translate: none;
   }
 }
+.f-ref-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -88,8 +88,8 @@ describe('ask delivery', () => {
         }),
       ),
       mounted,
-      expect(selector('.f-discussion-head .hint')).toHaveText(
-        'Board · t18v · not in Herdr',
+      expect(selector('.f-identity-sub')).toHaveText(
+        't18v · not in Herdr · Maintainer',
       ),
       expect(selector('.f-maintainer-warning')).toContainText(
         't18v is no longer in Herdr',
@@ -136,9 +136,7 @@ describe('ask delivery', () => {
         }),
       ),
       mounted,
-      expect(selector('.f-discussion-head .hint')).toHaveText(
-        'Board · t18v',
-      ),
+      expect(selector('.f-identity-sub')).toHaveText('t18v · Maintainer'),
       expect(selector('.f-maintainer-warning')).not.toExist(),
       expect(selector('.f-discussion-messages')).toContainText(
         'Sent to t18v · waiting for a reply…',

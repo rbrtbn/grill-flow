@@ -1,5 +1,6 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { sessionAvatar } from './avatar'
 import { Message } from './main'
 
 type H = HtmlBuilder<Message>
@@ -17,6 +18,8 @@ export type RefCard = Readonly<{
   sampleNote?: string
   href?: string
   page?: Readonly<{ label: string; page: string }>
+  // A session card leads with the session's avatar.
+  avatar?: Readonly<{ address: string; name: string }>
 }>
 
 const slug = (text: string): string =>
@@ -27,7 +30,15 @@ const cardBody = (card: RefCard, h: H): ReadonlyArray<Html> => [
     [h.Class('f-ref-kind')],
     [card.kind === 'PR' ? 'Pull request' : card.kind],
   ),
-  h.b([h.Class('f-ref-title')], [card.title]),
+  card.avatar === undefined
+    ? h.b([h.Class('f-ref-title')], [card.title])
+    : h.span(
+        [h.Class('f-ref-who')],
+        [
+          sessionAvatar(card.avatar.address, card.avatar.name, h),
+          h.b([h.Class('f-ref-title')], [card.title]),
+        ],
+      ),
   card.subtitle === undefined
     ? h.empty
     : h.span([h.Class('f-ref-subtitle')], [card.subtitle]),

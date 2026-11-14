@@ -945,8 +945,7 @@ const pageView = (model: Model, snapshot: Snapshot, h: H): Html => {
         decided: builder => decidedPageView(model, snapshot, builder),
         resize: (edge, builder) => resizeHandleView(model, edge, builder),
         notices: builder => toastsView(model, snapshot, 'Sidebar', builder),
-        floatingNotices: builder =>
-          toastsView(model, snapshot, 'Overlay', builder),
+        noticeBell: builder => noticeBellView(model, snapshot, builder),
       },
       h,
     )
@@ -3179,6 +3178,108 @@ const toastsView = (
             : []),
         ],
       )
+}
+
+/** Agent replies in a header tray: a bell with the unread count, so nothing floats over the page. */
+const noticeBellView = (model: Model, snapshot: Snapshot, h: H): Html => {
+  const unread = Array.reverse(unreadMessagesOf(model))
+  return h.span(
+    [h.Class('f-bell-wrap')],
+    [
+      h.button(
+        [
+          h.Type('button'),
+          h.Class(`f-bell${unread.length > 0 ? ' has-unread' : ''}`),
+          h.Popovertarget('workspace-notices'),
+          h.AriaLabel(
+            unread.length === 0
+              ? 'Notifications'
+              : `Notifications · ${unread.length} unread`,
+          ),
+        ],
+        [
+          h.svg(
+            [h.ViewBox('0 0 20 20'), h.AriaHidden(true)],
+            [
+              h.path([
+                h.D(
+                  'M10 3a4.5 4.5 0 0 0-4.5 4.5v2.7L4 13.5h12l-1.5-3.3V7.5A4.5 4.5 0 0 0 10 3Zm-1.8 12.5a1.9 1.9 0 0 0 3.6 0',
+                ),
+                h.Fill('none'),
+                h.Stroke('currentColor'),
+                h.StrokeWidth('1.5'),
+              ]),
+            ],
+          ),
+          unread.length === 0
+            ? h.empty
+            : h.span([h.Class('f-nav-count is-hot')], [String(unread.length)]),
+        ],
+      ),
+      h.div(
+        [
+          h.Id('workspace-notices'),
+          h.Popover('auto'),
+          h.Class('f-app-popdown f-notices'),
+          h.Role('dialog'),
+          h.AriaLabel('Notifications'),
+        ],
+        [
+          h.div(
+            [h.Class('f-notices-head')],
+            [
+              h.h2([], ['Notifications']),
+              unread.length === 0
+                ? h.empty
+                : h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-button'),
+                      h.OnClick(
+                        Message.SawAgentMessages({
+                          ids: unread.map(message => message.id),
+                        }),
+                      ),
+                    ],
+                    ['Mark all read'],
+                  ),
+            ],
+          ),
+          unread.length === 0
+            ? h.p([h.Class('hint')], ['Nothing new. Replies land here.'])
+            : h.ol(
+                [],
+                unread.map(message =>
+                  h.keyed('li')(
+                    message.id,
+                    [],
+                    [
+                      h.button(
+                        [
+                          h.Type('button'),
+                          h.Class('f-notice'),
+                          h.Popovertarget('workspace-notices'),
+                          h.Popovertargetaction('hide'),
+                          h.OnClick(
+                            Message.ClickedAgentMessage({
+                              id: message.id,
+                              inReplies: false,
+                            }),
+                          ),
+                        ],
+                        [
+                          h.b([], [agentWhere(snapshot.grill, message)]),
+                          h.span([], [previewOf(message.text)]),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ),
+    ],
+  )
 }
 
 /** The agent's newest message as one line in the top bar; it opens in Replies, and × closes it. */

@@ -90,7 +90,11 @@ import {
   unsentLabel,
   unsentTrayView,
 } from './sendShortcutsView'
-import { sessionsBadge, sessionsPanelView } from './sessionsView'
+import {
+  maintainerLabel,
+  sessionsBadge,
+  sessionsPanelView,
+} from './sessionsView'
 import { textLimitCount } from './textLimitView'
 import {
   type NestedThread,
@@ -142,7 +146,7 @@ type Reading = Readonly<{
   decided: (h: H) => Html
   resize: (edge: SidebarEdge, h: H) => Html
   notices: (h: H) => Html
-  floatingNotices: (h: H) => Html
+  noticeBell: (h: H) => Html
 }>
 
 const link = (label: string, message: Message, h: H): Html =>
@@ -461,7 +465,15 @@ export const workspaceView = (
             ],
           )
         : h.empty,
-      workspaceHeaderView(model, snapshot, inbox, reviewLabel, sendLabel, h),
+      workspaceHeaderView(
+        model,
+        snapshot,
+        inbox,
+        reviewLabel,
+        sendLabel,
+        reading.noticeBell(h),
+        h,
+      ),
       quickLookView(model, inbox, h),
       unsentTrayView(model, snapshot, h),
       heldSendBarView(model, snapshot, question, h),
@@ -482,7 +494,6 @@ export const workspaceView = (
       h.div(
         [h.Class('f-frame f-no-nav'), h.Style(styles)],
         [
-          reading.floatingNotices(h),
           h.main(
             [
               h.Id('workspace-main'),
@@ -574,6 +585,7 @@ const workspaceHeaderView = (
   inbox: InboxData,
   reviewLabel: string,
   sendLabel: string,
+  bell: Html,
   h: H,
 ): Html => {
   const grill = snapshot.grill
@@ -735,6 +747,7 @@ const workspaceHeaderView = (
         [h.Class('f-header-actions'), h.AriaLabel('Run actions')],
         [
           nudgeView(model, snapshot, h),
+          bell,
           h.button(
             [
               h.Type('button'),
@@ -2391,56 +2404,60 @@ const discussionView = (
       h.AriaLabel('Discussion'),
     ],
     [
-      h.header(
-        [h.Class('f-discussion-head')],
-        [
-          h.h2([], ['Discussion']),
-          h.span(
-            [h.Class('hint')],
+      isInPanel
+        ? h.empty
+        : h.header(
+            [h.Class('f-discussion-head')],
             [
-              isMaintainer
-                ? `${NAMES.brand} · ${maintainerLabel(snapshot)}`
-                : agentAddressOf(target) !== undefined
-                  ? agentLabel(snapshot, agentAddressOf(target)!)
-                  : questionAgent(snapshot.grill, step?.question),
-            ],
-          ),
-          isInPanel
-            ? h.empty
-            : h.div(
-                [h.Class('f-discussion-actions')],
+              h.h2([], ['Discussion']),
+              h.span(
+                [h.Class('hint')],
                 [
-                  model.currentPart === CONVERSATIONS
-                    ? h.empty
-                    : link(
-                        expanded ? 'Back' : 'Expand',
-                        Message.ClickedExpandDiscussion(),
-                        h,
-                      ),
-                  model.currentPart === CONVERSATIONS
-                    ? link(
-                        'Back',
-                        Message.ClickedReturnConversation({ open: true }),
-                        h,
-                      )
-                    : h.empty,
-                  model.currentPart === CONVERSATIONS
-                    ? link(
-                        'Close',
-                        Message.ClickedReturnConversation({ open: false }),
-                        h,
-                      )
-                    : link('Close', Message.ClickedCloseDiscussion(), h),
+                  isMaintainer
+                    ? `${NAMES.brand} · ${maintainerLabel(snapshot)}`
+                    : agentAddressOf(target) !== undefined
+                      ? agentLabel(snapshot, agentAddressOf(target)!)
+                      : questionAgent(snapshot.grill, step?.question),
                 ],
               ),
-        ],
-      ),
-      recipientPicker(
-        snapshot,
-        target,
-        step === undefined ? onQuestion : Option.some(step),
-        h,
-      ),
+              isInPanel
+                ? h.empty
+                : h.div(
+                    [h.Class('f-discussion-actions')],
+                    [
+                      model.currentPart === CONVERSATIONS
+                        ? h.empty
+                        : link(
+                            expanded ? 'Back' : 'Expand',
+                            Message.ClickedExpandDiscussion(),
+                            h,
+                          ),
+                      model.currentPart === CONVERSATIONS
+                        ? link(
+                            'Back',
+                            Message.ClickedReturnConversation({ open: true }),
+                            h,
+                          )
+                        : h.empty,
+                      model.currentPart === CONVERSATIONS
+                        ? link(
+                            'Close',
+                            Message.ClickedReturnConversation({ open: false }),
+                            h,
+                          )
+                        : link('Close', Message.ClickedCloseDiscussion(), h),
+                    ],
+                  ),
+            ],
+          ),
+      isInPanel
+        ? h.empty
+        : recipientPicker(
+            snapshot,
+            target,
+            step === undefined ? onQuestion : Option.some(step),
+            h,
+          ),
       h.div(
         [
           h.Class('f-discussion-messages'),
@@ -2513,7 +2530,9 @@ const discussionView = (
                   isMaintainer
                     ? 'Ask about the board'
                     : agentAddressOf(target) !== undefined
-                      ? `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
+                      ? isInPanel
+                        ? `Message ${agentAddressOf(target)}`
+                        : `Message ${agentLabel(snapshot, agentAddressOf(target)!)}`
                       : step === undefined
                         ? 'Ask about the run'
                         : `Ask about ${step.question.id}`,
@@ -2682,15 +2701,6 @@ const recipientPicker = (
       ),
     ],
   )
-
-const maintainerLabel = (snapshot: Snapshot): string =>
-  snapshot.maintainerSession === undefined
-    ? 'Unavailable'
-    : snapshot.maintainerState === 'missing'
-      ? `${snapshot.maintainerSession} · not in Herdr`
-      : snapshot.maintainerState === 'stopped'
-        ? `${snapshot.maintainerSession} · stopped`
-        : snapshot.maintainerSession
 
 const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
   snapshot.maintainerState === 'missing' ||

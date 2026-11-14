@@ -947,3 +947,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.f-session-tag .f-avatar,
+.f-pill .f-avatar {
+  margin-right: 5px;
+  vertical-align: -3px;
+}
+.f-lane-head h2 .f-avatar {
+  vertical-align: -4px;
+}
+.f-pill,
+.f-session-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.f-pill .f-avatar,
+.f-session-tag .f-avatar,
+.f-pill .f-urgency-dot {
+  margin-right: 0;
+}

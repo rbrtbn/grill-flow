@@ -60,31 +60,45 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* Pinned rows and the search stay put while the list scrolls under them. */
+.f-sessions-body {
+  padding-top: 0;
+}
+.f-sessions-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 -12px 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
 .f-sessions-controls {
   display: flex;
-  gap: 12px;
-  margin: 16px 4px 0;
-  padding-top: 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
   border-top: 1px solid var(--rule);
-  color: var(--muted);
-  font-size: 13px;
 }
-.f-sessions-controls select {
-  margin-left: 4px;
-  padding: 3px 6px;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
-  font: 400 13px var(--label);
+.f-sessions-controls .f-sessions-search {
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.f-session-row,
-.f-session-recent {
+.f-sessions-controls .f-sessions-search {
+  flex-basis: 120px;
+}
+.f-sessions-controls .f-segmented {
+  flex: none;
+}
+.f-sessions-controls .f-segmented > button {
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.f-session-row {
   padding: 6px 4px;
   border-radius: 6px;
 }
-.f-session-row:hover,
-.f-session-recent:hover {
+.f-session-row:hover {
   background: var(--panel);
 }
 .f-session-row.is-current {
@@ -96,7 +110,10 @@
 }
 .f-session-main {
   display: grid;
-  gap: 2px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -115,17 +132,58 @@
   align-items: center;
   gap: 8px;
 }
+:root {
+  --av-0: #8a5a12;
+  --av-1: #2f6d63;
+  --av-2: #6a4a9c;
+  --av-3: #9a4426;
+  --av-4: #56691f;
+  --av-5: #3c5f8a;
+  --av-6: #8a3f68;
+  --av-7: #5e5a4e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --av-0: #d6a85a;
+    --av-1: #6cc2b4;
+    --av-2: #b49ae0;
+    --av-3: #e38f6c;
+    --av-4: #a9c06a;
+    --av-5: #8fb3e0;
+    --av-6: #dc8fb8;
+    --av-7: #b3ad9c;
+  }
+}
 .f-avatar {
+  --av: var(--ink);
   width: 22px;
   height: 22px;
   flex: none;
   display: inline-grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--ink);
+  background: var(--av);
   color: var(--paper);
   font: 600 12px/1 var(--label);
 }
+.f-avatar.is-small {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+.f-avatar.is-large {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+}
+.f-avatar.is-hue-0 { --av: var(--av-0); }
+.f-avatar.is-hue-1 { --av: var(--av-1); }
+.f-avatar.is-hue-2 { --av: var(--av-2); }
+.f-avatar.is-hue-3 { --av: var(--av-3); }
+.f-avatar.is-hue-4 { --av: var(--av-4); }
+.f-avatar.is-hue-5 { --av: var(--av-5); }
+.f-avatar.is-hue-6 { --av: var(--av-6); }
+.f-avatar.is-hue-7 { --av: var(--av-7); }
 .f-state-dot {
   width: 7px;
   height: 7px;
@@ -152,10 +210,46 @@
   color: var(--muted);
   font: 400 12px/1.4 var(--code);
 }
+.f-session-main > .f-avatar {
+  grid-row: 1 / span 2;
+  align-self: start;
+  margin-top: 1px;
+}
+.f-session-top {
+  min-width: 0;
+}
+.f-session-top b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.f-session-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.f-session-when {
+  color: var(--muted);
+  font: 400 12px/1.4 var(--label);
+  font-variant-numeric: tabular-nums;
+}
+.f-session-new {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ochre);
+  color: var(--paper);
+  font: 600 11px/1.6 var(--label);
+}
+.f-session-row.has-new .f-session-top b {
+  font-weight: 700;
+}
 .f-session-sub {
-  padding-left: 30px;
+  grid-column: 2 / -1;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .f-session-chips {
   display: flex;
@@ -182,14 +276,22 @@
   color: var(--olive);
 }
 .f-session-chip.is-new {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--ochre);
+  color: var(--ochre);
   font-weight: 600;
   cursor: pointer;
 }
+.f-session-row {
+  position: relative;
+}
+.f-session-chips:not(:has(.f-ref, .f-session-chip)) {
+  display: contents;
+}
 .f-pin {
-  margin: 0 0 0 auto;
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  margin: 0;
   padding: 0 6px;
   border: 0;
   background: none;
@@ -343,4 +445,182 @@
     border-right: 0;
     border-bottom: 1px solid var(--rule);
   }
+}
+
+/* Who the thread is with: the same block in the sidebar and on Conversations. */
+.f-identity {
+  flex: none;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.f-identity-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font: 400 13px/1.4 var(--label);
+}
+.f-identity-text > b {
+  font: 600 18px/1.25 var(--read);
+}
+.f-identity-sub {
+  color: var(--muted);
+}
+.f-identity-sub .f-session-address {
+  margin: 0;
+}
+.f-identity-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.f-identity-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.f-identity-state.is-running {
+  color: var(--olive);
+}
+.f-identity-state.is-closed,
+.f-identity-state.is-done {
+  color: var(--muted);
+}
+.f-identity-work {
+  color: var(--muted);
+}
+.f-identity-profile {
+  color: var(--violet);
+  font-size: 12px;
+}
+
+/* The panel thread in the question page's look: plain lines, yours on the accent wash. */
+.f-discussion.is-in-panel {
+  background: var(--paper);
+}
+.f-discussion.is-in-panel .f-discussion-messages {
+  padding: 12px 16px;
+}
+.f-discussion.is-in-panel .message {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: none;
+}
+.f-discussion.is-in-panel .message.from-you {
+  margin-left: 32px;
+  background: var(--accent-wash);
+}
+.f-discussion.is-in-panel .message-who {
+  margin: 0;
+  color: var(--ink);
+  font: 600 13px/1.4 var(--label);
+}
+.f-discussion.is-in-panel .message-body {
+  font: 400 15px/1.55 var(--read);
+}
+.f-discussion.is-in-panel .f-empty-chat h3 {
+  margin: 0 0 4px;
+  font: 600 16px/1.3 var(--read);
+}
+.f-discussion.is-in-panel .f-empty-chat p {
+  margin: 0;
+  color: var(--muted);
+  font: 400 14px/1.5 var(--read);
+}
+.f-discussion.is-in-panel .f-discussion-compose {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  font: 400 13px/1.4 var(--label);
+}
+.f-discussion.is-in-panel .f-discussion-compose textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  font: 400 15px/1.5 var(--read);
+}
+
+/* Notifications: a bell in the header and its tray, in place of floating toasts. */
+.f-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  anchor-name: --workspace-bell;
+}
+.f-bell:hover {
+  background: var(--panel);
+}
+.f-bell svg {
+  width: 19px;
+  height: 19px;
+}
+.f-bell .f-nav-count {
+  margin-left: 0;
+}
+.f-app-popdown.f-notices {
+  width: min(380px, calc(100vw - 24px));
+}
+@supports (position-anchor: --a) {
+  .f-app-popdown.f-notices {
+    position-anchor: --workspace-bell;
+    top: calc(anchor(bottom) + 6px);
+    right: auto;
+    left: anchor(right);
+    translate: -100% 0;
+  }
+}
+.f-notices-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.f-notices h2 {
+  margin: 0 0 6px;
+  font: 600 17px/1.3 var(--read);
+}
+.f-notices ol {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.f-notice {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 400 13px/1.4 var(--label);
+  text-align: left;
+}
+.f-notice:hover {
+  background: var(--panel);
+}
+.f-notice span {
+  color: var(--muted);
 }

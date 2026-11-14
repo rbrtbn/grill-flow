@@ -3,7 +3,6 @@ import { Url } from 'foldkit'
 import {
   Command,
   Mount,
-  change,
   click,
   expect,
   given,
@@ -20,7 +19,6 @@ import {
   FocusTalkBox,
   Message,
   PageData,
-  RestoreDiscussionPosition,
   RestoreDiscussionScroll,
   init,
   update,
@@ -101,23 +99,11 @@ describe('asking agents in the workspace', () => {
         [FillBox, Message.CompletedFillBox()],
         [RestoreDiscussionScroll, Message.CompletedRestoreDiscussionScroll()],
       ),
-      expect(selector('.f-discussion-head')).toContainText('worker'),
-      change(role('combobox', { name: 'To' }), 'grill-flow'),
-      Command.resolve(
-        RestoreDiscussionPosition,
-        Message.CompletedRestoreDiscussionPosition(),
-      ),
-      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
-      expect(selector('.f-discussion-head')).toContainText('Board · builder'),
-      expect(role('textbox', { name: 'Ask about the board' })).toExist(),
-      expect(role('combobox', { name: 'To' })).toHaveValue('grill-flow'),
-      change(role('combobox', { name: 'To' }), 'step-q1'),
-      Command.resolve(
-        RestoreDiscussionPosition,
-        Message.CompletedRestoreDiscussionPosition(),
-      ),
-      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
       expect(selector('.f-context')).toContainText('Q1'),
+      click(role('button', { name: /^Board/ })),
+      Command.resolve(FocusTalkBox, Message.CompletedFocus()),
+      expect(selector('.f-identity')).toContainText('builder'),
+      expect(role('textbox', { name: 'Ask about the board' })).toExist(),
     )
   })
 })
