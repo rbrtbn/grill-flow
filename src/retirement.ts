@@ -1,6 +1,7 @@
-// Where each part of a page the redesign may retire goes, with t2j5's recommendation
-// (~/.handoffs/2026-11-14-board-retirement-inventory.md). Squad overview renders it read-only;
-// Rob decides. Usage counts come from the preview copy of 2026-11-14 04:35Z (43 boards).
+// Where each part of a page the redesign may retire goes, and the pages it adds, with t2j5's
+// recommendation (~/.handoffs/2026-11-14-board-retirement-inventory.md). Squad overview renders
+// it read-only; Rob decides. Usage counts come from the preview copy of 2026-11-14 04:35Z (43
+// boards).
 
 export type Verdict = 'Already in' | 'Move to' | 'Keep' | 'Drop'
 
@@ -348,7 +349,19 @@ export const RETIRING: ReadonlyArray<RetiringPage> = [
       },
     ],
   },
+  {
+    page: 'Work (new page)',
+    parts: [
+      {
+        part: 'Work page: Timeline with Track rows',
+        status: 'Building',
+        verdict: 'Already in',
+        where: 'Header: Work, next to Runs',
+        why: 'Rob picked the work-flow prototype’s Timeline as the main view, each row opening into that issue’s Track. It shows preview data until agents log each pickup and state change.',
+      },
+    ],
+  },
 ]
 
 export const RETIRING_SUMMARY =
-  'Rob’s decisions so far: Needs you, Updates, What changed and Replies are retired and their parts moved; old links redirect. Answer history became Log, with the sent wording on each question. Runs took the runs table; this page holds the decisions until the redesign is done. Still open: Run overview, All boards, renaming a round and the parked pieces.'
+  'Rob’s decisions so far: Needs you, Updates, What changed and Replies are retired and their parts moved; old links redirect. Answer history became Log, with the sent wording on each question. Runs took the runs table, and Work shows each issue over time; this page holds the decisions until the redesign is done. Still open: Run overview, All boards, renaming a round and the parked pieces.'
