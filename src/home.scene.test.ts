@@ -69,9 +69,11 @@ it('opens Squad overview from the brand and ends it with the retirement list', (
       Message.CompletedLoadCatalog({ result: Result.succeed([]) }),
     ),
     expect(selector('.f-squad-overview h1')).toHaveText('Squad Board'),
-    expect(
-      role('region', { name: 'Retiring: where each part goes' }),
-    ).toContainText('Needs you (old)'),
-    expect(selector('.f-retiring')).toContainText('All boards'),
+    expect(role('region', { name: 'Open for you' })).toContainText(
+      'All boards',
+    ),
+    expect(role('region', { name: 'Redesign decisions' })).toHaveText(
+      /Open for you.*Decided, building.*Done/,
+    ),
   )
 })

@@ -73,7 +73,6 @@ import {
   readyOf,
   threadDraftKey,
 } from './main'
-import { PARKED } from './parked'
 import {
   QUOTE_BOX,
   QUOTE_DRAFT,
@@ -84,7 +83,7 @@ import {
 import { refView } from './refCard'
 import { linkCard, roundCard, sessionCard } from './refCards'
 import { decidedLine, replyOnQuestion, replySession } from './replies'
-import { retirementView } from './retirementView'
+import { decisionPanelView, openDecisions } from './retirementView'
 import {
   heldSendBarView,
   leaveDialogView,
@@ -418,7 +417,7 @@ export const workspaceView = (
                 : model.currentPart === ANSWER_HISTORY
                   ? answerHistoryView(model, snapshot, h)
                   : model.currentPart === SQUAD
-                    ? squadView(model, snapshot, reading, h)
+                    ? squadView(snapshot, h)
                     : model.currentPart === GRILLS
                       ? grillsView(model, snapshot, h)
                       : model.currentPart === REVIEW
@@ -721,7 +720,7 @@ const workspaceHeaderView = (
               destination(NAMES.conversations, CONVERSATIONS, true),
               destination(
                 grill.kind === 'squad'
-                  ? `Squad overview${AsyncData.hasData(model.workspace.catalog) ? ` · ${squadRuns(model, snapshot).length} runs` : ''}`
+                  ? `Squad overview · ${openDecisions()} open decisions`
                   : 'Overview',
                 grill.kind === 'squad' ? SQUAD : 'overview',
                 true,
@@ -816,44 +815,11 @@ const workspaceHeaderView = (
           h.button(
             [
               h.Type('button'),
-              h.Class('text-button f-parked-toggle'),
-              h.Popovertarget('workspace-parked'),
-              h.Title('What this design leaves out for now'),
+              h.Class('text-button f-decisions-link'),
+              h.Title('The redesign’s open decisions, on Squad overview'),
+              h.OnClick(Message.ClickedWorkspacePage({ page: SQUAD })),
             ],
-            [
-              h.span(
-                [h.Class('is-long')],
-                [`Not in this design yet · ${PARKED.length}`],
-              ),
-              h.span(
-                [h.Class('is-short'), h.AriaHidden(true)],
-                [`Not yet · ${PARKED.length}`],
-              ),
-            ],
-          ),
-          h.div(
-            [
-              h.Id('workspace-parked'),
-              h.Popover('auto'),
-              h.Class('f-app-popdown f-parked'),
-              h.Role('dialog'),
-              h.AriaLabel('Not in this design yet'),
-            ],
-            [
-              h.h2([], ['Not in this design yet']),
-              h.p(
-                [h.Class('hint')],
-                [
-                  'Parked by this redesign, not dropped. Say which should come back.',
-                ],
-              ),
-              h.ol(
-                [],
-                PARKED.map(item =>
-                  h.li([], [h.b([], [item.title]), h.p([], [item.detail])]),
-                ),
-              ),
-            ],
+            [`Decisions · ${openDecisions()} open`],
           ),
         ],
       ),
@@ -3587,12 +3553,7 @@ const runsTableSection = (model: Model, snapshot: Snapshot, h: H): Html => {
   )
 }
 
-const squadView = (
-  model: Model,
-  snapshot: Snapshot,
-  reading: Reading,
-  h: H,
-): Html =>
+const squadView = (snapshot: Snapshot, h: H): Html =>
   h.section(
     [h.Class('f-page f-squad-overview')],
     [
@@ -3600,11 +3561,10 @@ const squadView = (
       h.p(
         [h.Class('f-lead')],
         [
-          'Squad overview: active runs, their state, and where your attention is needed.',
+          'The redesign’s decision panel: every page part we retire and every piece this design leaves out, with where it goes. The runs table now lives on Runs.',
         ],
       ),
-      runsTableSection(model, snapshot, h),
-      retirementView(h),
+      decisionPanelView(h),
     ],
   )
 

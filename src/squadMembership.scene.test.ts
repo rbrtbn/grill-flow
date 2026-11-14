@@ -5,9 +5,10 @@ import { readFileSync } from 'node:fs'
 import { it } from 'vitest'
 
 import { Grill, type Snapshot } from './domain'
+import { RUNS } from './inbox'
 import { PageData, init, update } from './main'
 import { view } from './view'
-import { CatalogData, GRILLS, SQUAD } from './workspace'
+import { CatalogData, GRILLS } from './workspace'
 
 const grill = Schema.decodeUnknownSync(Grill)(
   JSON.parse(readFileSync('src/fixtures/grill.json', 'utf8')),
@@ -50,17 +51,17 @@ const workspace = {
 it('lists and counts only this squad membership, independently of the grill kind', () => {
   scene(
     { update, view },
-    given({ ...loaded, workspace, currentPart: SQUAD }),
+    given({ ...loaded, workspace, currentPart: RUNS }),
     expectAll(all.selector('.f-runs-table tbody tr')).toHaveCount(2),
-    expect(selector('.f-squad-overview')).toContainText('joined-run'),
-    expect(selector('.f-squad-overview')).toContainText('joined-decision'),
-    expect(selector('.f-squad-overview')).not.toContainText(
+    expect(selector('.f-runs-table-section')).toContainText('joined-run'),
+    expect(selector('.f-runs-table-section')).toContainText('joined-decision'),
+    expect(selector('.f-runs-table-section')).not.toContainText(
       'buddywise-lead-r1',
     ),
-    expect(selector('.f-squad-overview')).not.toContainText('foreign-member'),
-    expect(
-      selector('.f-app-popdown button[aria-current="page"]'),
-    ).toContainText('2 runs'),
+    expect(selector('.f-runs-table-section')).not.toContainText(
+      'foreign-member',
+    ),
+    expectAll(all.selector('.f-runs-table tbody tr')).toHaveCount(2),
   )
 })
 

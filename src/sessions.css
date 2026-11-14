@@ -331,33 +331,6 @@
   margin-left: 6px;
 }
 
-/* Not in this design yet */
-.f-parked-toggle {
-  color: var(--muted);
-  font-size: 13px;
-  text-decoration: underline dotted;
-}
-.f-app-popdown.f-parked {
-  width: min(460px, calc(100vw - 24px));
-}
-.f-parked h2 {
-  margin: 0 0 4px;
-  font: 600 17px/1.3 var(--read);
-}
-.f-parked ol {
-  margin: 10px 0 0;
-  padding-left: 20px;
-}
-.f-parked li {
-  margin: 0 0 10px;
-}
-.f-parked li p {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 /* With the panel open the header is narrower: keep one line, drop what the panel repeats. */
 .f-topbar-a .f-primary-nav .text-button,
 .f-topbar-a .f-header-actions > * {
@@ -374,27 +347,12 @@
 .has-sessions .f-topbar-a .f-header-actions {
   gap: 8px;
 }
-.f-parked-toggle .is-short {
-  display: none;
-}
 @media (max-width: 1420px) {
-  .has-sessions .f-parked-toggle .is-long {
-    display: none;
-  }
-  .has-sessions .f-parked-toggle .is-short {
-    display: inline;
-  }
   .has-sessions .f-topbar-a .f-primary-nav {
     gap: 0;
   }
 }
 @media (max-width: 1100px) {
-  .f-parked-toggle .is-long {
-    display: none;
-  }
-  .f-parked-toggle .is-short {
-    display: inline;
-  }
 }
 
 /* Conversations: the same panel docked left, the opened conversation in the middle. */
@@ -623,4 +581,12 @@
 }
 .f-notice span {
   color: var(--muted);
+}
+
+/* The header's link to the decision panel. */
+.f-decisions-link {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }

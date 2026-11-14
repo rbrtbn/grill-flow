@@ -3135,3 +3135,28 @@ body[data-gf-preview] .f-workspace {
 .f-log-message {
   margin-top: 4px;
 }
+
+/* Decision panel: open first, then building, then done (folded). */
+.f-decision-group {
+  margin-top: 28px;
+}
+.f-page .f-decision-group > h2,
+.f-decision-group > summary {
+  margin: 0 0 4px;
+  font: 600 20px/1.3 var(--read);
+}
+.f-decision-group > summary {
+  cursor: pointer;
+}
+.f-decision-group.is-open > h2 {
+  padding-top: 10px;
+  border-top: 2px solid var(--ink);
+}
+.f-retiring-group {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font: 500 11px/1.3 var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

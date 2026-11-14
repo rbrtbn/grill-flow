@@ -84,7 +84,7 @@ describe('the question workspace', () => {
         /^Board\s*Inbox.*Questions.*Runs\s*More ▾/,
       ),
       expect(selector('.f-header-actions')).toHaveText(
-        /Sessions.*Review & send.*Not in this design yet/,
+        /Sessions.*Review & send.*Decisions · \d+ open/,
       ),
       click(role('button', { name: 'Updates (old)' })),
       Command.resolve(PushPage, Message.CompletedNavigate()),
