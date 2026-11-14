@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { Schema } from 'effect'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import {
@@ -20,8 +21,23 @@ import { type WriteProvenance, ensureHistory, recordRevision } from './history'
 import { assertPickedOptionsRetained } from './reloadSafety'
 
 export const ROOT = join(import.meta.dir, '..')
+// The service's store sits outside every checkout and release copy; once it exists, a
+// checkout's gf uses it instead of its own data/ (docs/adr/0035).
+export const SERVICE_DB = join(
+  homedir(),
+  '.local',
+  'share',
+  'grill-flow',
+  'data',
+  'grill-flow.sqlite',
+)
 export const DB_PATH =
-  process.env.GF_DB ?? join(ROOT, 'data', 'grill-flow.sqlite')
+  process.env.GF_DB ??
+  (existsSync(SERVICE_DB)
+    ? SERVICE_DB
+    : join(ROOT, 'data', 'grill-flow.sqlite'))
+/** The page token, remote outboxes and maintainer belong to the store they sit beside. */
+export const DATA_DIR = dirname(DB_PATH)
 
 export type EventKind =
   | 'squad-registered'

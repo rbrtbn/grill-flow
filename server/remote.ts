@@ -19,7 +19,7 @@ import { discussionRefs, withoutDiscussions } from './discussions'
 import { pageDrawings, publishDrawing } from './drawings'
 import { readPage } from './squad'
 import {
-  ROOT,
+  DATA_DIR,
   appendEvent,
   decodeGrill,
   events,
@@ -35,7 +35,7 @@ import {
 // them in over hc and writes each grill's state back beside it (docs/adr/0002).
 export type Remote = Readonly<{ machine: string; dir: string }>
 
-const REMOTES_PATH = join(ROOT, 'data', 'remotes.json')
+const REMOTES_PATH = join(DATA_DIR, 'remotes.json')
 const POLL_MS = 5000
 
 export const readRemotes = (): ReadonlyArray<Remote> => {

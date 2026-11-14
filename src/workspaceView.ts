@@ -2510,7 +2510,7 @@ const maintainerWarning = (snapshot: Snapshot, h: H): Html =>
         [
           `${snapshot.maintainerSession} is ${snapshot.maintainerState === 'missing' ? 'no longer in Herdr' : 'not running'}, so messages here will not reach it.`,
           snapshot.grill.session === ''
-            ? ' Restart grill-flow with GF_MAINTAINER_SESSION set to a running session.'
+            ? ' Point it at a running session with `gf maintainer set <address>`.'
             : ` Each undelivered message offers to go to ${snapshot.grill.session} instead.`,
         ],
       )

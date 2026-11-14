@@ -29,11 +29,13 @@ import {
   unconfirmedSends,
 } from './answerReceipts'
 import { attentionSnapshot, focusOwnerStep, requestVeto } from './attention'
+import { SKILL_REVISION } from './authoring'
 import { startBackups } from './backup'
 import { publishedUpdates } from './channel'
 import { dashboard } from './dashboard'
 import { discussionRefs } from './discussions'
 import { pageDrawings, requestDrawing } from './drawings'
+import { readMaintainer, seedMaintainer } from './maintainer'
 import { InvalidSubmissionSource, askMessage, pageMessage } from './messages'
 import { readProviderCommand } from './providerReads'
 import { createReferenceReader } from './referenceReader'
@@ -50,6 +52,7 @@ import {
   sourceText,
 } from './squad'
 import {
+  DATA_DIR,
   DB_PATH,
   ROOT,
   appendEvent,
@@ -68,12 +71,16 @@ const DIST = process.env.GF_DIST ?? join(ROOT, 'dist')
 // Where a page started with ?debug=input ships its input timeline; unset, the route is absent.
 const INPUT_LOG = process.env.GF_INPUT_LOG
 const db = open()
+seedMaintainer(process.env.GF_MAINTAINER_SESSION)
+const VERSION: string = JSON.parse(
+  readFileSync(join(ROOT, 'package.json'), 'utf8'),
+).version
 if (!PREVIEW && process.env.GF_POLL_REMOTES !== '0') startRemotes(db)
-startBackups(DB_PATH, join(dirname(DB_PATH), 'backups'))
+startBackups(DB_PATH, join(DATA_DIR, 'backups'))
 
 // The page's writes need this cookie. SameSite=Strict keeps other sites' pages from sending it, and
-// the token survives restarts so an open tab keeps working.
-const TOKEN_PATH = join(ROOT, 'data', 'token')
+// the token survives restarts and release switches so an open tab keeps working.
+const TOKEN_PATH = join(DATA_DIR, 'token')
 const token = existsSync(TOKEN_PATH)
   ? readFileSync(TOKEN_PATH, 'utf8').trim()
   : (() => {
@@ -258,7 +265,7 @@ const agentFields = (grill: Grill) => {
 }
 
 const maintainerFields = () => {
-  const session = process.env.GF_MAINTAINER_SESSION?.trim() || undefined
+  const session = readMaintainer()
   const state =
     session === undefined || sessionFor(session) === ''
       ? undefined
@@ -280,7 +287,7 @@ const askRecipient = (
     : agentAddressOf(stepId) !== undefined
       ? agentAddressOf(stepId)
       : stepId === GRILL_FLOW_TARGET
-        ? process.env.GF_MAINTAINER_SESSION?.trim() || undefined
+        ? readMaintainer()
         : questionSession(
             grill,
             grill.steps.find(step => step.id === stepId)?.question,
@@ -611,6 +618,13 @@ Bun.serve({
       }
       if (parts[0] === 'api' && parts[1] === 'build' && parts.length === 2) {
         return json({ build: buildId() })
+      }
+      if (parts[0] === 'api' && parts[1] === 'version' && parts.length === 2) {
+        return json({
+          version: VERSION,
+          skillRevision: SKILL_REVISION,
+          build: buildId(),
+        })
       }
       if (parts[0] === 'api' && parts[1] === 'grills' && parts.length === 2) {
         return json(listPages(db))
